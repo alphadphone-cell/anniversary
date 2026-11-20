@@ -24,6 +24,7 @@ const HEART_VERTEX_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uPulse;
   uniform float uBass;
+  uniform float uDim;
   uniform float uPixelRatio;
   uniform float uReducedMotion;
   uniform vec3 uPointerLocal;
@@ -77,9 +78,9 @@ const HEART_VERTEX_SHADER = /* glsl */ `
     gl_Position = projectionMatrix * mvPosition;
 
     float sparkle = 0.72 + 0.28 * sin(uTime * (2.6 + uSupernovaCharge * 6.0) * motion + aPhase);
-    float energyGlow = 0.94 + uPulse * 0.16 + uBass * 0.36 + uSupernovaCharge * 0.58 + uSupernovaBurst * 0.85;
+    float energyGlow = (0.94 + uPulse * 0.16 + uBass * 0.36 + uSupernovaCharge * 0.58 + uSupernovaBurst * 0.85) * (1.0 - uDim * 0.72);
     vColor = aColor * energyGlow;
-    vAlpha = clamp(sparkle + uSupernovaCharge * 0.2, 0.0, 1.0);
+    vAlpha = clamp(sparkle + uSupernovaCharge * 0.2, 0.0, 1.0) * (1.0 - uDim * 0.45);
 
     float atten = 30.0 / max(-mvPosition.z, 2.0);
     gl_PointSize = clamp(aScale * (1.0 + uBass * 0.16 + uSupernovaBurst * 0.35) * uPixelRatio * atten, 1.6, 17.0);
@@ -223,6 +224,7 @@ export function ParticleHeart({
         uTime: { value: 0 },
         uPulse: { value: 0 },
         uBass: { value: 0 },
+        uDim: { value: 0 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
         uReducedMotion: { value: 0 },
         uPointerLocal: { value: new THREE.Vector3(0, 100, 0) },
@@ -395,6 +397,7 @@ export function ParticleHeart({
     material.uniforms.uTime.value = elapsed;
     material.uniforms.uPulse.value = pulse;
     material.uniforms.uBass.value = galaxySignals.bassEnergy;
+    material.uniforms.uDim.value = galaxySignals.galaxyDim;
     material.uniforms.uPixelRatio.value = dpr;
     material.uniforms.uReducedMotion.value = rm;
     material.uniforms.uPointerStrength.value =

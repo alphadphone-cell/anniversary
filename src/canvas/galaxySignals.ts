@@ -17,4 +17,6 @@ export const galaxySignals = {
   supernovaBurst: 0,
   /** True while holding directly on the 3D particle heart (triggers gentle camera zoom-in). */
   isHoldingHeart: false,
+  /** Smoothed [0..1] lower-galaxy dim factor when viewing the upper Constellation Timeline dome. */
+  galaxyDim: 0,
 };

@@ -1,11 +1,19 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useIsTransitionFlashing, useStage } from '../../store/useAppStore';
+import { Orbit, Sparkles } from 'lucide-react';
+import {
+  useAppStore,
+  useIsTransitionFlashing,
+  useStage,
+  useViewMode,
+  type ViewMode,
+} from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
+import { ConstellationCard } from './ConstellationCard';
 
 /** Isolated flash overlay so flashing never re-renders the main HUD or WebGL canvas. */
 function WarpFlashOverlay() {
@@ -32,6 +40,73 @@ function WarpFlashOverlay() {
   );
 }
 
+/** Compact top-right glassmorphism view switcher for Galaxy View / Constellation View. */
+function ViewModeToggle() {
+  const viewMode = useViewMode();
+  const setViewMode = useAppStore((s) => s.setViewMode);
+
+  const handleSelect = useCallback(
+    (next: ViewMode) => {
+      if (next === viewMode) return;
+      sfxEngine.playCelestialChime(next === 'constellation' ? 'up' : 'down');
+      setViewMode(next);
+    },
+    [viewMode, setViewMode]
+  );
+
+  return (
+    <motion.nav
+      key="view-mode-toggle"
+      aria-label="Sky view mode"
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.65, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
+      className="pointer-events-auto glass-surface inline-flex items-center gap-1 rounded-full p-1"
+    >
+      <button
+        type="button"
+        onClick={() => handleSelect('galaxy')}
+        onMouseEnter={() => sfxEngine.playHoverTick()}
+        aria-pressed={viewMode === 'galaxy'}
+        aria-label="Galaxy View"
+        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium sm:px-3.5 ${
+          viewMode === 'galaxy'
+            ? 'glass-active text-starlight'
+            : 'border border-transparent text-lavender hover:text-starlight'
+        }`}
+      >
+        <Orbit
+          className={`h-4 w-4 shrink-0 ${viewMode === 'galaxy' ? 'text-neon-pink' : ''}`}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+        <span className="hidden sm:inline">Galaxy</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => handleSelect('constellation')}
+        onMouseEnter={() => sfxEngine.playHoverTick()}
+        aria-pressed={viewMode === 'constellation'}
+        aria-label="Constellation View"
+        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium sm:px-3.5 ${
+          viewMode === 'constellation'
+            ? 'glass-active text-starlight'
+            : 'border border-transparent text-lavender hover:text-starlight'
+        }`}
+      >
+        <Sparkles
+          className={`h-4 w-4 shrink-0 ${viewMode === 'constellation' ? 'text-neon-pink' : ''}`}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+        <span className="hidden sm:inline">Constellation</span>
+      </button>
+    </motion.nav>
+  );
+}
+
 export function HudOverlay() {
   const stage = useStage();
 
@@ -50,7 +125,7 @@ export function HudOverlay() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col justify-between p-4 sm:p-6">
-      {/* Top Brand Badge — staggered reveal ~0.8s after Galaxy blooms */}
+      {/* Top Bar — staggered reveal ~0.8s after Galaxy blooms */}
       <header className="flex items-start justify-between gap-3">
         <AnimatePresence>
           {stage === 'galaxy' && (
@@ -78,6 +153,8 @@ export function HudOverlay() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
       </header>
 
       {/* Center Stage Overlay (Stage 1 Intro Card) */}
@@ -87,6 +164,7 @@ export function HudOverlay() {
         </AnimatePresence>
       </div>
 
+      <ConstellationCard />
       <ModalShell />
       <WarpFlashOverlay />
     </div>

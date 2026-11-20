@@ -565,6 +565,69 @@ class ProceduralSfxEngine {
     };
   }
 
+  /** Subtle celestial harp chime when gliding between Galaxy View and Constellation View. */
+  public playCelestialChime(direction: 'up' | 'down' = 'up'): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const notes =
+      direction === 'up'
+        ? [587.33, 880.0, 1318.51, 1479.98] // D5 -> A5 -> E6 -> F#6
+        : [1318.51, 880.0, 587.33]; // E6 -> A5 -> D5
+
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.075;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.048 - idx * 0.006, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 1.2);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
+  /** Crisp starlight ping when selecting or stepping through Constellation milestone stars. */
+  public playStarSelect(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    [987.77, 1479.98].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.03;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.044 - idx * 0.014, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 0.56);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
   public dispose(): void {
     this.stopChargeHum();
     this.stopWarpWhoosh();

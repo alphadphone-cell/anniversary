@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { sampleAudioBass } from '../../audio/audioEngine';
+import { useAppStore } from '../../store/useAppStore';
 import { galaxySignals } from '../galaxySignals';
 import { SpiralGalaxy } from './galaxy/SpiralGalaxy';
 import { ParticleHeart } from './galaxy/ParticleHeart';
 import { OrbitingTextPhrases } from './galaxy/OrbitingTextPhrases';
 import { OrbitingNodes } from './galaxy/OrbitingNodes';
 import { StardustTrail } from './galaxy/StardustTrail';
+import { ConstellationSky } from './galaxy/ConstellationSky';
 
 interface LoveGalaxySceneProps {
   active: boolean;
@@ -57,7 +59,15 @@ export function LoveGalaxyScene({
       Math.min(1, dt * 10)
     );
 
-    // 2. Keep pre-mounted LoveGalaxy hidden at micro-scale during Intro/Warp, then bloom radially
+    // 2. Smoothly dim lower galaxy when gazing up at Constellation Timeline
+    const targetDim = active && useAppStore.getState().viewMode === 'constellation' ? 1 : 0;
+    galaxySignals.galaxyDim = THREE.MathUtils.lerp(
+      galaxySignals.galaxyDim,
+      targetDim,
+      Math.min(1, dt * 4.2)
+    );
+
+    // 3. Keep pre-mounted LoveGalaxy hidden at micro-scale during Intro/Warp, then bloom radially
     if (!active) {
       rootRef.current.scale.setScalar(0.0001);
       return;
@@ -96,6 +106,9 @@ export function LoveGalaxyScene({
         <OrbitingTextPhrases reducedMotion={reducedMotion} />
         <OrbitingNodes interactive={active} reducedMotion={reducedMotion} />
       </group>
+
+      {/* Upper Sky Dome Constellation Timeline */}
+      <ConstellationSky active={active} reducedMotion={reducedMotion} />
 
       {/* World-space pooled Stardust Cursor Trail & pointer tracker */}
       <StardustTrail active={active} quality={quality} reducedMotion={reducedMotion} />

@@ -61,6 +61,16 @@ export interface SecretSupernovaConfig {
   signature: string;
 }
 
+export interface ConstellationMilestone {
+  id: string;
+  date: string;
+  title: string;
+  caption: string;
+  image: string;
+  /** 3D position in the upper sky dome forming a romantic celestial arc */
+  position: [number, number, number];
+}
+
 export interface AnniversaryConfig {
   coupleNames: [string, string];
   experienceTitle: string;
@@ -85,6 +95,7 @@ export interface AnniversaryConfig {
   gallery: GalleryMemory[];
   rewards: AnniversaryReward[];
   secretSupernova: SecretSupernovaConfig;
+  constellationMilestones: ConstellationMilestone[];
   audio: {
     trackTitle: string;
     artist: string;
@@ -317,6 +328,65 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     promiseLabel: 'Secret Keepsake · Redeemable for one wish, no questions asked',
     signature: 'Forever in your gravity',
   },
+
+  constellationMilestones: [
+    {
+      id: 'star-first-hello',
+      date: '2024-11-20',
+      title: 'First Spark Under City Lights',
+      caption: 'One rooftop coffee turned into hours of effortless laughter while the skyline glowed below.',
+      image: '/media/memory-01.svg',
+      position: [-6.8, 15.2, -7.2],
+    },
+    {
+      id: 'star-rain-cinema',
+      date: '2025-01-14',
+      title: 'Rain After the Cinema',
+      caption: 'Sharing one neon-lit umbrella along wet streets, hoping the walk home would never end.',
+      image: '/media/memory-01.svg',
+      position: [-4.4, 17.8, -8.4],
+    },
+    {
+      id: 'star-coastal-dawn',
+      date: '2025-04-12',
+      title: 'Coastal Sunrise Drive',
+      caption: 'Salty morning wind, open windows, and watching the first pink horizon break over Phu Yen.',
+      image: '/media/memory-03.svg',
+      position: [-1.7, 16.4, -7.6],
+    },
+    {
+      id: 'star-heart-zenith',
+      date: '2025-08-09',
+      title: 'Midnight Stargazing Promise',
+      caption: 'Lying beneath a clear summer sky, naming our own private constellation for every wish ahead.',
+      image: '/media/puzzle-couple.svg',
+      position: [0.0, 14.3, -6.5],
+    },
+    {
+      id: 'star-one-year',
+      date: '2025-11-20',
+      title: 'First Orbit in Da Lat',
+      caption: 'Lantern light drifting through pine fog as we celebrated our first full year together.',
+      image: '/media/memory-02.svg',
+      position: [2.1, 16.6, -7.8],
+    },
+    {
+      id: 'star-cat-ba',
+      date: '2026-06-03',
+      title: 'Violet Dusk Over the Bay',
+      caption: 'A quiet ferry ride where twilight melted straight into reflections of starlight on calm water.',
+      image: '/media/memory-03.svg',
+      position: [4.8, 17.7, -8.5],
+    },
+    {
+      id: 'star-two-years',
+      date: '2026-11-20',
+      title: 'Two Years in Deep Space',
+      caption: 'Still my favorite co-pilot across every orbit — and our brightest stars are still ahead.',
+      image: '/media/secret-supernova.svg',
+      position: [7.0, 15.1, -7.1],
+    },
+  ],
 
   audio: {
     trackTitle: 'Nocturne in Violet',

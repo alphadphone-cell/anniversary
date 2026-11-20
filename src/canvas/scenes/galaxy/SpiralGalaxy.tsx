@@ -18,6 +18,7 @@ const GALAXY_VERTEX_SHADER = /* glsl */ `
 
   uniform float uTime;
   uniform float uBass;
+  uniform float uDim;
   uniform float uPixelRatio;
   uniform float uReducedMotion;
   uniform vec3 uPointerLocal;
@@ -49,8 +50,9 @@ const GALAXY_VERTEX_SHADER = /* glsl */ `
     float twinkle = 0.72 + 0.28 * sin(uTime * 1.9 * motion + aPhase);
     // Subtle audio-reactive radiance concentrated near the inner core arms
     float radialCore = 1.0 - smoothstep(1.4, 7.5, length(position.xz));
-    vColor = aColor * (1.0 + uBass * (0.14 + radialCore * 0.34));
-    vAlpha = twinkle;
+    float dimFactor = 1.0 - uDim * 0.74;
+    vColor = aColor * (1.0 + uBass * (0.14 + radialCore * 0.34)) * dimFactor;
+    vAlpha = twinkle * (1.0 - uDim * 0.45);
 
     float atten = 28.0 / max(-mvPosition.z, 2.0);
     gl_PointSize = clamp(aScale * (1.0 + uBass * radialCore * 0.18) * uPixelRatio * atten, 1.4, 15.5);
@@ -83,6 +85,7 @@ const FOUNTAIN_VERTEX_SHADER = /* glsl */ `
 
   uniform float uTime;
   uniform float uBass;
+  uniform float uDim;
   uniform float uPixelRatio;
   uniform float uReducedMotion;
 
@@ -122,6 +125,7 @@ const ACCRETION_VERTEX_SHADER = /* glsl */ `
 const ACCRETION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uBass;
+  uniform float uDim;
   varying vec2 vUv;
 
   void main() {
@@ -143,8 +147,8 @@ const ACCRETION_FRAGMENT_SHADER = /* glsl */ `
     vec3 col = mix(innerWhite, midPink, smoothstep(0.32, 0.62, r));
     col = mix(col, outerViolet, smoothstep(0.62, 0.95, r));
 
-    float bassLift = 1.0 + uBass * 0.42;
-    float alpha = (ringBand * 0.92 + innerEdge * outerEdge * (0.42 + 0.28 * swirl)) * outerEdge;
+    float bassLift = (1.0 + uBass * 0.42) * (1.0 - uDim * 0.72);
+    float alpha = (ringBand * 0.92 + innerEdge * outerEdge * (0.42 + 0.28 * swirl)) * outerEdge * (1.0 - uDim * 0.48);
     gl_FragColor = vec4(col * (0.85 + 0.3 * swirl) * bassLift, clamp(alpha, 0.0, 0.96));
   }
 `;
@@ -235,6 +239,7 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
       uniforms: {
         uTime: { value: 0 },
         uBass: { value: 0 },
+        uDim: { value: 0 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
         uReducedMotion: { value: 0 },
         uPointerLocal: { value: new THREE.Vector3(0, 100, 0) },
@@ -294,6 +299,7 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
       uniforms: {
         uTime: { value: 0 },
         uBass: { value: 0 },
+        uDim: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -350,6 +356,7 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
 
     resources.galaxyMat.uniforms.uTime.value = elapsed;
     resources.galaxyMat.uniforms.uBass.value = bass;
+    resources.galaxyMat.uniforms.uDim.value = galaxySignals.galaxyDim;
     resources.galaxyMat.uniforms.uPixelRatio.value = dpr;
     resources.galaxyMat.uniforms.uReducedMotion.value = rm;
     resources.galaxyMat.uniforms.uPointerStrength.value =
@@ -362,6 +369,7 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
 
     resources.accretionMat.uniforms.uTime.value = elapsed * (1 - rm * 0.7);
     resources.accretionMat.uniforms.uBass.value = bass;
+    resources.accretionMat.uniforms.uDim.value = galaxySignals.galaxyDim;
 
     if (accretionRef.current) {
       accretionRef.current.scale.setScalar(1.0 + bass * 0.075);
