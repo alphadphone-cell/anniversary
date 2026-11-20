@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b041c"/>
+      <stop offset="45%" stop-color="#2b0c4e"/>
+      <stop offset="82%" stop-color="#7c1d6f"/>
+      <stop offset="100%" stop-color="#ff3ea5"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff7fd"/>
+      <stop offset="55%" stop-color="#f9a8d4"/>
+      <stop offset="100%" stop-color="#ff3ea5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4c1159"/>
+      <stop offset="100%" stop-color="#070212"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#sky)"/>
+  <!-- Glowing nebula clouds (distinct quadrants for 3x3 puzzle playability) -->
+  <circle cx="145" cy="140" r="120" fill="#8b5cf6" opacity="0.28"/>
+  <circle cx="465" cy="135" r="135" fill="url(#moon)"/>
+  <circle cx="465" cy="135" r="46" fill="#fff5fb"/>
+  <circle cx="480" cy="122" r="36" fill="#3b0f62" opacity="0.22"/>
+  <!-- Constellations -->
+  <g stroke="#f5d0fe" stroke-width="1.5" opacity="0.55" fill="none">
+    <polyline points="75,90 135,115 190,82 230,130"/>
+    <polyline points="310,75 355,105 340,155"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="75" cy="90" r="3.5"/><circle cx="135" cy="115" r="4"/><circle cx="190" cy="82" r="3"/>
+    <circle cx="230" cy="130" r="4.5"/><circle cx="310" cy="75" r="3.5"/><circle cx="355" cy="105" r="3"/>
+    <circle cx="340" cy="155" r="4"/><circle cx="95" cy="215" r="2.5"/><circle cx="525" cy="240" r="3"/>
+    <circle cx="265" cy="185" r="2.5"/><circle cx="410" cy="225" r="2"/>
+  </g>
+  <!-- Distant glowing mountain ridge -->
+  <path d="M0 390 Q110 315 215 365 T435 345 T600 385 L600 420 L0 420 Z" fill="#1b0833"/>
+  <!-- Reflecting lake -->
+  <rect y="395" width="600" height="205" fill="url(#water)"/>
+  <!-- Shimmering moon reflection -->
+  <g fill="#f9a8d4" opacity="0.55">
+    <rect x="425" y="420" width="85" height="5" rx="2.5"/>
+    <rect x="438" y="440" width="62" height="4" rx="2"/>
+    <rect x="448" y="462" width="44" height="4" rx="2"/>
+    <rect x="454" y="485" width="32" height="3" rx="1.5"/>
+    <rect x="460" y="510" width="20" height="3" rx="1.5"/>
+  </g>
+  <!-- Foreground silhouette hill & couple sitting together looking at glowing heart lantern -->
+  <path d="M0 475 Q185 435 340 490 T600 520 L600 600 L0 600 Z" fill="#090315"/>
+  <!-- Floating glowing heart between the couple -->
+  <g transform="translate(260, 268)">
+    <circle cx="0" cy="0" r="48" fill="#ff3ea5" opacity="0.28"/>
+    <path d="M0 24 C-3 21 -28 3 -28 -12 C-28 -22 -20 -29 -11 -29 C-5 -29 -1 -26 0 -21 C1 -26 5 -29 11 -29 C20 -29 28 -22 28 -12 C28 3 3 21 0 24 Z" fill="#ff3ea5"/>
+    <path d="M-11 -20 C-15 -20 -18 -16 -18 -12" stroke="#fff0f8" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.8"/>
+  </g>
+  <!-- Stylized couple silhouettes -->
+  <g fill="#120624" stroke="#d946ef" stroke-width="2" stroke-opacity="0.5">
+    <!-- Left figure -->
+    <circle cx="205" cy="392" r="24"/>
+    <path d="M168 505 C170 442 184 420 208 420 C230 420 242 444 245 505 Z"/>
+    <!-- Right figure leaning gently -->
+    <circle cx="298" cy="402" r="22"/>
+    <path d="M258 505 C262 448 276 428 298 428 C320 428 334 450 338 505 Z"/>
+  </g>
+  <!-- Warm glowing string lights along lower corner -->
+  <path d="M15 545 Q170 578 345 552 T585 568" stroke="#f472b6" stroke-width="2" fill="none" opacity="0.65"/>
+  <g fill="#fde047">
+    <circle cx="70" cy="558" r="5"/><circle cx="155" cy="566" r="5.5"/><circle cx="245" cy="562" r="5"/>
+    <circle cx="345" cy="552" r="5.5"/><circle cx="445" cy="560" r="5"/><circle cx="535" cy="566" r="5"/>
+  </g>
+</svg>

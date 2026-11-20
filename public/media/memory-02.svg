@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 540">
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d0522"/>
+      <stop offset="55%" stop-color="#3b1263"/>
+      <stop offset="100%" stop-color="#db2777"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="540" fill="url(#g2)"/>
+  <circle cx="400" cy="295" r="145" fill="#f9a8d4" opacity="0.22"/>
+  <circle cx="400" cy="295" r="78" fill="#ffe4f4" opacity="0.85"/>
+  <!-- Misty pine hills -->
+  <path d="M0 370 Q190 280 390 345 T800 325 L800 540 L0 540 Z" fill="#1d0936"/>
+  <path d="M0 425 Q260 365 510 425 T800 395 L800 540 L0 540 Z" fill="#0d041d"/>
+  <!-- Floating warm lanterns -->
+  <g fill="#fde047">
+    <rect x="225" y="190" width="22" height="30" rx="8" opacity="0.9"/>
+    <rect x="535" y="150" width="24" height="34" rx="9" opacity="0.9"/>
+    <rect x="330" y="130" width="18" height="25" rx="7" opacity="0.75"/>
+    <rect x="465" y="210" width="20" height="28" rx="8" opacity="0.85"/>
+  </g>
+  <g fill="#ff3ea5" opacity="0.35">
+    <circle cx="236" cy="205" r="28"/><circle cx="547" cy="167" r="32"/>
+    <circle cx="339" cy="142" r="22"/><circle cx="475" cy="224" r="26"/>
+  </g>
+</svg>
