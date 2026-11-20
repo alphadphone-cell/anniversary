@@ -25,4 +25,8 @@ export const galaxySignals = {
   isHoldingHeart: false,
   /** Smoothed [0..1] lower-galaxy dim factor when viewing the upper Constellation Timeline dome. */
   galaxyDim: 0,
+  /** Theatrical focus dim [0..1] during Supernova build-up (0->1) & deep contrast dip on pinpoint freeze. */
+  supernovaAmbientDim: 0,
+  /** Brief [0..1] post-processing bloom spike right at Supernova detonation (~160ms). */
+  supernovaBloomSpike: 0,
 };

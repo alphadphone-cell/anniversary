@@ -252,8 +252,11 @@ class ProceduralSfxEngine {
   }
 
   /**
-   * Beat 2 Detonation: Deep punchy sub-bass boom (62Hz -> 36Hz) + crisp transient crackle
-   * + lush shimmering high-frequency stardust cascade.
+   * Grand Finale Detonation:
+   * 1. Cinematic deep sub-bass drop (50Hz -> 28Hz) + harmonic chest-punch body
+   * 2. Crisp crystalline shatter + white-noise transient burst
+   * 3. Broad cosmic shockwave air sweep
+   * 4. Lush sustained ethereal Dmaj9 shimmer pad lingering through aftermath & finale letter
    */
   public playSupernovaBurst(): void {
     this.cutSupernovaImplosion();
@@ -263,91 +266,172 @@ class ProceduralSfxEngine {
 
     const now = ctx.currentTime;
 
-    // 1. Deep punchy sub-bass boom (64Hz -> 38Hz drop + harmonic body)
+    // 1. Cinematic deep sub-bass drop (50Hz -> 28Hz pitch bend) + subtle 2nd harmonic punch
     const sub = ctx.createOscillator();
+    const subPunch = ctx.createOscillator();
     const subGain = ctx.createGain();
     sub.type = 'sine';
-    sub.frequency.setValueAtTime(64, now);
-    sub.frequency.exponentialRampToValueAtTime(38, now + 0.85);
+    sub.frequency.setValueAtTime(50, now);
+    sub.frequency.exponentialRampToValueAtTime(28, now + 1.45);
+
+    subPunch.type = 'triangle';
+    subPunch.frequency.setValueAtTime(102, now);
+    subPunch.frequency.exponentialRampToValueAtTime(44, now + 0.42);
+    const punchGain = ctx.createGain();
+    punchGain.gain.setValueAtTime(0.0001, now);
+    punchGain.gain.linearRampToValueAtTime(0.18, now + 0.008);
+    punchGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
 
     subGain.gain.setValueAtTime(0.0001, now);
-    subGain.gain.linearRampToValueAtTime(0.36, now + 0.014);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.55);
+    subGain.gain.linearRampToValueAtTime(0.42, now + 0.012);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.05);
 
     sub.connect(subGain);
     subGain.connect(this.masterGain);
+    subPunch.connect(punchGain);
+    punchGain.connect(this.masterGain);
+
     sub.start(now);
-    sub.stop(now + 1.6);
+    sub.stop(now + 2.1);
+    subPunch.start(now);
+    subPunch.stop(now + 0.5);
     sub.onended = () => {
       sub.disconnect();
       subGain.disconnect();
+      subPunch.disconnect();
+      punchGain.disconnect();
     };
 
-    // 2. Crisp transient crackle burst right at detonation (0 -> 90ms)
+    // 2. Crisp crystalline shatter + white-noise burst right at whiteout impact (0 -> 220ms)
     const crackle = ctx.createBufferSource();
     crackle.buffer = this.getNoiseBuffer(ctx);
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
-    hp.frequency.setValueAtTime(3200, now);
+    hp.frequency.setValueAtTime(3400, now);
 
     const cGain = ctx.createGain();
     cGain.gain.setValueAtTime(0.0001, now);
-    cGain.gain.linearRampToValueAtTime(0.24, now + 0.006);
-    cGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    cGain.gain.linearRampToValueAtTime(0.28, now + 0.005);
+    cGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
     crackle.connect(hp);
     hp.connect(cGain);
     cGain.connect(this.masterGain);
     crackle.start(now);
-    crackle.stop(now + 0.16);
+    crackle.stop(now + 0.25);
     crackle.onended = () => {
       crackle.disconnect();
       hp.disconnect();
       cGain.disconnect();
     };
 
+    // Sparkling glass-crystal shatter micro-partials (2.6kHz - 5.2kHz)
+    const shards = [2637.02, 3135.96, 3951.07, 4698.63, 5274.04];
+    shards.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      const t0 = now + 0.006 + i * 0.022;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.04, t0 + 0.28);
+
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.042, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.36);
+
+      osc.connect(g);
+      g.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+      osc.onended = () => {
+        osc.disconnect();
+        g.disconnect();
+      };
+    });
+
     // 3. Broad cosmic shockwave air sweep
     const sweep = ctx.createBufferSource();
     sweep.buffer = this.getNoiseBuffer(ctx);
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.setValueAtTime(900, now);
-    bp.frequency.exponentialRampToValueAtTime(4200, now + 0.85);
-    bp.Q.setValueAtTime(1.1, now);
+    bp.frequency.setValueAtTime(720, now);
+    bp.frequency.exponentialRampToValueAtTime(3800, now + 1.05);
+    bp.Q.setValueAtTime(1.0, now);
 
     const sGain = ctx.createGain();
     sGain.gain.setValueAtTime(0.0001, now);
-    sGain.gain.linearRampToValueAtTime(0.16, now + 0.04);
-    sGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.85);
+    sGain.gain.linearRampToValueAtTime(0.18, now + 0.035);
+    sGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.15);
 
     sweep.connect(bp);
     bp.connect(sGain);
     sGain.connect(this.masterGain);
     sweep.start(now);
-    sweep.stop(now + 1.9);
+    sweep.stop(now + 2.2);
     sweep.onended = () => {
       sweep.disconnect();
       bp.disconnect();
       sGain.disconnect();
     };
 
-    // 4. Lush shimmering high-frequency stardust cascade across the 1.3s aftermath
-    const cascade = [587.33, 880.0, 1174.66, 1479.98, 1760.0, 2217.46, 2637.02, 2959.96, 3520.0];
+    // 4. Lush sustained ethereal Dmaj9 shimmer pad (lingers ~6.2s through aftermath & finale modal)
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.setValueAtTime(620, now + 0.08);
+    padFilter.frequency.exponentialRampToValueAtTime(2800, now + 1.5);
+    padFilter.frequency.exponentialRampToValueAtTime(1100, now + 6.2);
+
+    const padMaster = ctx.createGain();
+    padMaster.gain.setValueAtTime(0.0001, now + 0.06);
+    padMaster.gain.linearRampToValueAtTime(0.135, now + 0.65);
+    padMaster.gain.setValueAtTime(0.135, now + 2.6);
+    padMaster.gain.exponentialRampToValueAtTime(0.0001, now + 6.4);
+
+    padFilter.connect(padMaster);
+    padMaster.connect(this.masterGain);
+
+    // D3, A3, F#4, C#5, E5, A5 (ethereal major-9th voicing with gentle detune warmth)
+    const padNotes = [146.83, 220.0, 369.99, 554.37, 659.25, 880.0];
+    padNotes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const vGain = ctx.createGain();
+      osc.type = idx < 2 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now + 0.06);
+      osc.detune.setValueAtTime((idx % 2 === 0 ? 1 : -1) * (4 + idx * 1.4), now + 0.06);
+
+      vGain.gain.setValueAtTime(idx < 2 ? 0.24 : 0.14, now + 0.06);
+      osc.connect(vGain);
+      vGain.connect(padFilter);
+
+      osc.start(now + 0.06);
+      osc.stop(now + 6.5);
+      osc.onended = () => {
+        osc.disconnect();
+        vGain.disconnect();
+        if (idx === padNotes.length - 1) {
+          padFilter.disconnect();
+          padMaster.disconnect();
+        }
+      };
+    });
+
+    // 5. Shimmering high-register stardust cascade twinkling over the first 2.2s
+    const cascade = [587.33, 880.0, 1174.66, 1318.51, 1479.98, 1760.0, 2217.46, 2637.02, 2959.96];
     cascade.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const t0 = now + 0.03 + idx * 0.075;
+      const t0 = now + 0.06 + idx * 0.09;
       osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.056 - idx * 0.004, t0 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.85);
+      gain.gain.linearRampToValueAtTime(0.052 - idx * 0.0035, t0 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.2);
 
       osc.connect(gain);
       gain.connect(this.masterGain!);
       osc.start(t0);
-      osc.stop(t0 + 1.95);
+      osc.stop(t0 + 2.3);
       osc.onended = () => {
         osc.disconnect();
         gain.disconnect();

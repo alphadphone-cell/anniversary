@@ -11,6 +11,7 @@ interface AppState {
   selectedMilestoneId: string | null;
   isMuted: boolean;
   isTransitionFlashing: boolean;
+  supernovaFlashKey: number;
   setStage: (stage: AppStage) => void;
   setViewMode: (mode: ViewMode) => void;
   toggleViewMode: () => void;
@@ -22,6 +23,7 @@ interface AppState {
   setMuted: (muted: boolean) => void;
   toggleMuted: () => void;
   setTransitionFlashing: (flashing: boolean) => void;
+  triggerSupernovaFlash: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -31,6 +33,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedMilestoneId: null,
   isMuted: false,
   isTransitionFlashing: false,
+  supernovaFlashKey: 0,
 
   setStage: (stage) => set({ stage }),
 
@@ -74,6 +77,7 @@ export const useAppStore = create<AppState>((set) => ({
   toggleMuted: () => set((state) => ({ isMuted: !state.isMuted })),
 
   setTransitionFlashing: (isTransitionFlashing) => set({ isTransitionFlashing }),
+  triggerSupernovaFlash: () => set((state) => ({ supernovaFlashKey: state.supernovaFlashKey + 1 })),
 }));
 
 /** Atomic selector hooks so UI updates never trigger unnecessary WebGL Canvas re-renders. */
@@ -83,3 +87,4 @@ export const useActiveModal = () => useAppStore((s) => s.activeModal);
 export const useSelectedMilestoneId = () => useAppStore((s) => s.selectedMilestoneId);
 export const useIsMuted = () => useAppStore((s) => s.isMuted);
 export const useIsTransitionFlashing = () => useAppStore((s) => s.isTransitionFlashing);
+export const useSupernovaFlashKey = () => useAppStore((s) => s.supernovaFlashKey);

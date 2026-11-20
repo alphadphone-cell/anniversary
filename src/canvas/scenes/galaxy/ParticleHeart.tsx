@@ -14,14 +14,15 @@ interface ParticleHeartProps {
 }
 
 const HEART_PARTICLES = 2200;
-const ENERGY_RAY_COUNT = 44;
+const ENERGY_RAY_COUNT = 36;
+const FINALE_RAIN_COUNT = 520;
 const HEART_BASE_Y = 4.25;
 const MORPH_DURATION = 2.8;
 
-// 3-Beat Secret Supernova Timing
-const IMPLOSION_END_SEC = 2.85; // Beat 1: isotropic implosion + converging beams
-const FREEZE_END_SEC = 3.0; // Beat 1b: 150ms razor-sharp breath-hold vacuum freeze
-const MODAL_DELAY_MS = 1320; // Beat 3: wait ~1.3s after detonation so full shockwave plays uninterrupted
+// 3-Beat Grand Finale Supernova Timing
+const IMPLOSION_END_SEC = 2.88; // Beat 1: isotropic implosion + converging beams
+const FREEZE_END_SEC = 3.0; // Beat 1b: 120ms razor-sharp pinpoint freeze + ambient contrast dip
+const MODAL_DELAY_MS = 1600; // Beat 3: wait ~1.6s after whiteout peak so full shockwave + stardust rain shine
 const DRAG_CANCEL_PX_SQ = 14 * 14;
 
 const HEART_VERTEX_SHADER = /* glsl */ `
@@ -150,18 +151,20 @@ const HEART_VERTEX_SHADER = /* glsl */ `
       singularityGlow = pow(c, 1.35) * 1.4 + uSupernovaFreeze * 0.9;
     }
 
-    // BEAT 2 & 3: 360° Explosive Detonation with Exponential Air-Drag -> Glittering Shower -> Reformation
+    // BEAT 2 & 3: Explosive 360° Detonation -> Rapid Exponential Air-Drag -> Slow-Motion Weightless Drift -> Reformation
     float detGlow = 0.0;
+    float finaleWarm = 0.0;
     if (uDetonateTime >= 0.0) {
-      // Fast violent burst slowing smoothly via exponential air-drag (1 - e^-kt)
-      float dragExpand = 1.0 - exp(-uDetonateTime * 4.2);
-      float burstRadius = (8.5 + aRandom * 7.2) * dragExpand;
+      // Violent initial velocity transitioning into dramatic slow-motion suspension
+      float dragExpand = 1.0 - exp(-uDetonateTime * 4.8);
+      float slowFloat = log(1.0 + uDetonateTime * 0.75) * 0.85;
+      float burstRadius = (7.8 + aRandom * 7.6) * dragExpand + slowFloat;
 
-      // Subtle glittering drift while suspended in the aftermath shower
+      // Weightless slow-motion ember drift across viewport
       vec3 drift = vec3(
-        sin(uTime * 1.6 + aPhase) * 0.35,
-        -0.14 * min(uDetonateTime, 3.0) + cos(uTime * 1.3 + aPhase) * 0.25,
-        cos(uTime * 1.5 + aPhase) * 0.35
+        sin(uTime * 0.65 + aPhase) * 0.58,
+        -0.16 * min(uDetonateTime, 6.0) + cos(uTime * 0.52 + aPhase * 1.4) * 0.36,
+        cos(uTime * 0.6 + aPhase) * 0.52
       ) * dragExpand;
 
       vec3 explodedPos = heartCenter + aBurstDir * burstRadius + drift;
@@ -170,9 +173,11 @@ const HEART_VERTEX_SHADER = /* glsl */ `
       float rf = uReformFactor * uReformFactor * (3.0 - 2.0 * uReformFactor);
       pos = mix(explodedPos, targetPos, rf);
 
-      float initFlash = exp(-uDetonateTime * 2.8);
-      detGlow = (initFlash * 1.7 + (1.0 - rf) * 0.45);
-      sparkBoost = max(sparkBoost, initFlash * 1.35);
+      float initFlash = exp(-uDetonateTime * 2.6);
+      float slowTwinkle = 0.62 + 0.38 * sin(uTime * (2.2 + aRandom * 3.4) + aPhase * 2.0);
+      detGlow = initFlash * 1.85 + (1.0 - rf) * (0.48 * slowTwinkle);
+      finaleWarm = (1.0 - rf) * smoothstep(0.15, 0.9, uDetonateTime) * (0.35 + aRandom * 0.45);
+      sparkBoost = max(sparkBoost, initFlash * 1.45 + (1.0 - rf) * 0.42 * slowTwinkle);
     }
 
     // GPU Cursor Gravity Pull (active during idle heart state)
@@ -197,8 +202,10 @@ const HEART_VERTEX_SHADER = /* glsl */ `
       (0.94 + uPulse * 0.16 + uBass * 0.36 + lockPulse * 0.78 + singularityGlow + detGlow) * dimMul;
 
     vec3 starHighlight = vec3(1.92, 1.55, 1.88);
+    vec3 champagneGold = vec3(1.82, 1.52, 0.98);
     float hotMix = clamp(sparkBoost * 0.62 + singularityGlow * 0.45 + detGlow * 0.4, 0.0, 0.85);
-    vColor = mix(aColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
+    vec3 baseCol = mix(aColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
+    vColor = mix(baseCol, champagneGold * (1.0 + detGlow * 0.35), finaleWarm * 0.52);
     vAlpha = clamp(sparkle + sparkBoost * 0.35 + lockPulse * 0.28 + singularityGlow * 0.4, 0.0, 1.0) * (1.0 - uDim * 0.45);
     vSparkBoost = sparkBoost;
 
@@ -271,17 +278,17 @@ const RAYS_VERTEX_SHADER = /* glsl */ `
       alpha = fadeNear * fadeFar * mix(1.0, 0.08, aEnd) * smoothstep(0.02, 0.22, uCharge) * vanishAtCap;
       col = mix(vec3(1.95, 1.65, 2.0), vec3(1.45, 0.28, 1.05), aEnd);
     }
-    // Beat 2: 360° Supernova explosive light-ray streaks with exponential air-drag
-    else if (uDetonateTime >= 0.0 && uDetonateTime < 1.35) {
+    // Beat 2: 36 Elongated Radial Supernova Light Rays blasting 360° outward
+    else if (uDetonateTime >= 0.0 && uDetonateTime < 1.65) {
       float t = uDetonateTime;
-      float headR = 0.25 + (14.5 + aLen * 4.5) * (1.0 - exp(-t * 4.6));
-      float tailLag = (3.4 + aLen * 2.6) * exp(-t * 2.2);
+      float headR = 0.3 + (17.5 + aLen * 6.0) * (1.0 - exp(-t * 4.4));
+      float tailLag = (4.6 + aLen * 3.4) * exp(-t * 1.75);
       float r = max(0.05, headR - aEnd * tailLag);
 
       pos = center + aDir * r;
-      float env = exp(-t * 2.35) * smoothstep(0.0, 0.03, t);
-      alpha = env * mix(1.0, 0.04, aEnd);
-      col = mix(vec3(2.0, 1.85, 2.0), vec3(1.65, 0.3, 1.05), aEnd);
+      float env = exp(-t * 1.95) * smoothstep(0.0, 0.025, t);
+      alpha = env * mix(1.0, 0.05, aEnd);
+      col = mix(vec3(2.2, 2.02, 1.65), vec3(1.75, 0.32, 1.12), aEnd);
     }
 
     vAlpha = alpha;
@@ -311,6 +318,7 @@ const SHOCKWAVE_VERTEX_SHADER = /* glsl */ `
 const SHOCKWAVE_FRAGMENT_SHADER = /* glsl */ `
   uniform float uProgress;
   uniform float uOpacity;
+  uniform float uVariant;
   varying vec2 vUv;
 
   void main() {
@@ -319,18 +327,122 @@ const SHOCKWAVE_FRAGMENT_SHADER = /* glsl */ `
     float r = length(p);
     if (r > 1.0) discard;
 
-    // Crisp glowing expanding shockwave ring with white-hot core to magenta rim
-    float ringPos = 0.12 + uProgress * 0.84;
-    float width = mix(0.065, 0.032, uProgress);
+    float ringPos = mix(0.08, 0.94, uProgress);
+    // Variant 0 = thick luminous primary wave (white-hot core + gold/magenta rims)
+    // Variant 1 = delayed secondary ripple (broader, softer rose-gold dispersion)
+    float width = uVariant < 0.5
+      ? mix(0.115, 0.052, uProgress)
+      : mix(0.145, 0.075, uProgress);
     float ring = exp(-pow((r - ringPos) / width, 2.0));
-    float innerTrail = smoothstep(ringPos - 0.22, ringPos, r) * step(r, ringPos) * 0.26;
+    float hotCore = exp(-pow((r - ringPos) / (width * 0.36), 2.0));
+    float innerTrail = smoothstep(ringPos - 0.34, ringPos, r) * step(r, ringPos) * (uVariant < 0.5 ? 0.36 : 0.28);
 
-    vec3 whiteHot = vec3(2.0, 1.88, 2.0);
-    vec3 magentaEdge = vec3(1.45, 0.25, 0.98);
-    vec3 col = mix(magentaEdge, whiteHot, ring * (1.0 - uProgress * 0.45));
+    vec3 whiteHot = vec3(2.35, 2.22, 2.15);
+    vec3 goldRim = vec3(1.95, 1.48, 0.82);
+    vec3 magentaEdge = uVariant < 0.5 ? vec3(1.65, 0.26, 1.05) : vec3(1.32, 0.45, 1.42);
 
-    float alpha = (ring + innerTrail) * uOpacity;
+    vec3 col = mix(magentaEdge, goldRim, smoothstep(0.15, 0.85, ring));
+    col = mix(col, whiteHot, hotCore * (1.0 - uProgress * 0.35));
+
+    float alpha = (ring + hotCore * 0.55 + innerTrail) * uOpacity;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+const NEBULA_FRAGMENT_SHADER = /* glsl */ `
+  uniform float uTime;
+  uniform float uIntensity;
+  varying vec2 vUv;
+
+  void main() {
+    if (uIntensity <= 0.004) discard;
+    vec2 p = (vUv - 0.5) * 2.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    // Breathing multi-lobe rose-gold & magenta nebula afterglow
+    float ang = atan(p.y, p.x);
+    float wisp = 0.86 + 0.14 * sin(ang * 3.0 + uTime * 0.45) * cos(ang * 2.0 - uTime * 0.32);
+    float breath = 0.9 + 0.1 * sin(uTime * 1.25);
+
+    float coreGlow = exp(-r * r * 5.2) * 0.65;
+    float roseCloud = pow(max(0.0, 1.0 - r / wisp), 2.35) * 0.58;
+    float goldRing = exp(-pow((r - 0.32) / 0.24, 2.0)) * 0.32;
+
+    vec3 rose = vec3(1.28, 0.36, 0.88);
+    vec3 gold = vec3(1.52, 1.12, 0.68);
+    vec3 whiteCore = vec3(1.75, 1.48, 1.62);
+
+    vec3 col = rose * roseCloud + gold * goldRing + whiteCore * coreGlow;
+    float alpha = clamp((coreGlow + roseCloud + goldRing) * uIntensity * breath, 0.0, 0.92);
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+const FINALE_RAIN_VERTEX_SHADER = /* glsl */ `
+  attribute float aScale;
+  attribute float aPhase;
+  attribute float aSpeed;
+  attribute vec3 aColor;
+
+  uniform float uTime;
+  uniform float uVisibility;
+  uniform float uPixelRatio;
+  uniform float uReducedMotion;
+
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  void main() {
+    if (uVisibility <= 0.004) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      vAlpha = 0.0;
+      vColor = aColor;
+      return;
+    }
+
+    float motion = 1.0 - uReducedMotion;
+    vec3 pos = position;
+
+    // Weightless slow-motion downward drift wrapping across the full viewport volume
+    float fall = mod(pos.y - uTime * aSpeed * 0.42 * motion + 7.5, 17.0) - 7.5;
+    pos.y = fall;
+    pos.x += sin(uTime * 0.45 * motion + aPhase) * 0.68;
+    pos.z += cos(uTime * 0.38 * motion + aPhase * 1.3) * 0.48;
+
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+
+    float twinkle = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(uTime * (2.4 + aSpeed * 2.2) * motion + aPhase * 4.0), 1.6);
+    float edgeFade = smoothstep(-7.5, -5.2, pos.y) * (1.0 - smoothstep(7.2, 9.5, pos.y));
+    vColor = aColor * (0.95 + twinkle * 0.55);
+    vAlpha = uVisibility * twinkle * edgeFade;
+
+    float atten = 28.0 / max(-mvPosition.z, 2.5);
+    gl_PointSize = clamp(aScale * (0.85 + twinkle * 0.45) * uPixelRatio * atten, 1.5, 14.0);
+  }
+`;
+
+const FINALE_RAIN_FRAGMENT_SHADER = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  void main() {
+    if (vAlpha <= 0.004) discard;
+    vec2 uv = gl_PointCoord - vec2(0.5);
+    float dist = length(uv);
+    if (dist > 0.5) discard;
+
+    float core = exp(-dist * dist * 22.0);
+    float crossSpark = max(
+      exp(-abs(uv.x) * 26.0) * exp(-abs(uv.y) * 5.5),
+      exp(-abs(uv.y) * 26.0) * exp(-abs(uv.x) * 5.5)
+    ) * 0.55;
+    float halo = smoothstep(0.5, 0.08, dist) * 0.38;
+
+    float alpha = clamp((core + crossSpark + halo) * vAlpha, 0.0, 1.0);
+    gl_FragColor = vec4(vColor * (core * 1.3 + crossSpark + halo * 0.75), alpha);
   }
 `;
 
@@ -379,10 +491,12 @@ export function ParticleHeart({
   const heartGroupRef = useRef<THREE.Group>(null);
   const shockRingARef = useRef<THREE.Mesh>(null);
   const shockRingBRef = useRef<THREE.Mesh>(null);
+  const nebulaRef = useRef<THREE.Mesh>(null);
 
   // Pre-allocated math objects (ZERO per-frame allocations)
   const invMatrixRef = useRef(new THREE.Matrix4());
   const localPointerRef = useRef(new THREE.Vector3());
+  const lastHudDimRef = useRef(0);
 
   // Initial 3-phase morph timeline refs (wall-clock synced to Web Audio)
   const morphTimeRef = useRef(0);
@@ -585,12 +699,12 @@ export function ParticleHeart({
       blending: THREE.AdditiveBlending,
     });
 
-    // Two expanding 3D additive shockwave rings
-    const shockGeo = new THREE.PlaneGeometry(24, 24);
+    // Two multi-layered expanding 3D additive shockwave rings (Primary + Delayed Secondary Ripple)
+    const shockGeo = new THREE.PlaneGeometry(34, 34);
     const shockMatA = new THREE.ShaderMaterial({
       vertexShader: SHOCKWAVE_VERTEX_SHADER,
       fragmentShader: SHOCKWAVE_FRAGMENT_SHADER,
-      uniforms: { uProgress: { value: 0 }, uOpacity: { value: 0 } },
+      uniforms: { uProgress: { value: 0 }, uOpacity: { value: 0 }, uVariant: { value: 0 } },
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -599,7 +713,7 @@ export function ParticleHeart({
     const shockMatB = new THREE.ShaderMaterial({
       vertexShader: SHOCKWAVE_VERTEX_SHADER,
       fragmentShader: SHOCKWAVE_FRAGMENT_SHADER,
-      uniforms: { uProgress: { value: 0 }, uOpacity: { value: 0 } },
+      uniforms: { uProgress: { value: 0 }, uOpacity: { value: 0 }, uVariant: { value: 1 } },
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -607,11 +721,76 @@ export function ParticleHeart({
     });
 
     // Blinding pinpoint singularity core & detonation flash sprite
-    const singularityGeo = new THREE.PlaneGeometry(5.2, 5.2);
+    const singularityGeo = new THREE.PlaneGeometry(5.6, 5.6);
     const singularityMat = new THREE.ShaderMaterial({
       vertexShader: SHOCKWAVE_VERTEX_SHADER,
       fragmentShader: SINGULARITY_FRAGMENT_SHADER,
       uniforms: { uIntensity: { value: 0 }, uSharpness: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Lingering Rose-Gold Nebula Afterglow halo in the detonated center
+    const nebulaGeo = new THREE.PlaneGeometry(13.5, 13.5);
+    const nebulaMat = new THREE.ShaderMaterial({
+      vertexShader: SHOCKWAVE_VERTEX_SHADER,
+      fragmentShader: NEBULA_FRAGMENT_SHADER,
+      uniforms: { uTime: { value: 0 }, uIntensity: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Object-pooled Grand Finale Particle Rain (warm champagne gold, rose pink, twinkling white starlight)
+    const rainPos = new Float32Array(FINALE_RAIN_COUNT * 3);
+    const rainScale = new Float32Array(FINALE_RAIN_COUNT);
+    const rainPhase = new Float32Array(FINALE_RAIN_COUNT);
+    const rainSpeed = new Float32Array(FINALE_RAIN_COUNT);
+    const rainCol = new Float32Array(FINALE_RAIN_COUNT * 3);
+
+    const cChampagne = new THREE.Color('#fde68a');
+    const cRoseRain = new THREE.Color('#ff74c6');
+    const cStarWhite = new THREE.Color('#fff9fe');
+
+    for (let i = 0; i < FINALE_RAIN_COUNT; i++) {
+      const i3 = i * 3;
+      rainPos[i3] = (rand() - 0.5) * 28.0;
+      rainPos[i3 + 1] = -7.5 + rand() * 17.0;
+      rainPos[i3 + 2] = -9.0 + rand() * 17.0;
+      rainScale[i] = 0.65 + rand() * 1.45;
+      rainPhase[i] = rand() * Math.PI * 2;
+      rainSpeed[i] = 0.55 + rand() * 1.15;
+
+      const pick = rand();
+      if (pick < 0.42) {
+        tmp.copy(cChampagne);
+      } else if (pick < 0.78) {
+        tmp.copy(cRoseRain);
+      } else {
+        tmp.copy(cStarWhite);
+      }
+      rainCol[i3] = tmp.r;
+      rainCol[i3 + 1] = tmp.g;
+      rainCol[i3 + 2] = tmp.b;
+    }
+
+    const finaleRainGeo = new THREE.BufferGeometry();
+    finaleRainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    finaleRainGeo.setAttribute('aScale', new THREE.BufferAttribute(rainScale, 1));
+    finaleRainGeo.setAttribute('aPhase', new THREE.BufferAttribute(rainPhase, 1));
+    finaleRainGeo.setAttribute('aSpeed', new THREE.BufferAttribute(rainSpeed, 1));
+    finaleRainGeo.setAttribute('aColor', new THREE.BufferAttribute(rainCol, 3));
+
+    const finaleRainMat = new THREE.ShaderMaterial({
+      vertexShader: FINALE_RAIN_VERTEX_SHADER,
+      fragmentShader: FINALE_RAIN_FRAGMENT_SHADER,
+      uniforms: {
+        uTime: { value: 0 },
+        uVisibility: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        uReducedMotion: { value: 0 },
+      },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -634,6 +813,10 @@ export function ParticleHeart({
       shockMatB,
       singularityGeo,
       singularityMat,
+      nebulaGeo,
+      nebulaMat,
+      finaleRainGeo,
+      finaleRainMat,
       hitGeo,
       hitMat,
     };
@@ -707,6 +890,10 @@ export function ParticleHeart({
           window.clearTimeout(modalTimerRef.current);
           modalTimerRef.current = null;
         }
+        galaxySignals.supernovaAmbientDim = 0;
+        galaxySignals.supernovaBloomSpike = 0;
+        lastHudDimRef.current = 0;
+        document.documentElement.style.setProperty('--supernova-hud-dim', '0');
         if (snPhaseRef.current === 'imploding' || snPhaseRef.current === 'freezing') {
           snPhaseRef.current = 'idle';
           galaxySignals.isHoldingHeart = false;
@@ -735,6 +922,7 @@ export function ParticleHeart({
   useEffect(() => {
     const clamped = THREE.MathUtils.clamp(quality, 0.6, 1);
     resources.heartGeo.setDrawRange(0, Math.floor(HEART_PARTICLES * clamped));
+    resources.finaleRainGeo.setDrawRange(0, Math.floor(FINALE_RAIN_COUNT * clamped));
   }, [quality, resources]);
 
   useEffect(() => {
@@ -751,6 +939,10 @@ export function ParticleHeart({
       resources.shockMatB.dispose();
       resources.singularityGeo.dispose();
       resources.singularityMat.dispose();
+      resources.nebulaGeo.dispose();
+      resources.nebulaMat.dispose();
+      resources.finaleRainGeo.dispose();
+      resources.finaleRainMat.dispose();
       resources.hitGeo.dispose();
       resources.hitMat.dispose();
       if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
@@ -760,7 +952,10 @@ export function ParticleHeart({
       galaxySignals.supernovaDetonateTime = -1;
       galaxySignals.supernovaShake = 0;
       galaxySignals.supernovaFovKick = 0;
+      galaxySignals.supernovaAmbientDim = 0;
+      galaxySignals.supernovaBloomSpike = 0;
       galaxySignals.isHoldingHeart = false;
+      document.documentElement.style.setProperty('--supernova-hud-dim', '0');
     };
   }, [cancelImplosion, resources]);
 
@@ -810,7 +1005,7 @@ export function ParticleHeart({
     resources.heartMat.uniforms.uActive.value = 1;
     resources.heartMat.uniforms.uMorphTime.value = morphTimeRef.current;
 
-    // ─── 3-BEAT SECRET SUPERNOVA STATE MACHINE ───
+    // ─── 3-BEAT GRAND FINALE SUPERNOVA STATE MACHINE ───
     const phase = snPhaseRef.current;
     let reformFactor = 0;
     let singularityIntensity = 0;
@@ -819,6 +1014,10 @@ export function ParticleHeart({
     let shockOpA = 0;
     let shockProgB = 0;
     let shockOpB = 0;
+    let nebulaIntensity = 0;
+    let finaleRainVis = 0;
+    let targetAmbientDim = 0;
+    let targetHudDim = 0;
 
     if (phase === 'imploding') {
       const holdSec = (nowMs - holdStartMsRef.current) / 1000;
@@ -826,10 +1025,15 @@ export function ParticleHeart({
       galaxySignals.supernovaCharge = charge;
       galaxySignals.supernovaFreeze = 0;
       galaxySignals.supernovaDetonateTime = -1;
+      galaxySignals.supernovaBloomSpike = 0;
+
+      // Theatrical Focus: smoothly dim HUD & surrounding 3D text as charge builds 0% -> 100%
+      targetAmbientDim = Math.pow(charge, 1.15) * 0.68;
+      targetHudDim = Math.pow(charge, 0.9) * 0.94;
 
       sfxEngine.updateSupernovaImplosion(charge);
-      singularityIntensity = Math.pow(charge, 1.4) * 1.15;
-      singularitySharpness = charge * 0.7;
+      singularityIntensity = Math.pow(charge, 1.35) * 1.25;
+      singularitySharpness = charge * 0.75;
 
       const beatInterval = THREE.MathUtils.lerp(0.64, 0.2, charge);
       heartbeatAccumRef.current += dt;
@@ -839,23 +1043,28 @@ export function ParticleHeart({
       }
 
       if (holdSec >= IMPLOSION_END_SEC) {
-        // Enter Beat 1b: 150ms razor-sharp breath-hold vacuum freeze
+        // Enter Beat 1b: 120ms razor-sharp pinpoint freeze + dark ambient contrast dip
         snPhaseRef.current = 'freezing';
         freezeStartMsRef.current = nowMs;
         sfxEngine.cutSupernovaImplosion();
       }
     } else if (phase === 'freezing') {
-      const freezeDur = FREEZE_END_SEC - IMPLOSION_END_SEC; // 0.15s
+      const freezeDur = FREEZE_END_SEC - IMPLOSION_END_SEC; // 0.12s
       const freezeSec = (nowMs - freezeStartMsRef.current) / 1000;
       const f = THREE.MathUtils.clamp(freezeSec / freezeDur, 0, 1);
 
       galaxySignals.supernovaCharge = 1;
       galaxySignals.supernovaFreeze = f;
-      singularityIntensity = 1.45;
+      galaxySignals.supernovaBloomSpike = 0;
+      // Maximum dark-to-bright contrast dip right before detonation
+      targetAmbientDim = 0.96;
+      targetHudDim = 1.0;
+
+      singularityIntensity = 1.55;
       singularitySharpness = 1.0;
 
       if (freezeSec >= freezeDur) {
-        // Enter Beat 2: High-Impact Supernova Detonation!
+        // Enter Beat 2: True High-Impact Grand Finale Detonation!
         snPhaseRef.current = 'detonated';
         detonateStartMsRef.current = nowMs;
         galaxySignals.isHoldingHeart = false;
@@ -864,17 +1073,16 @@ export function ParticleHeart({
         galaxySignals.supernovaDetonateTime = 0;
         galaxySignals.supernovaShake = 1;
         galaxySignals.supernovaFovKick = 1;
+        galaxySignals.supernovaBloomSpike = 1;
 
         sfxEngine.playSupernovaBurst();
 
-        // Crisp brief bloom flash (dissipates rapidly in 180ms so shockwaves stay vivid!)
-        useAppStore.getState().setTransitionFlashing(true);
-        if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
-        flashTimerRef.current = window.setTimeout(() => {
-          useAppStore.getState().setTransitionFlashing(false);
-        }, 185);
+        // Full-screen pure-white -> rose-pink whiteout splash + chromatic lens kick (`z-30`)
+        if (!reducedMotion) {
+          useAppStore.getState().triggerSupernovaFlash();
+        }
 
-        // Beat 3: Delayed Modal Reveal (~1.32s after detonation — ZERO premature cut-off!)
+        // Beat 3: Wait ~1.6s after whiteout peak so shockwaves & slow-motion stardust rain shine
         if (modalTimerRef.current !== null) window.clearTimeout(modalTimerRef.current);
         modalTimerRef.current = window.setTimeout(() => {
           if (!modalOpenedForBurstRef.current) {
@@ -887,23 +1095,32 @@ export function ParticleHeart({
       const detT = (nowMs - detonateStartMsRef.current) / 1000;
       galaxySignals.supernovaDetonateTime = detT;
 
-      // Damped ~0.45s camera shake + punchy FOV kick ease-back
-      galaxySignals.supernovaShake = detT < 0.55 ? Math.exp(-detT * 8.5) : 0;
-      galaxySignals.supernovaFovKick = Math.exp(-detT * 5.2);
+      // Punchy ~0.50s camera shake + +18° FOV recoil + brief ~150ms bloom spike
+      galaxySignals.supernovaShake = detT < 0.56 ? Math.exp(-detT * 6.8) : 0;
+      galaxySignals.supernovaFovKick = Math.exp(-detT * 4.4);
+      galaxySignals.supernovaBloomSpike = detT < 0.3 ? Math.exp(-detT * 13.5) : 0;
 
-      // Core flash dissipates quickly (0 -> 0.38s) without washing out the galaxy
-      singularityIntensity = Math.exp(-detT * 6.5) * 1.65;
-      singularitySharpness = 0.25;
+      // Keep HUD softly tucked & ambient dimmed so stardust aftermath + modal take center stage
+      targetAmbientDim = 0.42;
+      targetHudDim = 0.88;
 
-      // 2 Expanding 3D Shockwave Rings
-      if (detT < 1.35) {
-        shockProgA = 1.0 - Math.exp(-detT * 3.1);
-        shockOpA = Math.pow(Math.max(0, 1.0 - detT / 1.25), 1.65);
+      // Blinding core flare dissolves into warm lingering Rose-Gold Nebula Afterglow
+      singularityIntensity = Math.exp(-detT * 5.2) * 1.85;
+      singularitySharpness = 0.2;
+      nebulaIntensity = THREE.MathUtils.smoothstep(detT, 0.08, 0.65) * 0.92;
+      finaleRainVis = THREE.MathUtils.smoothstep(detT, 0.14, 0.95);
+
+      // Multi-layered Shockwaves:
+      // 1. Thick luminous Primary Shockwave Ring expanding fast across viewport
+      if (detT < 1.55) {
+        shockProgA = 1.0 - Math.exp(-detT * 2.95);
+        shockOpA = Math.pow(Math.max(0, 1.0 - detT / 1.48), 1.45);
       }
-      if (detT > 0.08 && detT < 1.45) {
-        const dtB = detT - 0.08;
-        shockProgB = 1.0 - Math.exp(-dtB * 2.75);
-        shockOpB = Math.pow(Math.max(0, 1.0 - dtB / 1.3), 1.75) * 0.78;
+      // 2. Secondary Delayed Ripple Ring (+180ms), expanding slightly slower with softer dispersion
+      if (detT > 0.18 && detT < 1.95) {
+        const dtB = detT - 0.18;
+        shockProgB = 1.0 - Math.exp(-dtB * 2.15);
+        shockOpB = Math.pow(Math.max(0, 1.0 - dtB / 1.7), 1.55) * 0.82;
       }
     } else if (phase === 'reforming') {
       const detT = (nowMs - detonateStartMsRef.current) / 1000;
@@ -911,12 +1128,20 @@ export function ParticleHeart({
       galaxySignals.supernovaDetonateTime = detT;
       galaxySignals.supernovaShake = 0;
       galaxySignals.supernovaFovKick = 0;
+      galaxySignals.supernovaBloomSpike = 0;
 
       reformFactor = THREE.MathUtils.clamp(refT / 2.1, 0, 1);
+      nebulaIntensity = (1 - reformFactor) * 0.85;
+      finaleRainVis = Math.max(0, 1 - reformFactor * 1.35);
+      targetAmbientDim = (1 - reformFactor) * 0.42;
+      targetHudDim = (1 - reformFactor) * 0.88;
+
       if (reformFactor >= 1) {
         snPhaseRef.current = 'idle';
         galaxySignals.supernovaDetonateTime = -1;
         reformFactor = 0;
+        nebulaIntensity = 0;
+        finaleRainVis = 0;
       }
     } else {
       // Idle: ease residual charge back to 0 cleanly if released early
@@ -927,6 +1152,8 @@ export function ParticleHeart({
           Math.min(1, dt * 7)
         );
         singularityIntensity = galaxySignals.supernovaCharge * 0.6;
+        targetAmbientDim = galaxySignals.supernovaCharge * 0.5;
+        targetHudDim = galaxySignals.supernovaCharge * 0.8;
       } else {
         galaxySignals.supernovaCharge = 0;
       }
@@ -934,6 +1161,25 @@ export function ParticleHeart({
       galaxySignals.supernovaDetonateTime = -1;
       galaxySignals.supernovaShake = 0;
       galaxySignals.supernovaFovKick = 0;
+      galaxySignals.supernovaBloomSpike = 0;
+    }
+
+    // Smooth ambient focus dim + zero-re-render HUD opacity CSS variable
+    const dimLerp = phase === 'freezing' ? 28 : 8.5;
+    galaxySignals.supernovaAmbientDim = THREE.MathUtils.lerp(
+      galaxySignals.supernovaAmbientDim,
+      targetAmbientDim,
+      Math.min(1, dt * dimLerp)
+    );
+    const nextHudDim = THREE.MathUtils.lerp(
+      lastHudDimRef.current,
+      targetHudDim,
+      Math.min(1, dt * dimLerp)
+    );
+    if (Math.abs(nextHudDim - lastHudDimRef.current) > 0.004 || (targetHudDim === 0 && lastHudDimRef.current !== 0 && nextHudDim < 0.005)) {
+      const snapped = targetHudDim === 0 && nextHudDim < 0.005 ? 0 : nextHudDim;
+      lastHudDimRef.current = snapped;
+      document.documentElement.style.setProperty('--supernova-hud-dim', snapped.toFixed(3));
     }
 
     // Idle double-beat pulse + audio bass
@@ -980,11 +1226,22 @@ export function ParticleHeart({
     resources.singularityMat.uniforms.uIntensity.value = singularityIntensity;
     resources.singularityMat.uniforms.uSharpness.value = singularitySharpness;
 
+    resources.nebulaMat.uniforms.uTime.value = elapsed;
+    resources.nebulaMat.uniforms.uIntensity.value = nebulaIntensity;
+
+    resources.finaleRainMat.uniforms.uTime.value = elapsed;
+    resources.finaleRainMat.uniforms.uVisibility.value = finaleRainVis;
+    resources.finaleRainMat.uniforms.uPixelRatio.value = dpr;
+    resources.finaleRainMat.uniforms.uReducedMotion.value = rm;
+
     if (shockRingARef.current) {
       shockRingARef.current.visible = shockOpA > 0.004;
     }
     if (shockRingBRef.current) {
       shockRingBRef.current.visible = shockOpB > 0.004;
+    }
+    if (nebulaRef.current) {
+      nebulaRef.current.visible = nebulaIntensity > 0.004;
     }
 
     // Idle gentle rotation & float (pauses during Beat 1b freeze so pinpoint stays rock-steady)
@@ -998,50 +1255,71 @@ export function ParticleHeart({
   });
 
   return (
-    <group ref={heartGroupRef} position={[0, HEART_BASE_Y, 0]} scale={1} name="particle-heart">
-      <points
-        geometry={resources.heartGeo}
-        material={resources.heartMat}
-        frustumCulled={false}
-      />
+    <>
+      <group ref={heartGroupRef} position={[0, HEART_BASE_Y, 0]} scale={1} name="particle-heart">
+        <points
+          geometry={resources.heartGeo}
+          material={resources.heartMat}
+          frustumCulled={false}
+        />
 
-      {/* Dual-mode 44 energy rays (converging inward during Beat 1 -> 360° streaks on Beat 2) */}
-      <lineSegments
-        geometry={resources.raysGeo}
-        material={resources.raysMat}
-        frustumCulled={false}
-      />
+        {/* Dual-mode 36 energy rays (converging inward during Beat 1 -> 360° star-streaks on Beat 2) */}
+        <lineSegments
+          geometry={resources.raysGeo}
+          material={resources.raysMat}
+          frustumCulled={false}
+        />
 
-      {/* Two orthogonal 3D expanding additive shockwave rings */}
-      <mesh
-        ref={shockRingARef}
-        visible={false}
-        position={[0, 0.28, 0]}
-        rotation={[-Math.PI * 0.42, 0.12, 0]}
-        geometry={resources.shockGeo}
-        material={resources.shockMatA}
-      />
-      <mesh
-        ref={shockRingBRef}
-        visible={false}
-        position={[0, 0.28, 0]}
-        rotation={[Math.PI * 0.28, 0.55, 0.3]}
-        geometry={resources.shockGeo}
-        material={resources.shockMatB}
-      />
+        {/* Multi-layered 3D expanding additive shockwave rings (Primary + Delayed Secondary Ripple) */}
+        <mesh
+          ref={shockRingARef}
+          visible={false}
+          position={[0, 0.28, 0]}
+          rotation={[-Math.PI * 0.42, 0.12, 0]}
+          geometry={resources.shockGeo}
+          material={resources.shockMatA}
+        />
+        <mesh
+          ref={shockRingBRef}
+          visible={false}
+          position={[0, 0.28, 0]}
+          rotation={[Math.PI * 0.26, 0.52, 0.28]}
+          geometry={resources.shockGeo}
+          material={resources.shockMatB}
+        />
 
-      {/* Blinding singularity pinpoint & crisp detonation core flash */}
-      <Billboard position={[0, 0.28, 0]} follow>
-        <mesh geometry={resources.singularityGeo} material={resources.singularityMat} />
-      </Billboard>
+        {/* Lingering Rose-Gold Nebula Afterglow halo */}
+        <Billboard position={[0, 0.28, -0.3]} follow>
+          <mesh
+            ref={nebulaRef}
+            visible={false}
+            geometry={resources.nebulaGeo}
+            material={resources.nebulaMat}
+          />
+        </Billboard>
 
-      {/* Invisible raycast hit-sphere over heart center */}
-      <mesh
-        geometry={resources.hitGeo}
-        material={resources.hitMat}
-        onPointerDown={handleHeartPointerDown}
-        name="heart-supernova-trigger"
-      />
-    </group>
+        {/* Blinding singularity pinpoint & crisp detonation core flash */}
+        <Billboard position={[0, 0.28, 0]} follow>
+          <mesh geometry={resources.singularityGeo} material={resources.singularityMat} />
+        </Billboard>
+
+        {/* Invisible raycast hit-sphere over heart center */}
+        <mesh
+          geometry={resources.hitGeo}
+          material={resources.hitMat}
+          onPointerDown={handleHeartPointerDown}
+          name="heart-supernova-trigger"
+        />
+      </group>
+
+      {/* Non-rotating world-aligned slow-motion Grand Finale Stardust & Ember Rain */}
+      <group position={[0, HEART_BASE_Y, 0]} name="finale-stardust-rain">
+        <points
+          geometry={resources.finaleRainGeo}
+          material={resources.finaleRainMat}
+          frustumCulled={false}
+        />
+      </group>
+    </>
   );
 }

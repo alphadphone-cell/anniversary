@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { ANNIVERSARY_DATA } from '../../../data/anniversaryData';
+import { galaxySignals } from '../../galaxySignals';
 
 interface OrbitingTextPhrasesProps {
   reducedMotion?: boolean;
@@ -18,6 +19,7 @@ interface PhrasePlacement {
 
 export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhrasesProps) {
   const orbitRef = useRef<THREE.Group>(null);
+  const lastOpacityRef = useRef(1);
 
   const placements = useMemo<PhrasePlacement[]>(() => {
     const phrases = ANNIVERSARY_DATA.galaxyPhrases;
@@ -38,8 +40,23 @@ export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhras
   }, []);
 
   useFrame((_, delta) => {
-    if (orbitRef.current && !reducedMotion) {
+    if (!orbitRef.current) return;
+    if (!reducedMotion) {
       orbitRef.current.rotation.y -= Math.min(delta, 0.05) * 0.065;
+    }
+
+    // Theatrical focus: smoothly dim surrounding 3D text during Supernova build-up & freeze
+    const dim = Math.max(galaxySignals.supernovaAmbientDim, galaxySignals.galaxyDim * 0.65);
+    const targetOpacity = THREE.MathUtils.clamp(1.0 - dim * 0.92, 0.06, 1.0);
+    if (Math.abs(targetOpacity - lastOpacityRef.current) > 0.008) {
+      lastOpacityRef.current = targetOpacity;
+      orbitRef.current.traverse((obj) => {
+        const mesh = obj as THREE.Mesh & { fillOpacity?: number; outlineOpacity?: number };
+        if (typeof mesh.fillOpacity === 'number') {
+          mesh.fillOpacity = targetOpacity;
+          mesh.outlineOpacity = targetOpacity * 0.75;
+        }
+      });
     }
   });
 

@@ -217,25 +217,25 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         }
       }
 
-      // Beat 2: Punchy FOV kick on detonation + smooth ease back to BASE_GALAXY_FOV
+      // Beat 2: Aggressive +18° FOV kick on detonation + smooth ease back to BASE_GALAXY_FOV
       if (camera instanceof THREE.PerspectiveCamera) {
-        const freezeTighten = galaxySignals.supernovaFreeze * -3.5;
-        const kickOffset = galaxySignals.supernovaFovKick * 12.5;
+        const freezeTighten = galaxySignals.supernovaFreeze * -4.2;
+        const kickOffset = galaxySignals.supernovaFovKick * 18.0;
         const desiredFov = BASE_GALAXY_FOV + freezeTighten + kickOffset;
         if (Math.abs(camera.fov - desiredFov) > 0.02) {
-          const lerpRate = galaxySignals.supernovaFovKick > 0.5 ? 24 : 7.5;
+          const lerpRate = galaxySignals.supernovaFovKick > 0.45 ? 28 : 6.2;
           camera.fov = THREE.MathUtils.lerp(camera.fov, desiredFov, Math.min(1, dt * lerpRate));
           camera.updateProjectionMatrix();
         }
       }
 
-      // Beat 2: High-frequency damped Camera Shake (~0.45s) on detonation
+      // Beat 2: Punchy ~0.50s high-frequency damped Camera Shake on detonation
       if (galaxySignals.supernovaShake > 0.002) {
-        const amp = galaxySignals.supernovaShake * 0.42;
+        const amp = galaxySignals.supernovaShake * 0.54;
         currentShakeOffsetRef.current.set(
-          Math.sin(elapsed * 78.0) * amp,
-          Math.cos(elapsed * 93.0) * amp * 0.85,
-          Math.sin(elapsed * 64.0 + 1.3) * amp * 0.6
+          Math.sin(elapsed * 82.0) * amp,
+          Math.cos(elapsed * 97.0) * amp * 0.88,
+          Math.sin(elapsed * 68.0 + 1.3) * amp * 0.65
         );
         camera.position.add(currentShakeOffsetRef.current);
         lastShakeOffsetRef.current.copy(currentShakeOffsetRef.current);

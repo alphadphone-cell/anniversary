@@ -284,6 +284,7 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
       uniforms: {
         uTime: { value: 0 },
         uBass: { value: 0 },
+        uDim: { value: 0 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
         uReducedMotion: { value: 0 },
       },
@@ -354,9 +355,10 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
       resources.galaxyMat.uniforms.uPointerLocal.value.copy(localPointerRef.current);
     }
 
+    const combinedDim = Math.max(galaxySignals.galaxyDim, galaxySignals.supernovaAmbientDim * 0.88);
     resources.galaxyMat.uniforms.uTime.value = elapsed;
     resources.galaxyMat.uniforms.uBass.value = bass;
-    resources.galaxyMat.uniforms.uDim.value = galaxySignals.galaxyDim;
+    resources.galaxyMat.uniforms.uDim.value = combinedDim;
     resources.galaxyMat.uniforms.uPixelRatio.value = dpr;
     resources.galaxyMat.uniforms.uReducedMotion.value = rm;
     resources.galaxyMat.uniforms.uPointerStrength.value =
@@ -364,12 +366,13 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
 
     resources.fountainMat.uniforms.uTime.value = elapsed;
     resources.fountainMat.uniforms.uBass.value = bass;
+    resources.fountainMat.uniforms.uDim.value = combinedDim;
     resources.fountainMat.uniforms.uPixelRatio.value = dpr;
     resources.fountainMat.uniforms.uReducedMotion.value = rm;
 
     resources.accretionMat.uniforms.uTime.value = elapsed * (1 - rm * 0.7);
     resources.accretionMat.uniforms.uBass.value = bass;
-    resources.accretionMat.uniforms.uDim.value = galaxySignals.galaxyDim;
+    resources.accretionMat.uniforms.uDim.value = combinedDim;
 
     if (accretionRef.current) {
       accretionRef.current.scale.setScalar(1.0 + bass * 0.075);

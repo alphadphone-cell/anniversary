@@ -53,6 +53,7 @@ export function ModalShell() {
   }, [activeModal, handleClose]);
 
   const widthClass = activeModal === 'cards' ? 'max-w-3xl' : 'max-w-xl';
+  const isSecret = activeModal === 'secret';
 
   return (
     <AnimatePresence>
@@ -62,21 +63,29 @@ export function ModalShell() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: isSecret ? 0.48 : 0.22, ease: [0.22, 1, 0.36, 1] }}
           onClick={handleClose}
-          className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center bg-void/72 px-3 py-5 backdrop-blur-md sm:px-6"
+          className={`pointer-events-auto fixed inset-0 z-20 flex items-center justify-center px-3 py-5 sm:px-6 ${
+            isSecret ? 'bg-void/42 backdrop-blur-[5px]' : 'bg-void/72 backdrop-blur-md'
+          }`}
         >
           <motion.section
             key={activeModal}
             role="dialog"
             aria-modal="true"
             aria-labelledby="anni-modal-title"
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            initial={
+              isSecret ? { opacity: 0, y: 12, scale: 0.92 } : { opacity: 0, y: 16, scale: 0.96 }
+            }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: isSecret ? 0.56 : 0.26, ease: [0.16, 1, 0.3, 1] }}
             onClick={(event) => event.stopPropagation()}
-            className={`glass-modal cosmic-scroll relative max-h-[88vh] w-full overflow-y-auto rounded-[28px] px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-7 ${widthClass}`}
+            className={`glass-modal cosmic-scroll relative max-h-[88vh] w-full overflow-y-auto rounded-[28px] px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-7 ${widthClass} ${
+              isSecret
+                ? '!border-amber-200/45 shadow-[0_0_54px_-10px_rgba(255,95,180,0.52),0_0_30px_-8px_rgba(253,224,71,0.34)]'
+                : ''
+            }`}
           >
             <ModalContent modal={activeModal} />
 

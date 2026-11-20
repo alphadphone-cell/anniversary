@@ -5,6 +5,7 @@ import {
   useAppStore,
   useIsTransitionFlashing,
   useStage,
+  useSupernovaFlashKey,
   useViewMode,
   type ViewMode,
 } from '../../store/useAppStore';
@@ -37,6 +38,53 @@ function WarpFlashOverlay() {
         />
       )}
     </AnimatePresence>
+  );
+}
+
+/**
+ * Grand Finale Supernova Whiteout Splash + Lightweight Chromatic Radial Lens Kick (`z-30`).
+ * Exact envelope: 0 -> 0.95 in 40ms, hold peak 80ms, smooth decay over 650ms (total 770ms) with mix-blend-mode: screen.
+ */
+function SupernovaImpactOverlay() {
+  const flashKey = useSupernovaFlashKey();
+  if (flashKey === 0) return null;
+
+  return (
+    <div key={flashKey} aria-hidden="true" className="pointer-events-none fixed inset-0 z-30">
+      {/* Primary pure-white -> soft rose-pink radial whiteout flash */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 0.95, 0.95, 0] }}
+        transition={{
+          duration: 0.77,
+          times: [0, 0.052, 0.156, 1],
+          ease: ['easeOut', 'linear', [0.16, 1, 0.3, 1]],
+        }}
+        className="absolute inset-0"
+        style={{
+          mixBlendMode: 'screen',
+          background:
+            'radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 1) 0%, rgba(255, 240, 249, 0.96) 28%, rgba(255, 118, 198, 0.76) 58%, rgba(253, 212, 148, 0.38) 82%, rgba(18, 6, 30, 0) 100%)',
+        }}
+      />
+
+      {/* Anime-style 160ms radial chromatic lens kick */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.86 }}
+        animate={{ opacity: [0, 0.78, 0], scale: [0.86, 1.16, 1.38] }}
+        transition={{
+          duration: 0.22,
+          times: [0, 0.28, 1],
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className="absolute inset-0"
+        style={{
+          mixBlendMode: 'screen',
+          background:
+            'radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0) 18%, rgba(254, 240, 138, 0.45) 36%, rgba(255, 62, 165, 0.52) 48%, rgba(125, 211, 252, 0.32) 58%, rgba(0, 0, 0, 0) 74%)',
+        }}
+      />
+    </div>
   );
 }
 
@@ -125,8 +173,11 @@ export function HudOverlay() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col justify-between p-4 sm:p-6">
-      {/* Top Bar — staggered reveal ~0.8s after Galaxy blooms */}
-      <header className="flex items-start justify-between gap-3">
+      {/* Top Bar — staggered reveal ~0.8s after Galaxy blooms; dims during Supernova build-up */}
+      <header
+        className="flex items-start justify-between gap-3 transition-opacity duration-150"
+        style={{ opacity: 'calc(1 - var(--supernova-hud-dim, 0) * 0.88)' }}
+      >
         <AnimatePresence>
           {stage === 'galaxy' && (
             <motion.div
@@ -167,6 +218,7 @@ export function HudOverlay() {
       <ConstellationCard />
       <ModalShell />
       <WarpFlashOverlay />
+      <SupernovaImpactOverlay />
     </div>
   );
 }
