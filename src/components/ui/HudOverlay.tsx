@@ -5,19 +5,12 @@ import {
   useAppStore,
   useIsTransitionFlashing,
   useStage,
-  type AppStage,
   type ModalId,
 } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { AudioController } from './AudioController';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
-
-const STAGES: { id: AppStage; label: string }[] = [
-  { id: 'intro', label: 'Intro' },
-  { id: 'warp', label: 'Warp' },
-  { id: 'galaxy', label: 'Galaxy' },
-];
 
 const DOCK_ITEMS: { id: Exclude<ModalId, null>; label: string; Icon: typeof Mail }[] = [
   { id: 'letter', label: 'Letter', Icon: Mail },
@@ -55,7 +48,6 @@ function WarpFlashOverlay() {
 export function HudOverlay() {
   const stage = useStage();
   const activeModal = useActiveModal();
-  const setStage = useAppStore((s) => s.setStage);
   const toggleModal = useAppStore((s) => s.toggleModal);
 
   return (
@@ -90,39 +82,6 @@ export function HudOverlay() {
         </AnimatePresence>
 
         <div className="pointer-events-auto ml-auto flex items-center gap-2">
-          <AnimatePresence>
-            {stage === 'galaxy' && (
-              <motion.nav
-                key="stage-switcher"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                aria-label="Experience stage"
-                className="glass-surface hidden items-center gap-1 rounded-full p-1 md:flex"
-              >
-                {STAGES.map((item) => {
-                  const isCurrent = stage === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setStage(item.id)}
-                      aria-current={isCurrent ? 'step' : undefined}
-                      className={`glass-interactive min-h-9 cursor-pointer rounded-full px-3.5 text-xs font-medium ${
-                        isCurrent
-                          ? 'bg-neon-pink/22 text-starlight shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
-                          : 'text-lavender hover:text-starlight'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </motion.nav>
-            )}
-          </AnimatePresence>
-
           {stage !== 'warp' && <AudioController />}
         </div>
       </header>

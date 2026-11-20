@@ -118,8 +118,8 @@ export function IntroStage() {
       const heldMs = performance.now() - pressStartRef.current;
       isHoldingRef.current = false;
 
-      // Support both holding AND clicking: a crisp click/tap latches smooth auto-charge to 100%
-      if (!canceled && heldMs < 260) {
+      // Support both holding AND clicking: a tap/click latches smooth auto-charge to 100%
+      if (!canceled && heldMs < 450) {
         autoChargingRef.current = true;
         setIsCharging(true);
       } else if (!autoChargingRef.current) {
