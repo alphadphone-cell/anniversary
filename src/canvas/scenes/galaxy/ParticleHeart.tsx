@@ -698,12 +698,31 @@ export function ParticleHeart({
     };
   }, [cancelImplosion]);
 
-  // Trigger clean particle reformation right when the user closes the Secret Modal
+  // Trigger clean particle reformation right when the user closes the Secret Modal,
+  // and cleanly cancel/reset any in-flight Supernova when switching to Constellation View.
   useEffect(() => {
     const unsub = useAppStore.subscribe((state, prev) => {
+      if (state.viewMode === 'constellation' && prev.viewMode !== 'constellation') {
+        if (modalTimerRef.current !== null) {
+          window.clearTimeout(modalTimerRef.current);
+          modalTimerRef.current = null;
+        }
+        if (snPhaseRef.current === 'imploding' || snPhaseRef.current === 'freezing') {
+          snPhaseRef.current = 'idle';
+          galaxySignals.isHoldingHeart = false;
+          galaxySignals.supernovaCharge = 0;
+          galaxySignals.supernovaFreeze = 0;
+          sfxEngine.cutSupernovaImplosion();
+        } else if (snPhaseRef.current === 'detonated') {
+          snPhaseRef.current = 'reforming';
+          reformStartMsRef.current = performance.now();
+        }
+        return;
+      }
+
       if (
         prev.activeModal === 'secret' &&
-        state.activeModal === null &&
+        !state.activeModal &&
         snPhaseRef.current === 'detonated'
       ) {
         snPhaseRef.current = 'reforming';
@@ -750,7 +769,7 @@ export function ParticleHeart({
       if (!interactive || !active) return;
       if (morphTimeRef.current < 2.65) return;
       if (snPhaseRef.current !== 'idle') return;
-      if (useAppStore.getState().activeModal !== null) return;
+      if (useAppStore.getState().activeModal) return;
       if (useAppStore.getState().viewMode !== 'galaxy') return;
 
       sfxEngine.unlock();

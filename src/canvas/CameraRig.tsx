@@ -30,9 +30,9 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const { camera } = useThree();
   const enabled = stage !== 'warp';
 
-  // Reusable zero-allocation tween & shake state
+  // Reusable zero-allocation tween & shake state (wall-clock synced so slow GPUs never stall glides)
   const tweenActiveRef = useRef(false);
-  const tweenElapsedRef = useRef(0);
+  const tweenStartMsRef = useRef(0);
   const tweenDurationRef = useRef(ENTRANCE_DURATION);
   const fromPosRef = useRef(new THREE.Vector3());
   const toPosRef = useRef(new THREE.Vector3());
@@ -72,7 +72,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
     toTargetRef.current.copy(destTarget);
 
     tweenDurationRef.current = duration;
-    tweenElapsedRef.current = 0;
+    tweenStartMsRef.current = performance.now();
     tweenActiveRef.current = true;
   };
 
@@ -179,9 +179,9 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
     }
 
     if (tweenActiveRef.current && stage === 'galaxy') {
-      tweenElapsedRef.current += dt;
+      const elapsedSec = (performance.now() - tweenStartMsRef.current) / 1000;
       const t = THREE.MathUtils.clamp(
-        tweenElapsedRef.current / Math.max(0.01, tweenDurationRef.current),
+        elapsedSec / Math.max(0.01, tweenDurationRef.current),
         0,
         1
       );

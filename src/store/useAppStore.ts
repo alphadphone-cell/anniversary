@@ -35,11 +35,11 @@ export const useAppStore = create<AppState>((set) => ({
   setStage: (stage) => set({ stage }),
 
   setViewMode: (viewMode) =>
-    set({
+    set((state) => ({
       viewMode,
-      activeModal: viewMode === 'constellation' ? null : undefined,
-      selectedMilestoneId: viewMode === 'galaxy' ? null : undefined,
-    }),
+      activeModal: viewMode === 'constellation' ? null : state.activeModal,
+      selectedMilestoneId: viewMode === 'galaxy' ? null : state.selectedMilestoneId,
+    })),
 
   toggleViewMode: () =>
     set((state) => {
