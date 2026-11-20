@@ -10,6 +10,8 @@ interface AppState {
   activeModal: ModalId;
   selectedMilestoneId: string | null;
   isMuted: boolean;
+  isMusicPlaying: boolean;
+  currentTrackIndex: number;
   isTransitionFlashing: boolean;
   supernovaFlashKey: number;
   setStage: (stage: AppStage) => void;
@@ -22,6 +24,8 @@ interface AppState {
   setSelectedMilestoneId: (id: string | null) => void;
   setMuted: (muted: boolean) => void;
   toggleMuted: () => void;
+  setIsMusicPlaying: (playing: boolean) => void;
+  setCurrentTrackIndex: (index: number) => void;
   setTransitionFlashing: (flashing: boolean) => void;
   triggerSupernovaFlash: () => void;
 }
@@ -32,6 +36,8 @@ export const useAppStore = create<AppState>((set) => ({
   activeModal: null,
   selectedMilestoneId: null,
   isMuted: false,
+  isMusicPlaying: false,
+  currentTrackIndex: 0,
   isTransitionFlashing: false,
   supernovaFlashKey: 0,
 
@@ -76,6 +82,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   toggleMuted: () => set((state) => ({ isMuted: !state.isMuted })),
 
+  setIsMusicPlaying: (isMusicPlaying) => set({ isMusicPlaying }),
+
+  setCurrentTrackIndex: (currentTrackIndex) => set({ currentTrackIndex }),
+
   setTransitionFlashing: (isTransitionFlashing) => set({ isTransitionFlashing }),
   triggerSupernovaFlash: () => set((state) => ({ supernovaFlashKey: state.supernovaFlashKey + 1 })),
 }));
@@ -86,5 +96,7 @@ export const useViewMode = () => useAppStore((s) => s.viewMode);
 export const useActiveModal = () => useAppStore((s) => s.activeModal);
 export const useSelectedMilestoneId = () => useAppStore((s) => s.selectedMilestoneId);
 export const useIsMuted = () => useAppStore((s) => s.isMuted);
+export const useIsMusicPlaying = () => useAppStore((s) => s.isMusicPlaying);
+export const useCurrentTrackIndex = () => useAppStore((s) => s.currentTrackIndex);
 export const useIsTransitionFlashing = () => useAppStore((s) => s.isTransitionFlashing);
 export const useSupernovaFlashKey = () => useAppStore((s) => s.supernovaFlashKey);

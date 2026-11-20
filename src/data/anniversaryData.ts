@@ -71,6 +71,14 @@ export interface ConstellationMilestone {
   position: [number, number, number];
 }
 
+export interface PlaylistTrack {
+  id: string;
+  title: string;
+  artist: string;
+  /** Đường dẫn tương đối tới file .mp3 đặt trong thư mục public/music/ */
+  src: string;
+}
+
 export interface AnniversaryConfig {
   coupleNames: [string, string];
   experienceTitle: string;
@@ -96,6 +104,8 @@ export interface AnniversaryConfig {
   rewards: AnniversaryReward[];
   secretSupernova: SecretSupernovaConfig;
   constellationMilestones: ConstellationMilestone[];
+  /** Danh sách phát nhạc nền liên tục (đặt file .mp3 vào public/music/) */
+  playlist: PlaylistTrack[];
   audio: {
     trackTitle: string;
     artist: string;
@@ -388,10 +398,39 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // DANH SÁCH NHẠC NỀN K-DRAMA / ROMANTIC OST (Phát liên tục & tự động chuyển bài)
+  // Hướng dẫn: Thả các file .mp3 của bạn vào thư mục `public/music/` với đúng tên:
+  //   - public/music/track-1.mp3
+  //   - public/music/track-2.mp3
+  //   - public/music/track-3.mp3
+  // Nếu chưa thả file .mp3, hệ thống tự chuyển sang nền hòa âm lãng mạn dự phòng.
+  // ---------------------------------------------------------------------------
+  playlist: [
+    {
+      id: 'ost-1',
+      title: 'Dưới Bầu Trời Sao Đêm',
+      artist: 'K-Drama OST · Track 01',
+      src: '/music/track-1.mp3',
+    },
+    {
+      id: 'ost-2',
+      title: 'Giai Điệu Mùa Thu Bên Em',
+      artist: 'K-Drama OST · Track 02',
+      src: '/music/track-2.mp3',
+    },
+    {
+      id: 'ost-3',
+      title: 'Ánh Trăng Của Riêng Hai Đứa',
+      artist: 'K-Drama OST · Track 03',
+      src: '/music/track-3.mp3',
+    },
+  ],
+
   audio: {
-    trackTitle: 'Dạ Khúc Ngân Hà Tím',
+    trackTitle: 'Dưới Bầu Trời Sao Đêm',
     artist: 'Nhạc Nền Kỷ Niệm',
-    src: '/audio/ambient-theme.wav',
-    defaultVolume: 0.45,
+    src: '/music/track-1.mp3',
+    defaultVolume: 0.72,
   },
 };

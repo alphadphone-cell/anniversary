@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { galaxySignals } from '../../galaxySignals';
 import { useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
+import { musicEngine } from '../../../utils/musicEngine';
 
 interface ParticleHeartProps {
   active: boolean;
@@ -850,6 +851,7 @@ export function ParticleHeart({
       snPhaseRef.current = 'idle';
       galaxySignals.isHoldingHeart = false;
       sfxEngine.cutSupernovaImplosion();
+      musicEngine.swellFromSupernova(0, 0.25);
     }
   }, []);
 
@@ -900,9 +902,11 @@ export function ParticleHeart({
           galaxySignals.supernovaCharge = 0;
           galaxySignals.supernovaFreeze = 0;
           sfxEngine.cutSupernovaImplosion();
+          musicEngine.swellFromSupernova(0, 0.35);
         } else if (snPhaseRef.current === 'detonated') {
           snPhaseRef.current = 'reforming';
           reformStartMsRef.current = performance.now();
+          musicEngine.swellFromSupernova(0, 0.4);
         }
         return;
       }
@@ -930,6 +934,7 @@ export function ParticleHeart({
       cancelImplosion();
       sfxEngine.stopHeartCoalescence();
       sfxEngine.cutSupernovaImplosion();
+      musicEngine.swellFromSupernova(0, 0.25);
       resources.heartGeo.dispose();
       resources.heartMat.dispose();
       resources.raysGeo.dispose();
@@ -1043,10 +1048,11 @@ export function ParticleHeart({
       }
 
       if (holdSec >= IMPLOSION_END_SEC) {
-        // Enter Beat 1b: 120ms razor-sharp pinpoint freeze + dark ambient contrast dip
+        // Enter Beat 1b: 120ms razor-sharp pinpoint freeze + dark ambient contrast dip + music duck (-35%)
         snPhaseRef.current = 'freezing';
         freezeStartMsRef.current = nowMs;
         sfxEngine.cutSupernovaImplosion();
+        musicEngine.duckForSupernova();
       }
     } else if (phase === 'freezing') {
       const freezeDur = FREEZE_END_SEC - IMPLOSION_END_SEC; // 0.12s
@@ -1076,6 +1082,8 @@ export function ParticleHeart({
         galaxySignals.supernovaBloomSpike = 1;
 
         sfxEngine.playSupernovaBurst();
+        // Swell romantic K-Drama OST smoothly back to 100% during slow-motion stardust aftermath
+        musicEngine.swellFromSupernova(0.38, 1.55);
 
         // Full-screen pure-white -> rose-pink whiteout splash + chromatic lens kick (`z-30`)
         if (!reducedMotion) {

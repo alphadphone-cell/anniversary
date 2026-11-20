@@ -1,9 +1,24 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+/** Discovers local audio files dropped into `public/music/` so missing tracks never trigger 404 console errors. */
+function scanPublicMusic(): string[] {
+  const musicDir = path.resolve(__dirname, 'public/music');
+  if (!fs.existsSync(musicDir)) return [];
+  return fs
+    .readdirSync(musicDir)
+    .filter((file) => /\.(mp3|wav|m4a|ogg|flac)$/i.test(file))
+    .map((file) => `/music/${file}`);
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    __AVAILABLE_MUSIC_FILES__: JSON.stringify(scanPublicMusic()),
+  },
   build: {
     target: 'es2022',
     sourcemap: false,

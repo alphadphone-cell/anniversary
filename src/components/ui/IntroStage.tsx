@@ -27,13 +27,11 @@ export function IntroStage() {
   const transitionTimerRef = useRef<number | null>(null);
 
   const setStage = useAppStore((s) => s.setStage);
-  const setMuted = useAppStore((s) => s.setMuted);
 
   const triggerAudioOnGesture = useCallback(() => {
     sfxEngine.unlock();
     startAmbientAudio();
-    setMuted(false);
-  }, [setMuted]);
+  }, []);
 
   const stopLoop = useCallback(() => {
     if (rafRef.current !== null) {
