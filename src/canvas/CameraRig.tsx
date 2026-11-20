@@ -19,7 +19,8 @@ const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.75, 0);
 const CONSTELLATION_DEFAULT_POS = new THREE.Vector3(0, 14.2, 16.2);
 const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.3, -7.6);
 
-const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.25, 0);
+const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.45, 0);
+const BASE_GALAXY_FOV = 46;
 
 const ENTRANCE_DURATION = 1.8;
 const VIEW_GLIDE_DURATION = 1.4;
@@ -29,7 +30,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const { camera } = useThree();
   const enabled = stage !== 'warp';
 
-  // Reusable zero-allocation tween state
+  // Reusable zero-allocation tween & shake state
   const tweenActiveRef = useRef(false);
   const tweenElapsedRef = useRef(0);
   const tweenDurationRef = useRef(ENTRANCE_DURATION);
@@ -39,6 +40,8 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const toTargetRef = useRef(new THREE.Vector3());
   const starPosScratchRef = useRef(new THREE.Vector3());
   const zoomDirRef = useRef(new THREE.Vector3());
+  const lastShakeOffsetRef = useRef(new THREE.Vector3());
+  const currentShakeOffsetRef = useRef(new THREE.Vector3());
 
   const startCameraGlide = (
     destPos: THREE.Vector3,
@@ -165,8 +168,15 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
     return unsubscribe;
   }, [reducedMotion, stage]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
+    const elapsed = state.clock.elapsedTime;
+
+    // Remove previous frame's physical shake delta cleanly so camera never drifts
+    if (lastShakeOffsetRef.current.lengthSq() > 0) {
+      camera.position.sub(lastShakeOffsetRef.current);
+      lastShakeOffsetRef.current.set(0, 0, 0);
+    }
 
     if (tweenActiveRef.current && stage === 'galaxy') {
       tweenElapsedRef.current += dt;
@@ -175,7 +185,6 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         0,
         1
       );
-      // Silky cubic ease-out glide
       const eased = 1 - Math.pow(1 - t, 3);
 
       camera.position.lerpVectors(fromPosRef.current, toPosRef.current, eased);
@@ -192,22 +201,44 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       return;
     }
 
-    // Gentle camera zoom-in toward the 3D Particle Heart during the 3.0s Secret Supernova hold
-    if (
-      stage === 'galaxy' &&
-      !reducedMotion &&
-      galaxySignals.isHoldingHeart &&
-      useAppStore.getState().viewMode === 'galaxy'
-    ) {
-      zoomDirRef.current.subVectors(HEART_FOCUS_POINT, camera.position);
-      const dist = zoomDirRef.current.length();
-      if (dist > 8.2) {
-        zoomDirRef.current.normalize();
-        camera.position.addScaledVector(zoomDirRef.current, dt * 1.85);
+    if (stage === 'galaxy' && !reducedMotion && useAppStore.getState().viewMode === 'galaxy') {
+      // Beat 1 + Breath-Hold: tighten gently closer to heart core
+      if (galaxySignals.isHoldingHeart) {
+        zoomDirRef.current.subVectors(HEART_FOCUS_POINT, camera.position);
+        const dist = zoomDirRef.current.length();
+        const pullSpeed = galaxySignals.supernovaFreeze > 0.1 ? 3.2 : 1.75;
+        if (dist > 7.8) {
+          zoomDirRef.current.normalize();
+          camera.position.addScaledVector(zoomDirRef.current, dt * pullSpeed);
+        }
+        if (controlsRef.current) {
+          controlsRef.current.target.lerp(HEART_FOCUS_POINT, Math.min(1, dt * 1.8));
+          controlsRef.current.update();
+        }
       }
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(HEART_FOCUS_POINT, Math.min(1, dt * 1.4));
-        controlsRef.current.update();
+
+      // Beat 2: Punchy FOV kick on detonation + smooth ease back to BASE_GALAXY_FOV
+      if (camera instanceof THREE.PerspectiveCamera) {
+        const freezeTighten = galaxySignals.supernovaFreeze * -3.5;
+        const kickOffset = galaxySignals.supernovaFovKick * 12.5;
+        const desiredFov = BASE_GALAXY_FOV + freezeTighten + kickOffset;
+        if (Math.abs(camera.fov - desiredFov) > 0.02) {
+          const lerpRate = galaxySignals.supernovaFovKick > 0.5 ? 24 : 7.5;
+          camera.fov = THREE.MathUtils.lerp(camera.fov, desiredFov, Math.min(1, dt * lerpRate));
+          camera.updateProjectionMatrix();
+        }
+      }
+
+      // Beat 2: High-frequency damped Camera Shake (~0.45s) on detonation
+      if (galaxySignals.supernovaShake > 0.002) {
+        const amp = galaxySignals.supernovaShake * 0.42;
+        currentShakeOffsetRef.current.set(
+          Math.sin(elapsed * 78.0) * amp,
+          Math.cos(elapsed * 93.0) * amp * 0.85,
+          Math.sin(elapsed * 64.0 + 1.3) * amp * 0.6
+        );
+        camera.position.add(currentShakeOffsetRef.current);
+        lastShakeOffsetRef.current.copy(currentShakeOffsetRef.current);
       }
     }
   });

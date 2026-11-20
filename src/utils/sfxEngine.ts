@@ -24,6 +24,15 @@ class ProceduralSfxEngine {
   // Active heart coalescence sound timers/nodes
   private coalesceCleanup: (() => void) | null = null;
 
+  // Active Supernova implosion suction hum nodes
+  private implosionNodes: {
+    osc1: OscillatorNode;
+    osc2: OscillatorNode;
+    noise: AudioBufferSourceNode;
+    filter: BiquadFilterNode;
+    gain: GainNode;
+  } | null = null;
+
   private ensureContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
 
@@ -70,6 +79,7 @@ class ProceduralSfxEngine {
       this.stopChargeHum();
       this.stopWarpWhoosh();
       this.stopHeartCoalescence();
+      this.cutSupernovaImplosion();
     }
   }
 
@@ -116,7 +126,89 @@ class ProceduralSfxEngine {
     return this.ensureContext();
   }
 
-  /** Rhythmic double-beat heartbeat pulse synthesized for the 3.0s Secret Supernova hold. */
+  /** Beat 1: Rising resonant energy suction hum that sweeps sharply upward during heart implosion. */
+  public startSupernovaImplosion(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || this.implosionNodes) return;
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const noise = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'sine';
+    osc1.frequency.setValueAtTime(84, now);
+    osc2.frequency.setValueAtTime(126, now);
+
+    noise.buffer = this.getNoiseBuffer(ctx);
+    noise.loop = true;
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(220, now);
+    filter.Q.setValueAtTime(2.5, now);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.045, now + 0.14);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc1.start(now);
+    osc2.start(now);
+    noise.start(now);
+
+    this.implosionNodes = { osc1, osc2, noise, filter, gain };
+  }
+
+  public updateSupernovaImplosion(progress01: number): void {
+    if (!this.ctx || !this.implosionNodes) return;
+    const p = Math.max(0, Math.min(1, progress01));
+    const now = this.ctx.currentTime;
+    const { osc1, osc2, filter, gain } = this.implosionNodes;
+
+    // Sharp exponential upward pitch & resonant filter suction sweep toward singularity
+    const freq = 84 + Math.pow(p, 1.75) * 390;
+    osc1.frequency.setTargetAtTime(freq, now, 0.035);
+    osc2.frequency.setTargetAtTime(freq * 1.5, now, 0.035);
+    filter.frequency.setTargetAtTime(220 + Math.pow(p, 2.0) * 3200, now, 0.04);
+    filter.Q.setTargetAtTime(2.5 + p * 7.5, now, 0.04);
+    gain.gain.setTargetAtTime(0.045 + p * 0.115, now, 0.04);
+  }
+
+  /** Hard-cuts the rising suction hum cleanly in ~12ms to create the 150ms vacuum silence beat. */
+  public cutSupernovaImplosion(): void {
+    if (!this.ctx || !this.implosionNodes) return;
+    const now = this.ctx.currentTime;
+    const { osc1, osc2, noise, filter, gain } = this.implosionNodes;
+    this.implosionNodes = null;
+
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
+      osc1.stop(now + 0.03);
+      osc2.stop(now + 0.03);
+      noise.stop(now + 0.03);
+      osc1.onended = () => {
+        osc1.disconnect();
+        osc2.disconnect();
+        noise.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      };
+    } catch {
+      // ignore already stopped nodes
+    }
+  }
+
+  /** Rhythmic double-beat heartbeat pulse sweeping upward in pitch during the Beat 1 implosion. */
   public playHeartbeatPulse(intensity01: number): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
@@ -131,22 +223,22 @@ class ProceduralSfxEngine {
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(startHz + p * 18, now + offset);
-      osc.frequency.exponentialRampToValueAtTime(34, now + offset + 0.14);
+      osc.frequency.setValueAtTime(startHz + p * p * 44, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(36 + p * 14, now + offset + 0.13);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(180 + p * 160, now + offset);
+      lpf.frequency.setValueAtTime(190 + p * 260, now + offset);
 
       gain.gain.setValueAtTime(0.0001, now + offset);
-      gain.gain.linearRampToValueAtTime(peakGain, now + offset + 0.018);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.18);
+      gain.gain.linearRampToValueAtTime(peakGain, now + offset + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
 
       osc.connect(lpf);
       lpf.connect(gain);
       gain.connect(this.masterGain!);
 
       osc.start(now + offset);
-      osc.stop(now + offset + 0.2);
+      osc.stop(now + offset + 0.18);
       osc.onended = () => {
         osc.disconnect();
         lpf.disconnect();
@@ -154,81 +246,108 @@ class ProceduralSfxEngine {
       };
     };
 
-    const baseGain = 0.11 + p * 0.14;
+    const baseGain = 0.12 + p * 0.15;
     triggerBeat(0, baseGain, 76);
-    triggerBeat(0.115 - p * 0.035, baseGain * 0.72, 66);
+    triggerBeat(0.11 - p * 0.038, baseGain * 0.74, 68);
   }
 
-  /** Ethereal sub-bass shockwave + shimmering starlight chime cascade for Supernova burst. */
+  /**
+   * Beat 2 Detonation: Deep punchy sub-bass boom (62Hz -> 36Hz) + crisp transient crackle
+   * + lush shimmering high-frequency stardust cascade.
+   */
   public playSupernovaBurst(): void {
+    this.cutSupernovaImplosion();
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
 
-    // Deep cosmic sub-bass impact
+    // 1. Deep punchy sub-bass boom (64Hz -> 38Hz drop + harmonic body)
     const sub = ctx.createOscillator();
     const subGain = ctx.createGain();
     sub.type = 'sine';
-    sub.frequency.setValueAtTime(128, now);
-    sub.frequency.exponentialRampToValueAtTime(28, now + 1.05);
+    sub.frequency.setValueAtTime(64, now);
+    sub.frequency.exponentialRampToValueAtTime(38, now + 0.85);
 
     subGain.gain.setValueAtTime(0.0001, now);
-    subGain.gain.linearRampToValueAtTime(0.28, now + 0.03);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.25);
+    subGain.gain.linearRampToValueAtTime(0.36, now + 0.014);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.55);
 
     sub.connect(subGain);
     subGain.connect(this.masterGain);
     sub.start(now);
-    sub.stop(now + 1.3);
+    sub.stop(now + 1.6);
     sub.onended = () => {
       sub.disconnect();
       subGain.disconnect();
     };
 
-    // Shimmering stardust burst sweep
-    const noise = ctx.createBufferSource();
-    noise.buffer = this.getNoiseBuffer(ctx);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(420, now);
-    filter.frequency.exponentialRampToValueAtTime(3400, now + 0.65);
-    filter.Q.setValueAtTime(1.5, now);
+    // 2. Crisp transient crackle burst right at detonation (0 -> 90ms)
+    const crackle = ctx.createBufferSource();
+    crackle.buffer = this.getNoiseBuffer(ctx);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(3200, now);
 
-    const nGain = ctx.createGain();
-    nGain.gain.setValueAtTime(0.0001, now);
-    nGain.gain.linearRampToValueAtTime(0.14, now + 0.08);
-    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+    const cGain = ctx.createGain();
+    cGain.gain.setValueAtTime(0.0001, now);
+    cGain.gain.linearRampToValueAtTime(0.24, now + 0.006);
+    cGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
 
-    noise.connect(filter);
-    filter.connect(nGain);
-    nGain.connect(this.masterGain);
-    noise.start(now);
-    noise.stop(now + 1.5);
-    noise.onended = () => {
-      noise.disconnect();
-      filter.disconnect();
-      nGain.disconnect();
+    crackle.connect(hp);
+    hp.connect(cGain);
+    cGain.connect(this.masterGain);
+    crackle.start(now);
+    crackle.stop(now + 0.16);
+    crackle.onended = () => {
+      crackle.disconnect();
+      hp.disconnect();
+      cGain.disconnect();
     };
 
-    // Ascending luminous supernova chimes (D5, A5, D6, F#6, A6, C#7)
-    const notes = [587.33, 880.0, 1174.66, 1479.98, 1760.0, 2217.46];
-    notes.forEach((freq, idx) => {
+    // 3. Broad cosmic shockwave air sweep
+    const sweep = ctx.createBufferSource();
+    sweep.buffer = this.getNoiseBuffer(ctx);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(900, now);
+    bp.frequency.exponentialRampToValueAtTime(4200, now + 0.85);
+    bp.Q.setValueAtTime(1.1, now);
+
+    const sGain = ctx.createGain();
+    sGain.gain.setValueAtTime(0.0001, now);
+    sGain.gain.linearRampToValueAtTime(0.16, now + 0.04);
+    sGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.85);
+
+    sweep.connect(bp);
+    bp.connect(sGain);
+    sGain.connect(this.masterGain);
+    sweep.start(now);
+    sweep.stop(now + 1.9);
+    sweep.onended = () => {
+      sweep.disconnect();
+      bp.disconnect();
+      sGain.disconnect();
+    };
+
+    // 4. Lush shimmering high-frequency stardust cascade across the 1.3s aftermath
+    const cascade = [587.33, 880.0, 1174.66, 1479.98, 1760.0, 2217.46, 2637.02, 2959.96, 3520.0];
+    cascade.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const t0 = now + idx * 0.065;
+      const t0 = now + 0.03 + idx * 0.075;
       osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.068 - idx * 0.006, t0 + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.65);
+      gain.gain.linearRampToValueAtTime(0.056 - idx * 0.004, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.85);
 
       osc.connect(gain);
       gain.connect(this.masterGain!);
       osc.start(t0);
-      osc.stop(t0 + 1.75);
+      osc.stop(t0 + 1.95);
       osc.onended = () => {
         osc.disconnect();
         gain.disconnect();
@@ -796,6 +915,7 @@ class ProceduralSfxEngine {
     this.stopChargeHum();
     this.stopWarpWhoosh();
     this.stopHeartCoalescence();
+    this.cutSupernovaImplosion();
     this.unsubStore?.();
     this.unsubStore = null;
   }
