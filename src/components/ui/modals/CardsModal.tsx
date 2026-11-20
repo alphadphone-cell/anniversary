@@ -40,13 +40,13 @@ export function CardsModal() {
         </span>
         <h2
           id="anni-modal-title"
-          className="font-display text-3xl font-semibold text-starlight sm:text-4xl"
+          className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
-          Fortune Cards
+          Thẻ Lời Chúc &amp; Quà Tặng
         </h2>
       </div>
-      <p className="mt-1.5 text-sm text-lavender">
-        Select any card to flip and reveal your romantic coupon.
+      <p className="mt-1.5 text-sm leading-relaxed text-lavender">
+        Chạm vào một lá thẻ để lật mở điều ước ngọt ngào dành riêng cho em nhé.
       </p>
 
       {/* 5 Face-Down 3D Flip Cards */}
@@ -61,7 +61,9 @@ export function CardsModal() {
               type="button"
               onClick={() => toggleCard(card.id)}
               aria-pressed={isFlipped}
-              aria-label={isFlipped ? `${card.title}: ${card.message}` : `Reveal fortune card ${index + 1}`}
+              aria-label={
+                isFlipped ? `${card.title}: ${card.message}` : `Lật thẻ lời chúc số ${index + 1}`
+              }
               className={`group relative h-60 cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-pink sm:h-64 ${spanLastOnMobile}`}
               style={{ perspective: '1000px' }}
             >
@@ -114,7 +116,9 @@ export function CardsModal() {
                     </h3>
                     <p className="mt-1.5 text-[11px] leading-snug text-lavender">{card.message}</p>
                   </div>
-                  <span className="text-[11px] font-medium text-lavender-muted">Tap to hide</span>
+                  <span className="text-[11px] leading-normal font-medium text-lavender-muted">
+                    Chạm để úp lại
+                  </span>
                 </div>
               </div>
             </button>
@@ -125,15 +129,15 @@ export function CardsModal() {
       {/* Shuffle / Reset Controls */}
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
         <span className="font-mono text-xs text-lavender-muted tabular-nums">
-          {revealedCount} / {deck.length} revealed
+          Đã lật {revealedCount} / {deck.length} thẻ
         </span>
         <button
           type="button"
           onClick={handleShuffleReset}
-          className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-4 text-xs font-medium text-starlight hover:border-neon-pink/65"
+          className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-4 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65"
         >
           <Shuffle className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-          <span>Shuffle / Reset</span>
+          <span>Trộn lại / Úp thẻ</span>
         </button>
       </div>
     </div>

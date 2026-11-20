@@ -147,12 +147,12 @@ export function PuzzleModal() {
         </span>
         <h2
           id="anni-modal-title"
-          className="font-display text-3xl font-semibold text-starlight sm:text-4xl"
+          className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
           {ANNIVERSARY_DATA.puzzle.headline}
         </h2>
       </div>
-      <p className="mt-1.5 text-sm text-lavender">{ANNIVERSARY_DATA.puzzle.intro}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-lavender">{ANNIVERSARY_DATA.puzzle.intro}</p>
 
       {/* 3x3 Clickable Tile-Swap Jigsaw Grid */}
       <div
@@ -162,7 +162,7 @@ export function PuzzleModal() {
             : 'gap-1.5 border-neon-magenta/35 bg-void/80 shadow-[0_14px_38px_-14px_rgba(217,70,239,0.45)]'
         }`}
         role="grid"
-        aria-label="3 by 3 anniversary photo puzzle"
+        aria-label="Trò chơi ghép hình kỷ niệm 3 nhân 3"
       >
         {board.map((pieceId, slotIndex) => {
           const pieceRow = Math.floor(pieceId / GRID_SIZE);
@@ -177,7 +177,7 @@ export function PuzzleModal() {
               data-puzzle-slot={slotIndex}
               data-puzzle-piece={pieceId}
               onClick={() => handleTileClick(slotIndex)}
-              aria-label={`Puzzle slot ${slotIndex + 1}, piece ${pieceId + 1}${isCorrect ? ', in place' : ''}`}
+              aria-label={`Ô ghép số ${slotIndex + 1}, mảnh ${pieceId + 1}${isCorrect ? ', đã đúng vị trí' : ''}`}
               aria-pressed={isSelected}
               className={`relative aspect-square min-h-11 min-w-11 cursor-pointer overflow-hidden transition-transform duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-neon-pink ${
                 isSolved ? 'rounded-none' : 'rounded-lg'
@@ -205,28 +205,30 @@ export function PuzzleModal() {
       <div className="mt-4 flex flex-col items-center gap-2">
         {isSolved ? (
           <div className="space-y-1">
-            <p className="inline-flex items-center gap-1.5 font-mono text-xs font-medium tracking-[0.18em] text-neon-pink uppercase">
+            <p className="inline-flex items-center gap-1.5 font-sans text-xs leading-normal font-semibold tracking-[0.14em] text-neon-pink uppercase">
               <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-              <span>9 / 9 Completed</span>
+              <span>9 / 9 Hoàn Thành</span>
             </p>
-            <p className="font-display text-2xl font-semibold text-starlight">
+            <p className="font-display text-2xl leading-snug font-semibold text-starlight">
               {ANNIVERSARY_DATA.puzzle.completedHeadline}
             </p>
-            <p className="text-xs text-lavender">{ANNIVERSARY_DATA.puzzle.unlockMessage}</p>
+            <p className="text-xs leading-relaxed text-lavender">
+              {ANNIVERSARY_DATA.puzzle.unlockMessage}
+            </p>
           </div>
         ) : (
-          <p className="font-mono text-xs font-medium tracking-[0.16em] text-lavender tabular-nums">
-            <span className="text-starlight">{solvedCount}</span> / {TOTAL_TILES} pieces
+          <p className="font-mono text-xs font-medium tracking-[0.12em] text-lavender tabular-nums">
+            Tiến độ: <span className="text-starlight">{solvedCount}</span> / {TOTAL_TILES} mảnh
           </p>
         )}
 
         <button
           type="button"
           onClick={handleReset}
-          className="glass-interactive mt-1 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs font-medium text-lavender hover:text-starlight"
+          className="glass-interactive mt-1 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs leading-normal font-medium text-lavender hover:text-starlight"
         >
           <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-          <span>{isSolved ? 'Play Again' : 'Shuffle Tiles'}</span>
+          <span>{isSolved ? 'Chơi Lại' : 'Trộn Mảnh Ghép'}</span>
         </button>
       </div>
     </div>

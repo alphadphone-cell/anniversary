@@ -235,9 +235,10 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
           />
           {hovered && (
             <Text
+              font="/fonts/BeVietnamPro-SemiBold.ttf"
               position={[0, 1.08, 0.02]}
               fontSize={0.28}
-              letterSpacing={0.08}
+              letterSpacing={0.05}
               color="#fff5fe"
               anchorX="center"
               anchorY="middle"

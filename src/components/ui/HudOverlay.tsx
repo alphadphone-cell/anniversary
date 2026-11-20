@@ -57,7 +57,7 @@ function ViewModeToggle() {
   return (
     <motion.nav
       key="view-mode-toggle"
-      aria-label="Sky view mode"
+      aria-label="Chế độ góc nhìn bầu trời"
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
@@ -69,8 +69,8 @@ function ViewModeToggle() {
         onClick={() => handleSelect('galaxy')}
         onMouseEnter={() => sfxEngine.playHoverTick()}
         aria-pressed={viewMode === 'galaxy'}
-        aria-label="Galaxy View"
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium sm:px-3.5 ${
+        aria-label="Góc nhìn Ngân Hà"
+        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium sm:px-3.5 ${
           viewMode === 'galaxy'
             ? 'glass-active text-starlight'
             : 'border border-transparent text-lavender hover:text-starlight'
@@ -81,7 +81,7 @@ function ViewModeToggle() {
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        <span className="hidden sm:inline">Galaxy</span>
+        <span className="hidden sm:inline">Ngân Hà</span>
       </button>
 
       <button
@@ -89,8 +89,8 @@ function ViewModeToggle() {
         onClick={() => handleSelect('constellation')}
         onMouseEnter={() => sfxEngine.playHoverTick()}
         aria-pressed={viewMode === 'constellation'}
-        aria-label="Constellation View"
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium sm:px-3.5 ${
+        aria-label="Góc nhìn Chòm Sao"
+        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium sm:px-3.5 ${
           viewMode === 'constellation'
             ? 'glass-active text-starlight'
             : 'border border-transparent text-lavender hover:text-starlight'
@@ -101,7 +101,7 @@ function ViewModeToggle() {
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        <span className="hidden sm:inline">Constellation</span>
+        <span className="hidden sm:inline">Chòm Sao</span>
       </button>
     </motion.nav>
   );
@@ -142,13 +142,13 @@ export function HudOverlay() {
                   className="h-2 w-2 shrink-0 rounded-full bg-neon-pink shadow-[0_0_10px_#ff3ea5]"
                   aria-hidden="true"
                 />
-                <h1 className="font-display text-xl leading-none font-semibold tracking-tight text-starlight sm:text-2xl">
+                <h1 className="font-display text-lg leading-snug font-semibold tracking-tight text-starlight sm:text-xl">
                   {ANNIVERSARY_DATA.experienceTitle}
                 </h1>
               </div>
-              <p className="mt-1 text-xs text-lavender">
+              <p className="mt-1 text-xs leading-normal text-lavender">
                 {ANNIVERSARY_DATA.coupleNames[0]} &amp; {ANNIVERSARY_DATA.coupleNames[1]} ·{' '}
-                <span className="font-mono tabular-nums">{ANNIVERSARY_DATA.anniversaryOrdinal}</span>
+                <span className="tabular-nums">{ANNIVERSARY_DATA.anniversaryOrdinal}</span>
               </p>
             </motion.div>
           )}

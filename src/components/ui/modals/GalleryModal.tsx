@@ -34,10 +34,13 @@ export function GalleryModal() {
   if (!current) {
     return (
       <div className="py-8 text-center">
-        <h2 id="anni-modal-title" className="font-display text-3xl font-semibold text-starlight">
-          Memory Gallery
+        <h2
+          id="anni-modal-title"
+          className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
+        >
+          Thư Viện Kỷ Niệm
         </h2>
-        <p className="mt-2 text-sm text-lavender">No memories added yet.</p>
+        <p className="mt-2 text-sm text-lavender">Chưa có hình ảnh kỷ niệm nào.</p>
       </div>
     );
   }
@@ -50,9 +53,9 @@ export function GalleryModal() {
         </span>
         <h2
           id="anni-modal-title"
-          className="font-display text-3xl font-semibold text-starlight sm:text-4xl"
+          className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
-          Memory Gallery
+          Thư Viện Kỷ Niệm
         </h2>
       </div>
 
@@ -105,14 +108,14 @@ export function GalleryModal() {
           <button
             type="button"
             onClick={goPrev}
-            aria-label="Previous memory"
-            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs font-medium text-lavender hover:text-starlight"
+            aria-label="Ảnh kỷ niệm trước"
+            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            <span className="hidden sm:inline">Prev</span>
+            <span className="hidden sm:inline">Trước</span>
           </button>
 
-          <div className="flex items-center gap-2" role="tablist" aria-label="Memory slides">
+          <div className="flex items-center gap-2" role="tablist" aria-label="Danh sách ảnh kỷ niệm">
             {photos.map((photo, idx) => {
               const isCurrent = idx === safeIndex;
               return (
@@ -121,7 +124,7 @@ export function GalleryModal() {
                   type="button"
                   role="tab"
                   aria-selected={isCurrent}
-                  aria-label={`View memory ${idx + 1}: ${photo.title}`}
+                  aria-label={`Xem kỷ niệm ${idx + 1}: ${photo.title}`}
                   onClick={() => setActiveIndex(idx)}
                   className="flex h-11 w-7 cursor-pointer items-center justify-center"
                 >
@@ -140,10 +143,10 @@ export function GalleryModal() {
           <button
             type="button"
             onClick={goNext}
-            aria-label="Next memory"
-            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs font-medium text-lavender hover:text-starlight"
+            aria-label="Ảnh kỷ niệm tiếp theo"
+            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
           >
-            <span className="hidden sm:inline">Next</span>
+            <span className="hidden sm:inline">Sau</span>
             <ChevronRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>

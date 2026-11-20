@@ -54,8 +54,9 @@ export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhras
         return (
           <Billboard key={item.text} position={[x, item.y, z]} follow lockX={false} lockY={false} lockZ={false}>
             <Text
+              font="/fonts/BeVietnamPro-SemiBold.ttf"
               fontSize={item.fontSize}
-              letterSpacing={0.12}
+              letterSpacing={0.06}
               color="#fff3fd"
               anchorX="center"
               anchorY="middle"

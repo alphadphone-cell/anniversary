@@ -198,7 +198,7 @@ export function IntroStage() {
       />
 
       <section
-        aria-label="Anniversary welcome"
+        aria-label="Màn hình chào mừng kỷ niệm"
         className="relative flex w-full flex-col items-center overflow-visible rounded-[28px] px-6 py-10 text-center sm:px-12 sm:py-12"
         style={{
           background:
@@ -217,7 +217,7 @@ export function IntroStage() {
         <motion.h1
           animate={isComplete ? { opacity: 0.2, y: -6 } : { opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="font-sans text-3xl font-bold tracking-[-0.025em] text-starlight sm:text-5xl"
+          className="font-display text-3xl leading-snug font-bold tracking-[-0.015em] text-starlight sm:text-5xl"
           style={{
             textShadow:
               '0 0 26px rgba(224, 200, 255, 0.38), 0 2px 12px rgba(217, 70, 239, 0.28)',
@@ -279,8 +279,8 @@ export function IntroStage() {
             }
             aria-label={
               isComplete
-                ? 'Love charged, launching warp transition'
-                : 'Hold or click heart to charge love'
+                ? 'Đã nạp đầy yêu thương, đang mở cổng không gian'
+                : 'Chạm và giữ trái tim để nạp yêu thương'
             }
             className="group relative flex h-36 w-36 cursor-pointer touch-none select-none items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neon-pink"
           >
@@ -371,24 +371,24 @@ export function IntroStage() {
           animate={isComplete ? { opacity: 0.25, y: 6 } : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32 }}
           role="progressbar"
-          aria-label="Love charge progress"
+          aria-label="Tiến độ nạp yêu thương"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={roundedPercent}
-          className="flex flex-col items-center gap-1.5"
+          className="flex flex-col items-center gap-2"
         >
-          <p className="font-mono text-xs font-medium tracking-[0.28em] text-lavender uppercase sm:text-[13px]">
-            {isComplete ? 'LOVE CHARGED' : ANNIVERSARY_DATA.introStatusLabel}
+          <p className="font-sans text-xs leading-normal font-semibold tracking-[0.18em] text-lavender uppercase sm:text-[13px]">
+            {isComplete ? 'ĐÃ NẠP ĐẦY YÊU THƯƠNG' : ANNIVERSARY_DATA.introStatusLabel}
             {progress > 0 && !isComplete && (
-              <span className="ml-2 text-neon-pink tabular-nums">{roundedPercent}%</span>
+              <span className="ml-2 font-mono text-neon-pink tabular-nums">{roundedPercent}%</span>
             )}
           </p>
-          <p className="text-xs text-lavender-muted">
+          <p className="text-xs leading-relaxed text-lavender-muted">
             {isComplete
-              ? 'Igniting cosmic portal...'
+              ? 'Đang mở cổng ngân hà...'
               : isCharging
-                ? 'Keep holding to ignite the portal'
-                : 'Hold or click the heart to begin'}
+                ? 'Tiếp tục giữ để đánh thức bầu trời sao'
+                : 'Chạm & giữ trái tim để bắt đầu'}
           </p>
         </motion.div>
       </section>

@@ -56,7 +56,7 @@ export function ConstellationCard() {
             key={current.id}
             role="dialog"
             aria-modal="false"
-            aria-label={`Milestone: ${current.title}`}
+            aria-label={`Kỷ niệm: ${current.title}`}
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}
@@ -77,7 +77,7 @@ export function ConstellationCard() {
                 <button
                   type="button"
                   onClick={handleClose}
-                  aria-label="Close milestone card"
+                  aria-label="Đóng thẻ kỷ niệm"
                   className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight"
                 >
                   <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -98,7 +98,7 @@ export function ConstellationCard() {
             <h2 className="mt-3.5 font-display text-2xl leading-snug font-semibold text-starlight">
               {current.title}
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-lavender sm:text-sm">
+            <p className="mt-1.5 text-xs leading-relaxed text-lavender sm:text-sm">
               {current.caption}
             </p>
 
@@ -107,20 +107,20 @@ export function ConstellationCard() {
               <button
                 type="button"
                 onClick={goPrev}
-                aria-label="Previous milestone"
-                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs font-medium text-lavender hover:text-starlight"
+                aria-label="Kỷ niệm trước"
+                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-                <span>Previous</span>
+                <span>Trước</span>
               </button>
 
               <button
                 type="button"
                 onClick={goNext}
-                aria-label="Next milestone"
-                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-3.5 text-xs font-medium text-starlight hover:border-neon-pink/65"
+                aria-label="Kỷ niệm tiếp theo"
+                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-3.5 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65"
               >
-                <span>Next</span>
+                <span>Tiếp theo</span>
                 <ChevronRight className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
               </button>
             </div>

@@ -28,12 +28,12 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundar
           role="status"
         >
           <div className="glass-surface max-w-md rounded-2xl p-6">
-            <p className="font-display text-2xl font-medium text-starlight">
-              WebGL Renderer Unavailable
+            <p className="font-display text-2xl leading-snug font-medium text-starlight">
+              Không Thể Khởi Tạo Đồ Họa 3D
             </p>
             <p className="mt-2 text-sm leading-relaxed text-lavender">
-              Hardware acceleration is disabled or unsupported in this browser. Enable WebGL to
-              explore the 3D starfield.
+              Trình duyệt hiện chưa bật tăng tốc phần cứng WebGL. Hãy bật WebGL để khám phá dải ngân
+              hà 3D của tụi mình.
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
     <WebGLErrorBoundary>
       <div
         className="fixed inset-0 z-0 bg-void"
-        aria-label="Interactive 3D starfield canvas"
+        aria-label="Không gian ngân hà 3D tương tác"
       >
         <Canvas
           dpr={dpr}
@@ -183,7 +183,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
             role="status"
           >
             <p className="glass-surface rounded-full px-5 py-2.5 text-sm text-starlight">
-              Restoring WebGL graphics context…
+              Đang khôi phục đồ họa WebGL…
             </p>
           </div>
         )}

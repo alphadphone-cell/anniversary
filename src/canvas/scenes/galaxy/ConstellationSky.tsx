@@ -222,11 +222,12 @@ function ConstellationStarNode({
             onClick={handleClick}
           />
           {showLabel && (
-            <group position={[0, 1.02, 0.02]}>
+            <group position={[0, 1.06, 0.02]}>
               <Text
-                position={[0, 0.22, 0]}
-                fontSize={0.22}
-                letterSpacing={0.12}
+                font="/fonts/BeVietnamPro-SemiBold.ttf"
+                position={[0, 0.24, 0]}
+                fontSize={0.21}
+                letterSpacing={0.08}
                 color="#ff8ed0"
                 anchorX="center"
                 anchorY="middle"
@@ -235,9 +236,10 @@ function ConstellationStarNode({
                 {milestone.date}
               </Text>
               <Text
+                font="/fonts/BeVietnamPro-SemiBold.ttf"
                 position={[0, -0.08, 0]}
-                fontSize={0.27}
-                letterSpacing={0.04}
+                fontSize={0.26}
+                letterSpacing={0.02}
                 color="#fff6fe"
                 anchorX="center"
                 anchorY="middle"

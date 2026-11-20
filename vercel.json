@@ -6,13 +6,13 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/((?!assets/|media/|audio/|favicon\\.ico|robots\\.txt).*)",
+      "source": "/((?!assets/|media/|audio/|fonts/|favicon\\.ico|robots\\.txt).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "source": "/(assets|fonts)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

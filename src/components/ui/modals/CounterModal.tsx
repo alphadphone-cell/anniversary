@@ -42,11 +42,17 @@ export function CounterModal() {
   }, []);
 
   const units = [
-    { label: 'Days', value: String(elapsed.days) },
-    { label: 'Hours', value: pad2(elapsed.hours) },
-    { label: 'Minutes', value: pad2(elapsed.minutes) },
-    { label: 'Seconds', value: pad2(elapsed.seconds) },
+    { label: 'Ngày', value: String(elapsed.days) },
+    { label: 'Giờ', value: pad2(elapsed.hours) },
+    { label: 'Phút', value: pad2(elapsed.minutes) },
+    { label: 'Giây', value: pad2(elapsed.seconds) },
   ];
+
+  const startDateDisplay = ANNIVERSARY_DATA.startDateISO
+    .slice(0, 10)
+    .split('-')
+    .reverse()
+    .join('/');
 
   return (
     <div className="flex flex-col items-center text-center">
@@ -90,15 +96,15 @@ export function CounterModal() {
         </div>
       </div>
 
-      <p className="text-xs font-medium tracking-[0.18em] text-lavender uppercase">
-        Together since {ANNIVERSARY_DATA.startDateISO.slice(0, 10)}
+      <p className="text-xs leading-normal font-medium tracking-[0.14em] text-lavender uppercase">
+        Bên nhau từ <span className="font-mono tabular-nums">{startDateDisplay}</span>
       </p>
 
       {/* 4 glowing glass timer cards */}
       <div
         className="mt-5 grid w-full grid-cols-2 gap-3 sm:grid-cols-4"
         aria-live="off"
-        aria-label="Real-time anniversary counter"
+        aria-label="Đồng hồ đếm thời gian yêu nhau"
       >
         {units.map((unit) => (
           <div
@@ -108,19 +114,21 @@ export function CounterModal() {
             <span className="font-mono text-2xl font-semibold text-starlight tabular-nums sm:text-3xl">
               {unit.value}
             </span>
-            <span className="mt-1 text-xs font-medium text-lavender-muted">{unit.label}</span>
+            <span className="mt-1 text-xs leading-normal font-medium text-lavender-muted">
+              {unit.label}
+            </span>
           </div>
         ))}
       </div>
 
       <h2
         id="anni-modal-title"
-        className="mt-6 font-display text-3xl font-semibold italic text-starlight sm:text-4xl"
+        className="mt-6 font-display text-2xl leading-snug font-semibold italic text-starlight sm:text-3xl"
       >
-        Our Time Together
+        Thời Gian Của Tụi Mình
       </h2>
       <p className="mt-2 max-w-md text-sm leading-relaxed text-lavender">
-        Every second spent beside you has been the brightest part of my orbit.
+        Mỗi giây trôi qua bên em đều là khoảnh khắc rực rỡ nhất trong vũ trụ của anh.
       </p>
 
       {/* Compact milestone strip */}

@@ -84,11 +84,11 @@ export function LetterModal() {
 
       <h2
         id="anni-modal-title"
-        className="font-display text-3xl leading-tight font-semibold text-starlight sm:text-4xl"
+        className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
       >
         {ANNIVERSARY_DATA.letter.headline}
       </h2>
-      <p className="mt-1 font-mono text-xs text-lavender-muted tabular-nums">
+      <p className="mt-1.5 text-xs text-lavender-muted tabular-nums">
         {ANNIVERSARY_DATA.letter.dateLabel}
       </p>
 
@@ -128,9 +128,9 @@ export function LetterModal() {
             <button
               type="button"
               onClick={() => setVisibleChars(fullText.length)}
-              className="glass-interactive min-h-11 cursor-pointer rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs font-medium text-lavender hover:text-starlight"
+              className="glass-interactive min-h-11 cursor-pointer rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs leading-normal font-medium text-lavender hover:text-starlight"
             >
-              Reveal full letter
+              Hiện toàn bộ thư
             </button>
           </div>
         )}
