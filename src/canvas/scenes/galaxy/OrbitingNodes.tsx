@@ -4,8 +4,10 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { ANNIVERSARY_DATA, type GalaxyNodeConfig } from '../../../data/anniversaryData';
 import { useAppStore } from '../../../store/useAppStore';
+import { sfxEngine } from '../../../utils/sfxEngine';
 
 interface OrbitingNodesProps {
+  interactive?: boolean;
   reducedMotion?: boolean;
 }
 
@@ -118,10 +120,11 @@ function createNodeTexture(node: GalaxyNodeConfig): THREE.CanvasTexture {
 
 interface GalaxyNodeItemProps {
   node: GalaxyNodeConfig;
+  interactive: boolean;
   reducedMotion: boolean;
 }
 
-function GalaxyNodeItem({ node, reducedMotion }: GalaxyNodeItemProps) {
+function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProps) {
   const groupRef = useRef<THREE.Group>(null);
   const scaleWrapperRef = useRef<THREE.Group>(null);
   const angleRef = useRef(node.orbitAngle);
@@ -141,6 +144,13 @@ function GalaxyNodeItem({ node, reducedMotion }: GalaxyNodeItemProps) {
   }, [node]);
 
   useEffect(() => {
+    if (!interactive && hovered) {
+      setHovered(false);
+      document.body.style.cursor = 'auto';
+    }
+  }, [interactive, hovered]);
+
+  useEffect(() => {
     return () => {
       texture.dispose();
       geometry.dispose();
@@ -149,24 +159,35 @@ function GalaxyNodeItem({ node, reducedMotion }: GalaxyNodeItemProps) {
     };
   }, [texture, geometry, material]);
 
-  const handlePointerOver = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    setHovered(true);
-    document.body.style.cursor = 'pointer';
-  }, []);
+  const handlePointerOver = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!interactive) return;
+      event.stopPropagation();
+      setHovered(true);
+      document.body.style.cursor = 'pointer';
+      sfxEngine.playHoverTick();
+    },
+    [interactive]
+  );
 
-  const handlePointerOut = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    setHovered(false);
-    document.body.style.cursor = 'auto';
-  }, []);
+  const handlePointerOut = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!interactive) return;
+      event.stopPropagation();
+      setHovered(false);
+      document.body.style.cursor = 'auto';
+    },
+    [interactive]
+  );
 
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
+      if (!interactive) return;
       event.stopPropagation();
+      sfxEngine.playModalOpen();
       useAppStore.getState().setActiveModal(node.id);
     },
-    [node.id]
+    [interactive, node.id]
   );
 
   useFrame((state, delta) => {
@@ -233,11 +254,16 @@ function GalaxyNodeItem({ node, reducedMotion }: GalaxyNodeItemProps) {
   );
 }
 
-export function OrbitingNodes({ reducedMotion = false }: OrbitingNodesProps) {
+export function OrbitingNodes({ interactive = true, reducedMotion = false }: OrbitingNodesProps) {
   return (
     <group name="orbiting-modal-nodes">
       {ANNIVERSARY_DATA.galaxyNodes.map((node) => (
-        <GalaxyNodeItem key={node.id} node={node} reducedMotion={reducedMotion} />
+        <GalaxyNodeItem
+          key={node.id}
+          node={node}
+          interactive={interactive}
+          reducedMotion={reducedMotion}
+        />
       ))}
     </group>
   );

@@ -28,9 +28,10 @@ export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhras
       const angle = ratio * Math.PI * 2 + 0.25;
       // Stagger inner and outer rings so labels stay readable and balanced across the disc
       const isOuter = index % 2 === 0;
-      const radius = isOuter ? 8.8 + (index % 3) * 0.65 : 5.4 + (index % 3) * 0.55;
-      const y = isOuter ? 0.35 + (index % 3) * 0.18 : 0.65 + (index % 2) * 0.24;
-      const fontSize = index < 2 ? 0.42 : 0.32;
+      const radius = isOuter ? 8.6 + (index % 3) * 0.6 : 5.4 + (index % 3) * 0.55;
+      // Elevated Y-offset keeps lowest orbiting phrases cleanly clear of the bottom viewport band
+      const y = isOuter ? 0.95 + (index % 3) * 0.22 : 1.18 + (index % 2) * 0.28;
+      const fontSize = index < 2 ? 0.4 : 0.31;
 
       return { text, radius, angle, y, fontSize };
     });

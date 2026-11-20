@@ -62,9 +62,12 @@ const StageSceneContent = memo(function StageSceneContent({
       {!isWarp && <AmbientStarfield quality={quality} reducedMotion={reducedMotion} />}
       {stage === 'intro' && <IntroScene />}
       {isWarp && <WarpSpeedScene quality={quality} reducedMotion={reducedMotion} />}
-      {stage === 'galaxy' && (
-        <LoveGalaxyScene quality={quality} reducedMotion={reducedMotion} />
-      )}
+      {/* Pre-mounted LoveGalaxy so shaders/buffers compile upfront with zero black frame at Warp peak */}
+      <LoveGalaxyScene
+        active={stage === 'galaxy'}
+        quality={quality}
+        reducedMotion={reducedMotion}
+      />
       <CameraRig stage={stage} reducedMotion={reducedMotion} />
     </>
   );

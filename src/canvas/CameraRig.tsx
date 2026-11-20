@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { OrbitControls } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useAppStore, type AppStage } from '../store/useAppStore';
 
@@ -9,29 +10,45 @@ interface CameraRigProps {
   reducedMotion?: boolean;
 }
 
+const GALAXY_START_POS = new THREE.Vector3(0, 2.3, 5.6);
+const GALAXY_TARGET_POS = new THREE.Vector3(0, 6.4, 16.2);
+const GALAXY_LOOK_TARGET = new THREE.Vector3(0, 1.75, 0);
+const ENTRANCE_DURATION = 1.8; // seconds smooth pull-out from galaxy core
+
 export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const entranceActiveRef = useRef(false);
+  const entranceElapsedRef = useRef(0);
   const { camera } = useThree();
   const enabled = stage !== 'warp';
 
-  // Position camera at elevated 3/4 cosmic vantage when entering Galaxy
+  // Position camera close to the galaxy core and ease out smoothly over ~1.8s
   useEffect(() => {
     if (stage === 'galaxy') {
-      camera.position.set(0, 6.4, 16.2);
+      if (reducedMotion) {
+        entranceActiveRef.current = false;
+        camera.position.copy(GALAXY_TARGET_POS);
+      } else {
+        entranceActiveRef.current = true;
+        entranceElapsedRef.current = 0;
+        camera.position.copy(GALAXY_START_POS);
+      }
+
       if (controlsRef.current) {
-        controlsRef.current.target.set(0, 1.75, 0);
+        controlsRef.current.target.copy(GALAXY_LOOK_TARGET);
         controlsRef.current.update();
       } else {
-        camera.lookAt(0, 1.75, 0);
+        camera.lookAt(GALAXY_LOOK_TARGET);
       }
     } else if (stage === 'intro') {
+      entranceActiveRef.current = false;
       camera.position.set(0, 0.8, 13);
       if (controlsRef.current) {
         controlsRef.current.target.set(0, 0, 0);
         controlsRef.current.update();
       }
     }
-  }, [stage, camera]);
+  }, [stage, camera, reducedMotion]);
 
   // Imperatively pause autoRotate whenever a modal opens without triggering any React re-render
   useEffect(() => {
@@ -52,6 +69,28 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
     return unsubscribe;
   }, [reducedMotion, enabled]);
 
+  useFrame((_, delta) => {
+    if (!entranceActiveRef.current || stage !== 'galaxy') return;
+
+    const dt = Math.min(delta, 0.05);
+    entranceElapsedRef.current += dt;
+    const t = THREE.MathUtils.clamp(entranceElapsedRef.current / ENTRANCE_DURATION, 0, 1);
+    // Smooth cubic ease-out pull-back from core to default orbit vantage
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    camera.position.lerpVectors(GALAXY_START_POS, GALAXY_TARGET_POS, eased);
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(GALAXY_LOOK_TARGET);
+      controlsRef.current.update();
+    } else {
+      camera.lookAt(GALAXY_LOOK_TARGET);
+    }
+
+    if (t >= 1) {
+      entranceActiveRef.current = false;
+    }
+  });
+
   if (!enabled) return null;
 
   return (
@@ -69,6 +108,10 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       zoomSpeed={0.68}
       autoRotate={!reducedMotion && useAppStore.getState().activeModal === null}
       autoRotateSpeed={0.34}
+      onStart={() => {
+        // Immediately yield entrance animation when user grabs/zooms manually
+        entranceActiveRef.current = false;
+      }}
     />
   );
 }

@@ -3,13 +3,14 @@ import { motion } from 'framer-motion';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { useAppStore } from '../../store/useAppStore';
 import { startAmbientAudio } from '../../audio/audioEngine';
+import { sfxEngine } from '../../utils/sfxEngine';
 
 const HEART_PATH =
   'M60 98 C57 95 16 66 16 37 C16 21 28 11 42 11 C50 11 56 15 60 22 C64 15 70 11 78 11 C92 11 104 21 104 37 C104 66 63 95 60 98 Z';
 
 const HOLD_CHARGE_RATE = 74; // % per second while held (~1.35s)
-const AUTO_CHARGE_RATE = 78; // % per second after a deliberate click (~1.28s)
-const DECAY_RATE = 26; // gentle ease-back if long-hold released early
+const AUTO_CHARGE_RATE = 78; // % per second after tap/click (~1.28s)
+const DECAY_RATE = 26;
 
 export function IntroStage() {
   const [progress, setProgress] = useState(0);
@@ -29,6 +30,7 @@ export function IntroStage() {
   const setMuted = useAppStore((s) => s.setMuted);
 
   const triggerAudioOnGesture = useCallback(() => {
+    sfxEngine.unlock();
     startAmbientAudio();
     setMuted(false);
   }, [setMuted]);
@@ -52,10 +54,13 @@ export function IntroStage() {
     setIsCharging(false);
     setIsComplete(true);
 
-    // Brief radiant beat at 100% before fading Intro out into Warp Speed
+    // Chime + sub-bass impact as heart pulls inward and radial shockwave fires
+    sfxEngine.playChargeComplete();
+
+    // Ignite Warp portal right as the heart anticipation peak transitions into shockwave dissolve
     transitionTimerRef.current = window.setTimeout(() => {
       setStage('warp');
-    }, 260);
+    }, 240);
   }, [setStage, stopLoop]);
 
   const ensureLoopRunning = useCallback(() => {
@@ -84,6 +89,10 @@ export function IntroStage() {
       progressRef.current = next;
       setProgress(next);
 
+      if (isHoldingRef.current || autoChargingRef.current) {
+        sfxEngine.updateChargeHum(next / 100);
+      }
+
       if (next >= 100) {
         completeCharge();
         return;
@@ -91,6 +100,7 @@ export function IntroStage() {
 
       if (!isHoldingRef.current && !autoChargingRef.current && next <= 0) {
         setIsCharging(false);
+        sfxEngine.stopChargeHum();
         stopLoop();
         return;
       }
@@ -107,6 +117,7 @@ export function IntroStage() {
     pressStartRef.current = performance.now();
     isHoldingRef.current = true;
     setIsCharging(true);
+    sfxEngine.startChargeHum();
     ensureLoopRunning();
   }, [ensureLoopRunning, triggerAudioOnGesture]);
 
@@ -124,6 +135,7 @@ export function IntroStage() {
         setIsCharging(true);
       } else if (!autoChargingRef.current) {
         setIsCharging(false);
+        sfxEngine.stopChargeHum();
       }
 
       ensureLoopRunning();
@@ -155,6 +167,7 @@ export function IntroStage() {
   useEffect(() => {
     return () => {
       stopLoop();
+      sfxEngine.stopChargeHum();
       if (transitionTimerRef.current !== null) {
         window.clearTimeout(transitionTimerRef.current);
       }
@@ -170,8 +183,8 @@ export function IntroStage() {
       key="intro-stage"
       initial={{ opacity: 0, scale: 0.96, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-      transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, scale: 1.09, filter: 'blur(14px)' }}
+      transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
       className="pointer-events-auto relative flex w-full max-w-[560px] flex-col items-center justify-center px-2"
     >
       {/* Ambient nebula radial backing */}
@@ -186,7 +199,7 @@ export function IntroStage() {
 
       <section
         aria-label="Anniversary welcome"
-        className="relative flex w-full flex-col items-center rounded-[28px] px-6 py-10 text-center sm:px-12 sm:py-12"
+        className="relative flex w-full flex-col items-center overflow-visible rounded-[28px] px-6 py-10 text-center sm:px-12 sm:py-12"
         style={{
           background:
             'linear-gradient(155deg, rgba(24, 11, 44, 0.78) 0%, rgba(12, 5, 24, 0.84) 55%, rgba(20, 8, 36, 0.78) 100%)',
@@ -201,7 +214,9 @@ export function IntroStage() {
           transition: 'border-color 260ms ease, box-shadow 300ms ease',
         }}
       >
-        <h1
+        <motion.h1
+          animate={isComplete ? { opacity: 0.2, y: -6 } : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="font-sans text-3xl font-bold tracking-[-0.025em] text-starlight sm:text-5xl"
           style={{
             textShadow:
@@ -209,7 +224,7 @@ export function IntroStage() {
           }}
         >
           {ANNIVERSARY_DATA.introHeadline}
-        </h1>
+        </motion.h1>
 
         {/* Interactive Glowing Heart Charge Button */}
         <div className="relative mt-8 mb-7 flex items-center justify-center sm:mt-9 sm:mb-8">
@@ -219,11 +234,26 @@ export function IntroStage() {
             className="pointer-events-none absolute h-36 w-36 rounded-full blur-2xl transition-opacity duration-200"
             style={{
               background:
-                'radial-gradient(circle, rgba(255, 62, 165, 0.55) 0%, rgba(217, 70, 239, 0.24) 55%, transparent 75%)',
+                'radial-gradient(circle, rgba(255, 62, 165, 0.58) 0%, rgba(217, 70, 239, 0.26) 55%, transparent 75%)',
               opacity: 0.25 + chargeRatio * 0.75,
-              transform: `scale(${0.92 + chargeRatio * 0.32})`,
+              transform: `scale(${0.92 + chargeRatio * 0.38})`,
             }}
           />
+
+          {/* Radial shockwave emitted from the exact center of the heart at 100% */}
+          {isComplete && (
+            <motion.span
+              aria-hidden="true"
+              initial={{ scale: 0.45, opacity: 0.92 }}
+              animate={{ scale: 4.4, opacity: 0 }}
+              transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
+              className="pointer-events-none absolute h-28 w-28 rounded-full border-2 border-neon-pink"
+              style={{
+                boxShadow:
+                  '0 0 28px rgba(255, 62, 165, 0.85), inset 0 0 18px rgba(217, 70, 239, 0.75)',
+              }}
+            />
+          )}
 
           <motion.button
             type="button"
@@ -235,8 +265,18 @@ export function IntroStage() {
             onPointerCancel={() => handlePressEnd(true)}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={isComplete ? undefined : { scale: 1.04 }}
+            whileTap={isComplete ? undefined : { scale: 0.96 }}
+            animate={
+              isComplete
+                ? { scale: [1, 0.78, 1.24], opacity: [1, 1, 0.75] }
+                : { scale: 1, opacity: 1 }
+            }
+            transition={
+              isComplete
+                ? { duration: 0.42, times: [0, 0.38, 1], ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.2 }
+            }
             aria-label={
               isComplete
                 ? 'Love charged, launching warp transition'
@@ -268,7 +308,6 @@ export function IntroStage() {
                 </radialGradient>
               </defs>
 
-              {/* Subtle translucent inner heart well */}
               <path
                 d={HEART_PATH}
                 fill="url(#anni-heart-fill)"
@@ -277,7 +316,6 @@ export function IntroStage() {
                 strokeLinejoin="round"
               />
 
-              {/* Animated neon pink heart perimeter charge ring */}
               <path
                 d={HEART_PATH}
                 fill="none"
@@ -296,20 +334,20 @@ export function IntroStage() {
               />
             </svg>
 
-            {/* Pulsing inner core heart */}
+            {/* Pulsing inner core heart (pulls inward then bursts into Warp portal) */}
             <motion.span
               aria-hidden="true"
               className="pointer-events-none absolute flex items-center justify-center"
               animate={
                 isComplete
-                  ? { scale: [1.18, 1.35], opacity: [1, 1] }
+                  ? { scale: [1.05, 0.68, 1.55], opacity: [1, 1, 0.9] }
                   : isCharging
                     ? { scale: [1.05, 1.2, 1.08], opacity: 1 }
                     : { scale: [1, 1.09, 1, 1.05, 1], opacity: 0.92 }
               }
               transition={
                 isComplete
-                  ? { duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+                  ? { duration: 0.42, times: [0, 0.36, 1], ease: [0.22, 1, 0.36, 1] }
                   : isCharging
                     ? { duration: 0.52, repeat: Infinity, ease: 'easeInOut' }
                     : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
@@ -320,7 +358,7 @@ export function IntroStage() {
                   d={HEART_PATH}
                   fill="#ff3ea5"
                   style={{
-                    filter: `drop-shadow(0 0 ${8 + chargeRatio * 14}px rgba(255, 62, 165, 0.88))`,
+                    filter: `drop-shadow(0 0 ${8 + chargeRatio * 16}px rgba(255, 62, 165, 0.92))`,
                   }}
                 />
               </svg>
@@ -329,7 +367,9 @@ export function IntroStage() {
         </div>
 
         {/* Status Readout & Accessible Progressbar */}
-        <div
+        <motion.div
+          animate={isComplete ? { opacity: 0.25, y: 6 } : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.32 }}
           role="progressbar"
           aria-label="Love charge progress"
           aria-valuemin={0}
@@ -338,21 +378,19 @@ export function IntroStage() {
           className="flex flex-col items-center gap-1.5"
         >
           <p className="font-mono text-xs font-medium tracking-[0.28em] text-lavender uppercase sm:text-[13px]">
-            {isComplete
-              ? 'LOVE CHARGED'
-              : ANNIVERSARY_DATA.introStatusLabel}
+            {isComplete ? 'LOVE CHARGED' : ANNIVERSARY_DATA.introStatusLabel}
             {progress > 0 && !isComplete && (
               <span className="ml-2 text-neon-pink tabular-nums">{roundedPercent}%</span>
             )}
           </p>
           <p className="text-xs text-lavender-muted">
             {isComplete
-              ? 'Entering hyperspace...'
+              ? 'Igniting cosmic portal...'
               : isCharging
                 ? 'Keep holding to ignite the portal'
                 : 'Hold or click the heart to begin'}
           </p>
-        </div>
+        </motion.div>
       </section>
     </motion.div>
   );

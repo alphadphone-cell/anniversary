@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useActiveModal, useAppStore, type ModalId } from '../../store/useAppStore';
+import { sfxEngine } from '../../utils/sfxEngine';
 import { LetterModal } from './modals/LetterModal';
 import { CounterModal } from './modals/CounterModal';
 import { CardsModal } from './modals/CardsModal';
@@ -25,8 +26,13 @@ function ModalContent({ modal }: { modal: Exclude<ModalId, null> }) {
 
 export function ModalShell() {
   const activeModal = useActiveModal();
-  const closeModal = useAppStore((s) => s.closeModal);
+  const closeModalStore = useAppStore((s) => s.closeModal);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleClose = useCallback(() => {
+    sfxEngine.playModalClose();
+    closeModalStore();
+  }, [closeModalStore]);
 
   useEffect(() => {
     if (!activeModal) return;
@@ -35,13 +41,13 @@ export function ModalShell() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        closeModal();
+        handleClose();
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeModal, closeModal]);
+  }, [activeModal, handleClose]);
 
   const widthClass = activeModal === 'cards' ? 'max-w-3xl' : 'max-w-xl';
 
@@ -54,7 +60,7 @@ export function ModalShell() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          onClick={closeModal}
+          onClick={handleClose}
           className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center bg-void/72 px-3 py-5 backdrop-blur-md sm:px-6"
         >
           <motion.section
@@ -76,7 +82,7 @@ export function ModalShell() {
               <button
                 ref={closeButtonRef}
                 type="button"
-                onClick={closeModal}
+                onClick={handleClose}
                 aria-label="Close modal"
                 className="glass-interactive inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/25 bg-white/[0.04] px-6 font-mono text-xs font-medium tracking-[0.22em] text-starlight uppercase hover:border-neon-pink/65"
               >
