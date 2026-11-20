@@ -1,6 +1,11 @@
 import { ANNIVERSARY_DATA } from '../data/anniversaryData';
+import { useAppStore } from '../store/useAppStore';
+import { sfxEngine } from '../utils/sfxEngine';
 
 let audioElement: HTMLAudioElement | null = null;
+let analyserNode: AnalyserNode | null = null;
+let frequencyData: Uint8Array<ArrayBuffer> | null = null;
+let analyserConnected = false;
 
 function getAudioElement(): HTMLAudioElement | null {
   if (typeof window === 'undefined' || !ANNIVERSARY_DATA.audio.src) {
@@ -8,7 +13,9 @@ function getAudioElement(): HTMLAudioElement | null {
   }
 
   if (!audioElement) {
-    const el = new Audio(ANNIVERSARY_DATA.audio.src);
+    const el = new Audio();
+    el.crossOrigin = 'anonymous';
+    el.src = ANNIVERSARY_DATA.audio.src;
     el.loop = true;
     el.preload = 'auto';
     el.muted = false;
@@ -17,6 +24,61 @@ function getAudioElement(): HTMLAudioElement | null {
   }
 
   return audioElement;
+}
+
+/** Lazily connects the `<audio>` element to a single Web Audio `AnalyserNode` (`fftSize = 256`). */
+function ensureAnalyserConnected(): void {
+  if (analyserConnected || !audioElement) return;
+  const ctx = sfxEngine.getContext();
+  if (!ctx) return;
+
+  try {
+    const source = ctx.createMediaElementSource(audioElement);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.82;
+
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    analyserNode = analyser;
+    frequencyData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+    analyserConnected = true;
+  } catch {
+    // Gracefully fall back to procedural breathing wave if media element cannot bind
+  }
+}
+
+/**
+ * Samples the low-frequency (bass) band into a normalized [0..1] value with zero per-frame allocations.
+ * Returns `null` when muted, paused, or analyser inactive so scenes fall back to procedural breathing.
+ */
+export function sampleAudioBass(): number | null {
+  if (useAppStore.getState().isMuted) return null;
+  if (!audioElement || audioElement.paused || audioElement.muted) return null;
+
+  if (!analyserConnected) {
+    ensureAnalyserConnected();
+  }
+
+  const ctx = sfxEngine.getContext();
+  if (!analyserNode || !frequencyData || !ctx || ctx.state !== 'running') {
+    return null;
+  }
+
+  analyserNode.getByteFrequencyData(frequencyData);
+
+  // Average low-frequency bass bins (bins 1..10)
+  let sum = 0;
+  const startBin = 1;
+  const endBin = Math.min(11, frequencyData.length);
+  for (let i = startBin; i < endBin; i++) {
+    sum += frequencyData[i];
+  }
+
+  const avg = sum / ((endBin - startBin) * 255);
+  // If audio file outputs near-silence in headless mode, blend softly rather than flatlining
+  return avg > 0.004 ? Math.min(1, avg * 1.85) : null;
 }
 
 /**
@@ -29,6 +91,7 @@ export function startAmbientAudio(): void {
 
   el.muted = false;
   el.volume = ANNIVERSARY_DATA.audio.defaultVolume;
+  ensureAnalyserConnected();
 
   if (el.paused) {
     void el.play().catch(() => {
@@ -55,6 +118,7 @@ export function installAlwaysOnAmbientAudio(): () => void {
   const tryPlay = () => {
     el.muted = false;
     el.volume = ANNIVERSARY_DATA.audio.defaultVolume;
+    ensureAnalyserConnected();
     if (!el.paused) {
       cleanup();
       return;

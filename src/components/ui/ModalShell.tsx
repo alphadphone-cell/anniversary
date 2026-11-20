@@ -8,6 +8,7 @@ import { CounterModal } from './modals/CounterModal';
 import { CardsModal } from './modals/CardsModal';
 import { PuzzleModal } from './modals/PuzzleModal';
 import { GalleryModal } from './modals/GalleryModal';
+import { SecretModal } from './modals/SecretModal';
 
 function ModalContent({ modal }: { modal: Exclude<ModalId, null> }) {
   switch (modal) {
@@ -21,6 +22,8 @@ function ModalContent({ modal }: { modal: Exclude<ModalId, null> }) {
       return <PuzzleModal />;
     case 'gallery':
       return <GalleryModal />;
+    case 'secret':
+      return <SecretModal />;
   }
 }
 

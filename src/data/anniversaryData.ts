@@ -52,6 +52,15 @@ export interface GalaxyNodeConfig {
   emblem: 'heart-mail' | 'heart-clock' | 'twin-hearts' | 'star-heart' | 'keepsake-heart';
 }
 
+export interface SecretSupernovaConfig {
+  headline: string;
+  subtitle: string;
+  imageUrl: string;
+  paragraphs: string[];
+  promiseLabel: string;
+  signature: string;
+}
+
 export interface AnniversaryConfig {
   coupleNames: [string, string];
   experienceTitle: string;
@@ -75,6 +84,7 @@ export interface AnniversaryConfig {
   puzzle: PuzzleConfig;
   gallery: GalleryMemory[];
   rewards: AnniversaryReward[];
+  secretSupernova: SecretSupernovaConfig;
   audio: {
     trackTitle: string;
     artist: string;
@@ -295,6 +305,18 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       expiresLabel: 'Redeem anytime',
     },
   ],
+
+  secretSupernova: {
+    headline: 'You Found the Hidden Supernova',
+    subtitle: 'Secret Starlight Transmission · Unlocked at the Core of Our Heart',
+    imageUrl: '/media/secret-supernova.svg',
+    paragraphs: [
+      'You held onto our heart long enough to wake the brightest star in this entire galaxy.',
+      'If I could choose every lifetime over again, I would still find my way back to the exact minute our orbits crossed — no map needed.',
+    ],
+    promiseLabel: 'Secret Keepsake · Redeemable for one wish, no questions asked',
+    signature: 'Forever in your gravity',
+  },
 
   audio: {
     trackTitle: 'Nocturne in Violet',

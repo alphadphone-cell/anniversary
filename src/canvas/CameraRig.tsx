@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useAppStore, type AppStage } from '../store/useAppStore';
+import { galaxySignals } from './galaxySignals';
 
 interface CameraRigProps {
   stage: AppStage;
@@ -13,12 +14,14 @@ interface CameraRigProps {
 const GALAXY_START_POS = new THREE.Vector3(0, 2.3, 5.6);
 const GALAXY_TARGET_POS = new THREE.Vector3(0, 6.4, 16.2);
 const GALAXY_LOOK_TARGET = new THREE.Vector3(0, 1.75, 0);
+const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.25, 0);
 const ENTRANCE_DURATION = 1.8; // seconds smooth pull-out from galaxy core
 
 export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const entranceActiveRef = useRef(false);
   const entranceElapsedRef = useRef(0);
+  const zoomDirRef = useRef(new THREE.Vector3());
   const { camera } = useThree();
   const enabled = stage !== 'warp';
 
@@ -70,24 +73,40 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   }, [reducedMotion, enabled]);
 
   useFrame((_, delta) => {
-    if (!entranceActiveRef.current || stage !== 'galaxy') return;
-
     const dt = Math.min(delta, 0.05);
-    entranceElapsedRef.current += dt;
-    const t = THREE.MathUtils.clamp(entranceElapsedRef.current / ENTRANCE_DURATION, 0, 1);
-    // Smooth cubic ease-out pull-back from core to default orbit vantage
-    const eased = 1 - Math.pow(1 - t, 3);
 
-    camera.position.lerpVectors(GALAXY_START_POS, GALAXY_TARGET_POS, eased);
-    if (controlsRef.current) {
-      controlsRef.current.target.copy(GALAXY_LOOK_TARGET);
-      controlsRef.current.update();
-    } else {
-      camera.lookAt(GALAXY_LOOK_TARGET);
+    if (entranceActiveRef.current && stage === 'galaxy') {
+      entranceElapsedRef.current += dt;
+      const t = THREE.MathUtils.clamp(entranceElapsedRef.current / ENTRANCE_DURATION, 0, 1);
+      // Smooth cubic ease-out pull-back from core to default orbit vantage
+      const eased = 1 - Math.pow(1 - t, 3);
+
+      camera.position.lerpVectors(GALAXY_START_POS, GALAXY_TARGET_POS, eased);
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(GALAXY_LOOK_TARGET);
+        controlsRef.current.update();
+      } else {
+        camera.lookAt(GALAXY_LOOK_TARGET);
+      }
+
+      if (t >= 1) {
+        entranceActiveRef.current = false;
+      }
+      return;
     }
 
-    if (t >= 1) {
-      entranceActiveRef.current = false;
+    // Gentle camera zoom-in toward the 3D Particle Heart during the 3.0s Secret Supernova hold
+    if (stage === 'galaxy' && !reducedMotion && galaxySignals.isHoldingHeart) {
+      zoomDirRef.current.subVectors(HEART_FOCUS_POINT, camera.position);
+      const dist = zoomDirRef.current.length();
+      if (dist > 8.2) {
+        zoomDirRef.current.normalize();
+        camera.position.addScaledVector(zoomDirRef.current, dt * 1.85);
+      }
+      if (controlsRef.current) {
+        controlsRef.current.target.lerp(HEART_FOCUS_POINT, Math.min(1, dt * 1.4));
+        controlsRef.current.update();
+      }
     }
   });
 

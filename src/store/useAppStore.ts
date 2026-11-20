@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type AppStage = 'intro' | 'warp' | 'galaxy';
-export type ModalId = 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery' | null;
+export type ModalId = 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery' | 'secret' | null;
 
 interface AppState {
   stage: AppStage;

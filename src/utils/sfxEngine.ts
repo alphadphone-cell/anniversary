@@ -108,6 +108,130 @@ class ProceduralSfxEngine {
     this.ensureContext();
   }
 
+  public getContext(): AudioContext | null {
+    return this.ensureContext();
+  }
+
+  /** Rhythmic double-beat heartbeat pulse synthesized for the 3.0s Secret Supernova hold. */
+  public playHeartbeatPulse(intensity01: number): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || ctx.state !== 'running') return;
+
+    const p = Math.max(0, Math.min(1, intensity01));
+    const now = ctx.currentTime;
+
+    const triggerBeat = (offset: number, peakGain: number, startHz: number) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(startHz + p * 18, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(34, now + offset + 0.14);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(180 + p * 160, now + offset);
+
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.linearRampToValueAtTime(peakGain, now + offset + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.18);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.2);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    };
+
+    const baseGain = 0.11 + p * 0.14;
+    triggerBeat(0, baseGain, 76);
+    triggerBeat(0.115 - p * 0.035, baseGain * 0.72, 66);
+  }
+
+  /** Ethereal sub-bass shockwave + shimmering starlight chime cascade for Supernova burst. */
+  public playSupernovaBurst(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+
+    // Deep cosmic sub-bass impact
+    const sub = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(128, now);
+    sub.frequency.exponentialRampToValueAtTime(28, now + 1.05);
+
+    subGain.gain.setValueAtTime(0.0001, now);
+    subGain.gain.linearRampToValueAtTime(0.28, now + 0.03);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.25);
+
+    sub.connect(subGain);
+    subGain.connect(this.masterGain);
+    sub.start(now);
+    sub.stop(now + 1.3);
+    sub.onended = () => {
+      sub.disconnect();
+      subGain.disconnect();
+    };
+
+    // Shimmering stardust burst sweep
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.getNoiseBuffer(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(420, now);
+    filter.frequency.exponentialRampToValueAtTime(3400, now + 0.65);
+    filter.Q.setValueAtTime(1.5, now);
+
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.0001, now);
+    nGain.gain.linearRampToValueAtTime(0.14, now + 0.08);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.masterGain);
+    noise.start(now);
+    noise.stop(now + 1.5);
+    noise.onended = () => {
+      noise.disconnect();
+      filter.disconnect();
+      nGain.disconnect();
+    };
+
+    // Ascending luminous supernova chimes (D5, A5, D6, F#6, A6, C#7)
+    const notes = [587.33, 880.0, 1174.66, 1479.98, 1760.0, 2217.46];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.065;
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.068 - idx * 0.006, t0 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.65);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 1.75);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
   /** Warm rising harmonic hum while holding/charging the Intro heart (0..1). */
   public startChargeHum(): void {
     if (useAppStore.getState().isMuted) return;
