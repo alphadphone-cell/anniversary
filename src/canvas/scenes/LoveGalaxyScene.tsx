@@ -17,34 +17,33 @@ interface LoveGalaxySceneProps {
   reducedMotion?: boolean;
 }
 
-const BURST_DURATION = 1.55; // seconds for smooth radial bloom from core
+const BURST_DURATION = 1.55; // seconds for smooth radial bloom of the Spiral Galaxy disc
 
 export function LoveGalaxyScene({
   active,
   quality = 1,
   reducedMotion = false,
 }: LoveGalaxySceneProps) {
-  const rootRef = useRef<THREE.Group>(null);
-  const heartAnchorRef = useRef<THREE.Group>(null);
+  const galaxyDiscRef = useRef<THREE.Group>(null);
   const revealTimeRef = useRef(0);
 
   useEffect(() => {
     if (!active) {
       revealTimeRef.current = 0;
-      if (rootRef.current) {
-        rootRef.current.scale.setScalar(0.0001);
+      if (galaxyDiscRef.current) {
+        galaxyDiscRef.current.scale.setScalar(0.0001);
       }
       return;
     }
 
-    if (reducedMotion && rootRef.current) {
+    if (reducedMotion && galaxyDiscRef.current) {
       revealTimeRef.current = BURST_DURATION;
-      rootRef.current.scale.setScalar(1);
+      galaxyDiscRef.current.scale.setScalar(1);
     }
   }, [active, reducedMotion]);
 
   useFrame((state, delta) => {
-    if (!rootRef.current) return;
+    if (!galaxyDiscRef.current) return;
 
     const dt = Math.min(delta, 0.05);
     const elapsed = state.clock.elapsedTime;
@@ -67,14 +66,14 @@ export function LoveGalaxyScene({
       Math.min(1, dt * 4.2)
     );
 
-    // 3. Keep pre-mounted LoveGalaxy hidden at micro-scale during Intro/Warp, then bloom radially
+    // 3. Keep pre-mounted Spiral Galaxy disc hidden at micro-scale during Intro/Warp, then bloom radially
     if (!active) {
-      rootRef.current.scale.setScalar(0.0001);
+      galaxyDiscRef.current.scale.setScalar(0.0001);
       return;
     }
 
     if (reducedMotion) {
-      rootRef.current.scale.setScalar(1);
+      galaxyDiscRef.current.scale.setScalar(1);
       return;
     }
 
@@ -82,30 +81,27 @@ export function LoveGalaxyScene({
       revealTimeRef.current = Math.min(BURST_DURATION, revealTimeRef.current + dt);
       const t = revealTimeRef.current / BURST_DURATION;
       const eased = 1 - Math.pow(1 - t, 3);
-      const scale = THREE.MathUtils.lerp(0.06, 1.0, eased);
-      rootRef.current.scale.setScalar(scale);
-
-      if (heartAnchorRef.current) {
-        heartAnchorRef.current.position.y = THREE.MathUtils.lerp(-1.8, 0, eased);
-      }
+      galaxyDiscRef.current.scale.setScalar(THREE.MathUtils.lerp(0.06, 1.0, eased));
     } else {
-      rootRef.current.scale.setScalar(1);
-      if (heartAnchorRef.current) {
-        heartAnchorRef.current.position.y = 0;
-      }
+      galaxyDiscRef.current.scale.setScalar(1);
     }
   });
 
   return (
     <>
-      <group ref={rootRef} scale={0.0001} name="stage-galaxy">
+      <group ref={galaxyDiscRef} scale={0.0001} name="stage-galaxy-disc">
         <SpiralGalaxy quality={quality} reducedMotion={reducedMotion} />
-        <group ref={heartAnchorRef}>
-          <ParticleHeart interactive={active} quality={quality} reducedMotion={reducedMotion} />
-        </group>
         <OrbitingTextPhrases reducedMotion={reducedMotion} />
         <OrbitingNodes interactive={active} reducedMotion={reducedMotion} />
       </group>
+
+      {/* ParticleHeart stays permanently at scale 1.0 so individual GPU shooting-star particles drive the 3-phase reveal */}
+      <ParticleHeart
+        active={active}
+        interactive={active}
+        quality={quality}
+        reducedMotion={reducedMotion}
+      />
 
       {/* Upper Sky Dome Constellation Timeline */}
       <ConstellationSky active={active} reducedMotion={reducedMotion} />

@@ -21,6 +21,9 @@ class ProceduralSfxEngine {
     gain: GainNode;
   } | null = null;
 
+  // Active heart coalescence sound timers/nodes
+  private coalesceCleanup: (() => void) | null = null;
+
   private ensureContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
 
@@ -66,6 +69,7 @@ class ProceduralSfxEngine {
     if (isMuted) {
       this.stopChargeHum();
       this.stopWarpWhoosh();
+      this.stopHeartCoalescence();
     }
   }
 
@@ -628,9 +632,170 @@ class ProceduralSfxEngine {
     });
   }
 
+  /**
+   * Synced 2.8s audio choreography for the Shooting Star Scatter-to-Heart Coalescence:
+   * - Phase A (0.0s -> 0.8s): sparkling high-frequency stardust scatter shimmer
+   * - Phase B -> C (0.8s -> 2.8s): gentle reverse-shimmer swell resolving into an ethereal chord
+   */
+  public playHeartCoalescenceSequence(): void {
+    this.stopHeartCoalescence();
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const activeStops: Array<() => void> = [];
+
+    // Phase A: Sparkling high-frequency stardust scatter shimmer (8 rapid crystalline pings)
+    const sparkleFreqs = [1760, 2217.46, 2637.02, 2959.96, 3520, 2349.32, 3135.96, 3951.07];
+    sparkleFreqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + i * 0.075;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.06, t0 + 0.16);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.032 - i * 0.002, t0 + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 0.32);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+      activeStops.push(() => {
+        try {
+          osc.stop();
+        } catch {
+          // ignore
+        }
+      });
+    });
+
+    // Phase A airy stardust burst hiss
+    const burstNoise = ctx.createBufferSource();
+    burstNoise.buffer = this.getNoiseBuffer(ctx);
+    const burstFilter = ctx.createBiquadFilter();
+    burstFilter.type = 'highpass';
+    burstFilter.frequency.setValueAtTime(2200, now);
+    burstFilter.frequency.exponentialRampToValueAtTime(5200, now + 0.72);
+
+    const burstGain = ctx.createGain();
+    burstGain.gain.setValueAtTime(0.0001, now);
+    burstGain.gain.linearRampToValueAtTime(0.06, now + 0.08);
+    burstGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.82);
+
+    burstNoise.connect(burstFilter);
+    burstFilter.connect(burstGain);
+    burstGain.connect(this.masterGain);
+    burstNoise.start(now);
+    burstNoise.stop(now + 0.86);
+    burstNoise.onended = () => {
+      burstNoise.disconnect();
+      burstFilter.disconnect();
+      burstGain.disconnect();
+    };
+    activeStops.push(() => {
+      try {
+        burstNoise.stop();
+      } catch {
+        // ignore
+      }
+    });
+
+    // Phase B -> C: Reverse-shimmer noise swell peaking precisely at heart lock-in (~2.65s)
+    const revStart = now + 0.78;
+    const lockPeak = now + 2.66;
+    const revNoise = ctx.createBufferSource();
+    revNoise.buffer = this.getNoiseBuffer(ctx);
+    revNoise.loop = true;
+
+    const revFilter = ctx.createBiquadFilter();
+    revFilter.type = 'bandpass';
+    revFilter.frequency.setValueAtTime(360, revStart);
+    revFilter.frequency.exponentialRampToValueAtTime(2900, lockPeak);
+    revFilter.Q.setValueAtTime(2.4, revStart);
+
+    const revGain = ctx.createGain();
+    revGain.gain.setValueAtTime(0.0001, revStart);
+    revGain.gain.exponentialRampToValueAtTime(0.095, lockPeak);
+    revGain.gain.exponentialRampToValueAtTime(0.0001, lockPeak + 0.45);
+
+    revNoise.connect(revFilter);
+    revFilter.connect(revGain);
+    revGain.connect(this.masterGain);
+    revNoise.start(revStart);
+    revNoise.stop(lockPeak + 0.5);
+    revNoise.onended = () => {
+      revNoise.disconnect();
+      revFilter.disconnect();
+      revGain.disconnect();
+    };
+    activeStops.push(() => {
+      try {
+        revNoise.stop();
+      } catch {
+        // ignore
+      }
+    });
+
+    // Phase B -> C: Ethereal swelling harmonic chord resolving cleanly at 2.65s -> 2.8s
+    const chordFreqs = [293.66, 440.0, 587.33, 739.99, 880.0, 1174.66]; // Dmaj resolve
+    chordFreqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+
+      osc.type = idx < 3 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, revStart);
+      osc.detune.setValueAtTime((idx - 2.5) * 3.5, revStart);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(550, revStart);
+      lpf.frequency.exponentialRampToValueAtTime(2400, lockPeak);
+
+      env.gain.setValueAtTime(0.0001, revStart);
+      env.gain.linearRampToValueAtTime(0.036 - idx * 0.0025, lockPeak);
+      env.gain.exponentialRampToValueAtTime(0.0001, lockPeak + 1.55);
+
+      osc.connect(lpf);
+      lpf.connect(env);
+      env.connect(this.masterGain!);
+      osc.start(revStart);
+      osc.stop(lockPeak + 1.65);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        env.disconnect();
+      };
+      activeStops.push(() => {
+        try {
+          osc.stop();
+        } catch {
+          // ignore
+        }
+      });
+    });
+
+    this.coalesceCleanup = () => {
+      activeStops.forEach((fn) => fn());
+    };
+  }
+
+  public stopHeartCoalescence(): void {
+    this.coalesceCleanup?.();
+    this.coalesceCleanup = null;
+  }
+
   public dispose(): void {
     this.stopChargeHum();
     this.stopWarpWhoosh();
+    this.stopHeartCoalescence();
     this.unsubStore?.();
     this.unsubStore = null;
   }
