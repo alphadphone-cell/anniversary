@@ -1,24 +1,10 @@
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Mail, Clock, Layers, Sparkles, Image as ImageIcon, Compass } from 'lucide-react';
-import {
-  useActiveModal,
-  useAppStore,
-  useIsTransitionFlashing,
-  useStage,
-  type ModalId,
-} from '../../store/useAppStore';
+import { useIsTransitionFlashing, useStage } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
-import { AudioController } from './AudioController';
+import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
-
-const DOCK_ITEMS: { id: Exclude<ModalId, null>; label: string; Icon: typeof Mail }[] = [
-  { id: 'letter', label: 'Letter', Icon: Mail },
-  { id: 'counter', label: 'Counter', Icon: Clock },
-  { id: 'cards', label: 'Cards', Icon: Layers },
-  { id: 'puzzle', label: 'Puzzle', Icon: Sparkles },
-  { id: 'gallery', label: 'Gallery', Icon: ImageIcon },
-];
 
 /** Isolated flash overlay so flashing never re-renders the main HUD or WebGL canvas. */
 function WarpFlashOverlay() {
@@ -47,12 +33,14 @@ function WarpFlashOverlay() {
 
 export function HudOverlay() {
   const stage = useStage();
-  const activeModal = useActiveModal();
-  const toggleModal = useAppStore((s) => s.toggleModal);
+
+  useEffect(() => {
+    return installAlwaysOnAmbientAudio();
+  }, []);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-10 flex flex-col justify-between p-4 sm:p-6">
-      {/* Top Bar */}
+      {/* Top Brand Badge (Galaxy Stage Only) */}
       <header className="flex items-start justify-between gap-3">
         <AnimatePresence>
           {stage === 'galaxy' && (
@@ -80,10 +68,6 @@ export function HudOverlay() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        <div className="pointer-events-auto ml-auto flex items-center gap-2">
-          {stage !== 'warp' && <AudioController />}
-        </div>
       </header>
 
       {/* Center Stage Overlay (Stage 1 Intro Card) */}
@@ -92,56 +76,6 @@ export function HudOverlay() {
           {stage === 'intro' && <IntroStage key="intro" />}
         </AnimatePresence>
       </div>
-
-      {/* Bottom Interactive Dock (Stage 3 Galaxy) */}
-      <AnimatePresence>
-        {stage === 'galaxy' && (
-          <motion.footer
-            key="galaxy-dock"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 14 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col items-center gap-2.5 pb-[env(safe-area-inset-bottom)]"
-          >
-            <div className="flex items-center gap-1.5 text-xs text-lavender-muted">
-              <Compass className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-              <span>Drag to orbit · Scroll to zoom</span>
-            </div>
-
-            <nav
-              aria-label="Anniversary chapters"
-              className="pointer-events-auto glass-surface flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1.5 sm:gap-1.5 sm:p-2"
-            >
-              {DOCK_ITEMS.map(({ id, label, Icon }) => {
-                const isOpen = activeModal === id;
-                return (
-                  <motion.button
-                    key={id}
-                    type="button"
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => toggleModal(id)}
-                    aria-expanded={isOpen}
-                    aria-label={label}
-                    className={`glass-interactive flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent px-3 text-xs font-medium sm:px-4 sm:text-sm ${
-                      isOpen
-                        ? 'glass-active text-starlight'
-                        : 'text-lavender hover:text-starlight'
-                    }`}
-                  >
-                    <Icon
-                      className={`h-4 w-4 shrink-0 ${isOpen ? 'text-neon-pink' : ''}`}
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <span className="hidden sm:inline">{label}</span>
-                  </motion.button>
-                );
-              })}
-            </nav>
-          </motion.footer>
-        )}
-      </AnimatePresence>
 
       <ModalShell />
       <WarpFlashOverlay />

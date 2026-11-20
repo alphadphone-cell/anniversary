@@ -21,7 +21,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   stage: 'intro',
   activeModal: null,
-  isMuted: true,
+  isMuted: false,
   isTransitionFlashing: false,
 
   setStage: (stage) => set({ stage }),
