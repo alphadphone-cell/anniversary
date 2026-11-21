@@ -23,8 +23,17 @@ interface ConstellationSkyProps {
 
 const LINE_IGNITE_DURATION_MS = 450;
 const STAR_IGNITE_BURST_MS = 620;
-const SURGE_DURATION_SEC = 0.9; // Phase 1: blazing golden-white pulse racing Star #1 -> Star #7
-const CASCADE_TOTAL_SEC = 3.45; // Total wall-clock lifecycle including descent into the Particle Heart
+// Synchronized 4.5s Finale Timeline:
+// 0.0s -> 0.8s: Close card & frame entire constellation dead-center
+// 0.8s -> 1.5s: Blazing golden-white circuit surge Star #1 -> Star #7
+// 1.5s -> 3.3s: Glowing Constellation Emblem materialization & hold (~1.8s)
+// 3.3s -> 5.6s: Emblem dissolve -> Simultaneous 7-Star Burst -> Starfall Descent -> Heart Absorption
+const SURGE_START_SEC = 0.8;
+const SURGE_END_SEC = 1.5;
+const BURST_START_SEC = 3.3;
+const HEART_ABSORB_START_SEC = 4.35;
+const HEART_ABSORB_END_SEC = 5.45;
+const CASCADE_TOTAL_SEC = 5.7;
 const PARTICLES_PER_STAR = 60; // 7 * 60 = 420 object-pooled GPU starfall particles
 const HEART_ABSORB_WORLD = new THREE.Vector3(0, 4.45, 0);
 
@@ -441,23 +450,28 @@ function ConstellationStarNode({
       }
     }
 
-    // Compute Phase 1 Surge Flare & Phase 2 Simultaneous Rose-Gold Burst during Finale
+    // Compute Phase 2 Circuit Surge (0.8s -> 1.5s), Phase 3 Emblem Glow (1.5s -> 3.3s), & Phase 4 Burst (3.3s+)
     let surgeFlare = 0;
     let simultaneousBurst = 0;
     if (isFinale && galaxySignals.constellationFinaleStartMs > 0 && !reducedMotion) {
       const fSec = (nowMs - galaxySignals.constellationFinaleStartMs) / 1000;
       const starNorm = totalCount > 1 ? index / (totalCount - 1) : 0;
 
-      if (fSec >= 0 && fSec < SURGE_DURATION_SEC + 0.25) {
-        const surgeT = THREE.MathUtils.clamp(fSec / SURGE_DURATION_SEC, 0, 1);
+      if (fSec >= SURGE_START_SEC && fSec < SURGE_END_SEC + 0.25) {
+        const surgeT = THREE.MathUtils.clamp(
+          (fSec - SURGE_START_SEC) / (SURGE_END_SEC - SURGE_START_SEC),
+          0,
+          1
+        );
         const easedSurge = surgeT * surgeT * (3 - 2 * surgeT);
-        // Blazing flare right as the golden-white pulse sweeps through this star
         const hitDist = easedSurge - starNorm;
-        surgeFlare = Math.exp(-hitDist * hitDist * 75) * (1.0 - THREE.MathUtils.smoothstep(fSec, 0.85, 1.05));
+        surgeFlare =
+          Math.exp(-hitDist * hitDist * 75) *
+          (1.0 - THREE.MathUtils.smoothstep(fSec, SURGE_END_SEC - 0.05, SURGE_END_SEC + 0.2));
       }
 
-      if (fSec >= SURGE_DURATION_SEC) {
-        const burstT = fSec - SURGE_DURATION_SEC;
+      if (fSec >= BURST_START_SEC) {
+        const burstT = fSec - BURST_START_SEC;
         simultaneousBurst = Math.exp(-burstT * 3.1) * THREE.MathUtils.smoothstep(burstT, 0, 0.06);
       }
     }
@@ -868,7 +882,7 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       igniteWaveRef.current = THREE.MathUtils.lerp(igniteWaveRef.current, 0, Math.min(1, dt * 10));
     }
 
-    // ─── ~2.6s CELESTIAL AWAKENING & STARFALL CASCADE STATE MACHINE ───
+    // ─── 4.5s CONSTELLATION EMBLEM REVEAL & STARFALL CASCADE STATE MACHINE ───
     let surgeProgress = -0.5;
     let surgeIntensity = 0;
     let shockProg = 0;
@@ -881,33 +895,44 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       const fSec = (nowMs - galaxySignals.constellationFinaleStartMs) / 1000;
 
       if (fSec < CASCADE_TOTAL_SEC) {
-        // Phase 1 (0.0s -> 0.9s): Golden-white surge pulse racing Star #1 -> Star #7
-        if (fSec < SURGE_DURATION_SEC + 0.18) {
-          const sT = THREE.MathUtils.clamp(fSec / SURGE_DURATION_SEC, 0, 1);
+        // Phase 2 (0.8s -> 1.5s): Golden-white circuit surge pulse racing Star #1 -> Star #7 -> closing arch
+        if (fSec >= SURGE_START_SEC && fSec < SURGE_END_SEC + 0.2) {
+          const sT = THREE.MathUtils.clamp(
+            (fSec - SURGE_START_SEC) / (SURGE_END_SEC - SURGE_START_SEC),
+            0,
+            1
+          );
           surgeProgress = sT * sT * (3 - 2 * sT);
           surgeIntensity =
-            THREE.MathUtils.smoothstep(fSec, 0, 0.08) *
-            (1.0 - THREE.MathUtils.smoothstep(fSec, SURGE_DURATION_SEC, SURGE_DURATION_SEC + 0.18));
+            THREE.MathUtils.smoothstep(fSec, SURGE_START_SEC, SURGE_START_SEC + 0.08) *
+            (1.0 - THREE.MathUtils.smoothstep(fSec, SURGE_END_SEC, SURGE_END_SEC + 0.2));
         }
 
-        // Phase 2 & 3 (0.9s -> 3.45s): Simultaneous Burst, Shockwave Halo, Starfall Descent -> Heart Absorption
-        if (fSec >= SURGE_DURATION_SEC) {
-          cascadeTime = fSec - SURGE_DURATION_SEC;
+        // Phase 3 (1.5s -> 3.3s): Subtle luminous bloom halo supporting the materialized Emblem
+        if (fSec >= SURGE_END_SEC && fSec < BURST_START_SEC) {
+          const embT = fSec - SURGE_END_SEC;
+          bloomSpike = 0.24 * THREE.MathUtils.smoothstep(embT, 0, 0.35);
+        }
 
-          // Expanding 3D celestial shockwave halo (0.9s -> 1.85s)
+        // Phase 4 (3.3s -> 5.7s): Emblem Dissolve -> Simultaneous Burst, Shockwave Halo, Starfall -> Heart Absorption
+        if (fSec >= BURST_START_SEC) {
+          cascadeTime = fSec - BURST_START_SEC;
+
+          // Expanding 3D celestial shockwave halo (3.3s -> 4.25s)
           if (cascadeTime < 0.95) {
             shockProg = 1.0 - Math.exp(-cascadeTime * 3.2);
             shockOp = Math.pow(Math.max(0, 1.0 - cascadeTime / 0.92), 1.35) * 0.92;
           }
 
-          // Luminous bloom spike right at burst impact (0.9s -> 1.45s)
+          // Luminous bloom spike right at burst impact (3.3s -> 3.85s)
           if (cascadeTime < 0.55) {
-            bloomSpike = Math.exp(-cascadeTime * 6.5) * 0.82;
+            bloomSpike = Math.exp(-cascadeTime * 6.5) * 0.85;
           }
 
-          // Warm joyous absorption shimmer on the 3D Particle Heart as starfall arrives (2.15s -> 3.25s)
-          if (fSec >= 2.15 && fSec <= 3.3) {
-            const absU = (fSec - 2.15) / 1.15;
+          // Warm joyous absorption shimmer on the 3D Particle Heart as starfall arrives (4.35s -> 5.45s)
+          if (fSec >= HEART_ABSORB_START_SEC && fSec <= HEART_ABSORB_END_SEC) {
+            const absU =
+              (fSec - HEART_ABSORB_START_SEC) / (HEART_ABSORB_END_SEC - HEART_ABSORB_START_SEC);
             heartAbsorb = Math.sin(Math.PI * absU);
           }
         }

@@ -17,8 +17,8 @@ const GALAXY_DEFAULT_POS = new THREE.Vector3(0, 6.4, 16.2);
 const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.75, 0);
 
 const CONSTELLATION_DEFAULT_POS = new THREE.Vector3(0, 14.2, 16.2);
-const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 13.4, 21.8);
-const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.3, -7.6);
+const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 14.4, 21.6);
+const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.2, -7.6);
 
 const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.45, 0);
 const BASE_GALAXY_FOV = 46;
@@ -128,19 +128,20 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       // Glide smoothly between Galaxy View and Constellation View
       if (state.viewMode !== prev.viewMode) {
         if (state.viewMode === 'constellation') {
-          // Auto-focus directly onto Star #1 (~0.9s) so the user never has to search for it
+          // Auto-focus directly onto Star #1 in the upper third of the viewport so the centered card never covers it
           const star0 = ANNIVERSARY_DATA.constellationMilestones[0];
           if (star0) {
             starPosScratchRef.current.set(star0.position[0], star0.position[1], star0.position[2]);
             const focusTarget = toTargetRef.current
               .copy(CONSTELLATION_DEFAULT_TARGET)
-              .lerp(starPosScratchRef.current, 0.55);
+              .lerp(starPosScratchRef.current, 0.62);
+            focusTarget.y -= 1.65; // Frame active star in the upper third above the centered card
             const focusPos = toPosRef.current.set(
-              star0.position[0] * 0.42,
-              13.2 + (star0.position[1] - 16) * 0.25,
-              11.4
+              star0.position[0] * 0.48,
+              12.8 + (star0.position[1] - 16) * 0.25,
+              11.8
             );
-            startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.9);
+            startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.88);
           } else {
             startCameraGlide(
               CONSTELLATION_DEFAULT_POS,
@@ -154,17 +155,17 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         return;
       }
 
-      // Finale showcase: pull camera gently back to frame the entire illuminated constellation
+      // Finale showcase (0.0s -> 0.8s): pull camera smoothly back so all 7 stars sit dead-center behind the Emblem
       if (
         state.viewMode === 'constellation' &&
         state.constellationFinaleActive &&
         !prev.constellationFinaleActive
       ) {
-        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.85);
+        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.8);
         return;
       }
 
-      // Focus camera subtly toward clicked milestone star in Constellation View
+      // Focus camera toward active milestone star framed in the upper third above the centered Milestone Card
       if (
         state.viewMode === 'constellation' &&
         !state.constellationFinaleActive &&
@@ -181,13 +182,14 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           starPosScratchRef.current.set(star.position[0], star.position[1], star.position[2]);
           const focusTarget = toTargetRef.current
             .copy(CONSTELLATION_DEFAULT_TARGET)
-            .lerp(starPosScratchRef.current, 0.55);
+            .lerp(starPosScratchRef.current, 0.62);
+          focusTarget.y -= 1.65;
           const focusPos = toPosRef.current.set(
-            star.position[0] * 0.42,
-            13.2 + (star.position[1] - 16) * 0.25,
-            11.4
+            star.position[0] * 0.48,
+            12.8 + (star.position[1] - 16) * 0.25,
+            11.8
           );
-          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.95);
+          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.82);
         }
       }
     });

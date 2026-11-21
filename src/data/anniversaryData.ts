@@ -71,6 +71,17 @@ export interface ConstellationMilestone {
   position: [number, number, number];
 }
 
+export interface ConstellationEmblemConfig {
+  /** Tên tiếng Việt hiển thị dưới biểu tượng chòm sao khi kết thúc hành trình */
+  name: string;
+  /** Dòng phụ đề ngắn lãng mạn bên dưới tên chòm sao */
+  subtitle: string;
+  /** Đường nét SVG chính (viewBox="0 0 160 160") — dễ thay sang cung hoàng đạo hoặc logo cặp đôi khác */
+  svgPath: string;
+  /** Các điểm sao nhấn nhỏ trên biểu tượng (hệ tọa độ 160x160) */
+  starDots?: Array<[number, number]>;
+}
+
 export interface PlaylistTrack {
   id: string;
   title: string;
@@ -113,6 +124,8 @@ export interface AnniversaryConfig {
   rewards: AnniversaryReward[];
   secretSupernova: SecretSupernovaConfig;
   constellationMilestones: ConstellationMilestone[];
+  /** Biểu tượng / logo phát sáng của chòm sao hiện lên khi hoàn thành cả 7 mốc */
+  constellationEmblem: ConstellationEmblemConfig;
   /** Danh sách phát nhạc nền liên tục (đặt file .mp3 vào public/music/) */
   playlist: PlaylistTrack[];
   /** Bản nhạc điệp khúc cao trào riêng cho màn nổ Secret Supernova (Deck B) */
@@ -418,6 +431,23 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       position: [0.5, 17.0, -8.0],
     },
   ],
+
+  // Biểu tượng chòm sao Ma Kết (Capricornus ♑ — 30/12) hiển thị phát sáng khi kết thúc 7/7 mốc.
+  // Dễ dàng tùy chỉnh `name`, `subtitle` và `svgPath` (viewBox="0 0 160 160") cho bất kỳ logo/cung hoàng đạo nào.
+  constellationEmblem: {
+    name: 'Chòm Sao Ma Kết',
+    subtitle: '30/12 · 7 Kỷ Niệm · 1 Bầu Trời',
+    // Nét line-art tối giản biểu trưng cung Ma Kết (sừng chữ V uyển chuyển nối vòng đuôi sao thiên hà)
+    svgPath:
+      'M 34 48 C 40 36, 48 40, 52 54 L 68 104 C 71 112, 77 112, 80 104 L 94 60 C 98 46, 114 48, 114 63 C 114 82, 92 94, 96 112 C 99 124, 116 126, 124 114 C 131 103, 122 90, 110 92 C 98 94, 90 108, 76 126',
+    starDots: [
+      [34, 48],
+      [52, 54],
+      [74, 108],
+      [108, 56],
+      [124, 114],
+    ],
+  },
 
   // ---------------------------------------------------------------------------
   // DANH SÁCH NHẠC NỀN K-DRAMA / ROMANTIC OST (Phát liên tục & tự động chuyển bài)

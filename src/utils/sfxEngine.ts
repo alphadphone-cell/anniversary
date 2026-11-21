@@ -882,9 +882,10 @@ class ProceduralSfxEngine {
   }
 
   /**
-   * ~2.6s Celestial Awakening & Starfall Cascade Audio Choreography:
-   * - 0.0s -> 0.88s: Rapid rising 7-note crystalline circuit arpeggio synced to the golden-white surge
-   * - 0.90s: Lush Celestial Burst Chime (Dmaj9 sparkle) + soft warm sub-bass swell (55Hz -> 44Hz)
+   * 4.5s Constellation Emblem Reveal & Starfall Cascade Audio Choreography:
+   * - 0.80s -> 1.48s: Rapid rising 7-note crystalline circuit arpeggio synced to the golden-white surge
+   * - 1.50s: Warm majestic Dmaj9 celestial chord as the glowing Constellation Emblem materializes
+   * - 3.30s: Shimmering Celestial Burst Chime + soft sub-bass swell as the Emblem dissolves into Starfall
    */
   public playConstellationAwakeningSequence(starCount = 7): void {
     if (useAppStore.getState().isMuted) return;
@@ -892,11 +893,11 @@ class ProceduralSfxEngine {
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
-    // Phase 1 (0.0s -> 0.86s): Fast rising crystalline arpeggio across all 7 stars
+    // Phase 2 (0.80s -> 1.46s): Fast rising crystalline circuit arpeggio across all 7 stars
     const surgeScale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1479.98];
     const count = Math.max(2, Math.min(surgeScale.length, starCount));
     for (let i = 0; i < count; i++) {
-      const t0 = now + (i / (count - 1)) * 0.82;
+      const t0 = now + 0.8 + (i / (count - 1)) * 0.64;
       const freq = surgeScale[i];
 
       const osc = ctx.createOscillator();
@@ -932,10 +933,43 @@ class ProceduralSfxEngine {
       };
     }
 
-    // Phase 2 (0.90s): Simultaneous Constellation Burst — Celestial Burst Chime + Soft Sub-Bass Swell
-    const burstAt = now + 0.9;
+    // Phase 3 (1.50s): Warm, majestic Dmaj9 Celestial Chord holding proudly under the glowing Emblem
+    const emblemAt = now + 1.5;
+    const emblemChord = [293.66, 440.0, 587.33, 739.99, 880.0, 1108.73, 1318.51];
+    emblemChord.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+      const t0 = emblemAt + idx * 0.036;
 
-    // Warm soft sub-bass swell (55Hz -> 44Hz)
+      osc.type = idx < 3 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 3) * 2.6, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(2100 + idx * 210, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1050, t0 + 1.9);
+
+      const peak = 0.044 - idx * 0.0032;
+      env.gain.setValueAtTime(0.0001, t0);
+      env.gain.linearRampToValueAtTime(peak, t0 + 0.14);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.0);
+
+      osc.connect(lpf);
+      lpf.connect(env);
+      env.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 2.08);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        env.disconnect();
+      };
+    });
+
+    // Phase 4 (3.30s): Emblem Dissolve -> Simultaneous Starfall Burst Chime + Soft Sub-Bass Swell
+    const burstAt = now + 3.3;
+
     const sub = ctx.createOscillator();
     const subGain = ctx.createGain();
     sub.type = 'sine';
@@ -955,32 +989,31 @@ class ProceduralSfxEngine {
       subGain.disconnect();
     };
 
-    // Shimmering Dmaj9 Celestial Burst Chord + high starlight sparkles
-    const burstFreqs = [293.66, 440.0, 587.33, 739.99, 880.0, 1108.73, 1318.51, 1760.0];
+    const burstFreqs = [587.33, 739.99, 880.0, 1174.66, 1318.51, 1760.0];
     burstFreqs.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const lpf = ctx.createBiquadFilter();
       const env = ctx.createGain();
-      const t0 = burstAt + idx * 0.028;
+      const t0 = burstAt + idx * 0.025;
 
-      osc.type = idx < 4 ? 'sine' : 'triangle';
+      osc.type = idx < 3 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
-      osc.detune.setValueAtTime((idx - 3.5) * 3.2, t0);
+      osc.detune.setValueAtTime((idx - 2.5) * 3.0, t0);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(2800 + idx * 260, t0);
-      lpf.frequency.exponentialRampToValueAtTime(1100, t0 + 1.85);
+      lpf.frequency.setValueAtTime(3000 + idx * 240, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1150, t0 + 1.6);
 
-      const peak = 0.048 - idx * 0.0032;
+      const peak = 0.044 - idx * 0.0034;
       env.gain.setValueAtTime(0.0001, t0);
-      env.gain.linearRampToValueAtTime(peak, t0 + 0.045);
-      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.05);
+      env.gain.linearRampToValueAtTime(peak, t0 + 0.04);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.75);
 
       osc.connect(lpf);
       lpf.connect(env);
       env.connect(this.masterGain!);
       osc.start(t0);
-      osc.stop(t0 + 2.12);
+      osc.stop(t0 + 1.82);
       osc.onended = () => {
         osc.disconnect();
         lpf.disconnect();
