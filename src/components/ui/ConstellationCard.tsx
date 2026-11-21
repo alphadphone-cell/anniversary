@@ -575,12 +575,24 @@ export function ConstellationCard() {
                 </div>
               </div>
 
-              {/* Generous 16:10 Photo Showcase with subtle rose-violet luminous inner border */}
-              <div className="mt-4 aspect-[16/10] w-full overflow-hidden rounded-2xl border border-pink-300/25 bg-void/75 shadow-[inset_0_0_24px_rgba(255,95,180,0.14),0_10px_30px_rgba(5,2,12,0.5)]">
+              {/* Generous 16:10 Photo Showcase with portrait-safe ambient blur backdrop */}
+              <div className="relative mt-4 aspect-[16/10] w-full overflow-hidden rounded-2xl border border-pink-300/25 bg-void/75 shadow-[inset_0_0_24px_rgba(255,95,180,0.14),0_10px_30px_rgba(5,2,12,0.5)]">
+                {current.aspect === 'portrait' && (
+                  <img
+                    src={current.image}
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 h-full w-full scale-115 object-cover opacity-55 blur-2xl brightness-75"
+                  />
+                )}
                 <img
                   src={current.image}
                   alt={current.title}
-                  className="h-full w-full object-cover"
+                  className={
+                    current.aspect === 'portrait'
+                      ? 'relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_12px_28px_rgba(5,2,12,0.75)]'
+                      : 'relative z-10 h-full w-full object-cover'
+                  }
                 />
               </div>
 

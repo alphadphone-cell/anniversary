@@ -26,13 +26,25 @@ export function SecretModal() {
       </h2>
       <p className="mt-1.5 text-xs leading-normal text-lavender-muted">{secret.subtitle}</p>
 
-      {/* Secret Supernova Keepsake Artwork */}
+      {/* Secret Supernova Keepsake Artwork (portrait-safe ambient blur backdrop) */}
       <div className="relative mt-5 w-full overflow-hidden rounded-2xl border border-neon-pink/35 bg-void/85 p-2 shadow-[0_18px_42px_-16px_rgba(255,62,165,0.45)]">
-        <div className="aspect-[16/9] w-full overflow-hidden rounded-xl border border-white/10">
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-white/10 bg-void/80">
+          {secret.aspect === 'portrait' && (
+            <img
+              src={secret.imageUrl}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-115 object-cover opacity-55 blur-2xl brightness-75"
+            />
+          )}
           <img
             src={secret.imageUrl}
-            alt="Siêu tân tinh trái tim bí mật của tụi mình"
-            className="h-full w-full object-cover"
+            alt="Tấm ảnh đặc biệt nhất của AD và Tlinh"
+            className={
+              secret.aspect === 'portrait'
+                ? 'relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_30px_rgba(5,2,12,0.8)]'
+                : 'relative z-10 h-full w-full object-cover'
+            }
           />
         </div>
       </div>

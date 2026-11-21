@@ -72,6 +72,14 @@ export function GalleryModal() {
         />
 
         <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-white/15 bg-void/70">
+          {current.aspect === 'portrait' && (
+            <img
+              src={current.imageUrl}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-115 object-cover opacity-55 blur-2xl brightness-75"
+            />
+          )}
           <AnimatePresence mode="wait">
             <motion.img
               key={current.id}
@@ -81,12 +89,16 @@ export function GalleryModal() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="h-full w-full object-cover"
+              className={
+                current.aspect === 'portrait'
+                  ? 'relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_12px_28px_rgba(5,2,12,0.75)]'
+                  : 'relative z-10 h-full w-full object-cover'
+              }
             />
           </AnimatePresence>
 
           {/* Floating frosted date & location badge */}
-          <div className="glass-surface absolute top-3 left-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-starlight">
+          <div className="glass-surface absolute top-3 left-3 z-20 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-starlight">
             <Calendar className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
             <span className="font-mono tabular-nums">{current.date}</span>
             <span className="text-lavender-muted" aria-hidden="true">
