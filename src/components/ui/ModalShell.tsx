@@ -30,7 +30,7 @@ function ModalContent({ modal }: { modal: Exclude<ModalId, null> }) {
 
 export function ModalShell() {
   const activeModal = useActiveModal();
-  const closeModalStore = useAppStore((s) => s.closeModal);
+  const closeModalAndReturn = useAppStore((s) => s.closeModalAndReturn);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleClose = useCallback(() => {
@@ -38,8 +38,8 @@ export function ModalShell() {
     if (useAppStore.getState().activeModal === 'secret') {
       musicEngine.crossfadeBackFromSupernova(2.0);
     }
-    closeModalStore();
-  }, [closeModalStore]);
+    closeModalAndReturn();
+  }, [closeModalAndReturn]);
 
   useEffect(() => {
     if (!activeModal) return;

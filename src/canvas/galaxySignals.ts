@@ -7,6 +7,19 @@ export const NODE_ORBIT_MIN_Y = 1.32;
 /** Single shared world-space Y anchor for the 3D Particle Heart, Supernova core, hit-sphere, camera focus, and Starfall absorption. */
 export const HEART_CENTER_Y = 3.95;
 
+/** Single immutable canonical Galaxy overview framing (NEVER overwritten by mid-flight or close-up poses). */
+export const GALAXY_OVERVIEW_POS = Object.freeze(new THREE.Vector3(0, 6.2, 16.4));
+export const GALAXY_OVERVIEW_TARGET = Object.freeze(new THREE.Vector3(0, 1.95, 0));
+export const GALAXY_OVERVIEW_FOV = 46;
+
+export type CameraPhase =
+  | 'idle'
+  | 'flying_to_node'
+  | 'modal_open'
+  | 'returning_to_galaxy'
+  | 'constellation'
+  | 'supernova';
+
 /**
  * Deterministic phase-locked orbital domain per clickable node.
  * Guarantees exact (index / totalNodes) * 2π angular spacing and safe clearance above the bottom HUD.
@@ -81,6 +94,8 @@ export const galaxySignals = {
   nodeWorldPositions: initialNodePositions,
   /** Active node ID currently undergoing 3D camera fly-to & orb portal ignition (null when idle). */
   focusingNodeId: null as GalaxyNodeId | null,
+  /** Current finite-state-machine phase mirrored for zero-alloc useFrame reads. */
+  cameraPhase: 'idle' as CameraPhase,
   /** True while camera is smoothly pulling back after closing an orb modal (hides hover labels cleanly). */
   isOrbReturning: false,
   /** Wall-clock timestamp (ms) when the current fly-to sequence began (0 when idle). */

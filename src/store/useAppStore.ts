@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
-import { galaxySignals } from '../canvas/galaxySignals';
+import { galaxySignals, type CameraPhase } from '../canvas/galaxySignals';
 
+export type { CameraPhase };
 export type AppStage = 'setup' | 'intro' | 'warp' | 'galaxy';
 export type ViewMode = 'galaxy' | 'constellation';
 export type ModalId = 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery' | 'secret' | null;
@@ -57,6 +58,8 @@ export function isAllCoreJourneyCompleted(completedSteps: readonly JourneyStepId
 interface AppState {
   stage: AppStage;
   viewMode: ViewMode;
+  cameraPhase: CameraPhase;
+  cameraTransitionId: number;
   activeModal: ModalId;
   focusingNodeId: GalaxyNodeId | null;
   selectedMilestoneId: string | null;
@@ -74,11 +77,13 @@ interface AppState {
   setStage: (stage: AppStage) => void;
   setViewMode: (mode: ViewMode) => void;
   toggleViewMode: () => void;
+  setCameraPhase: (phase: CameraPhase) => void;
   setActiveModal: (modal: ModalId) => void;
   openModal: (modal: Exclude<ModalId, null>) => void;
   openFeatureWithCameraFly: (nodeId: JourneyStepId) => boolean;
   completeNodeFocus: () => void;
   cancelNodeFocus: () => void;
+  closeModalAndReturn: () => void;
   closeModal: () => void;
   toggleModal: (modal: Exclude<ModalId, null>) => void;
   setSelectedMilestoneId: (id: string | null) => void;
@@ -99,6 +104,8 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   stage: 'setup',
   viewMode: 'galaxy',
+  cameraPhase: 'idle',
+  cameraTransitionId: 0,
   activeModal: null,
   focusingNodeId: null,
   selectedMilestoneId: null,
@@ -116,19 +123,31 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setStage: (stage) => {
     galaxySignals.focusingNodeId = null;
+    galaxySignals.isOrbReturning = false;
+    galaxySignals.cameraPhase = 'idle';
     galaxySignals.nodeFocusStartMs = 0;
     galaxySignals.nodeFlareProgress = 0;
     galaxySignals.orbFlareBloomSpike = 0;
-    set({ stage, focusingNodeId: null });
+    set((state) => ({
+      stage,
+      focusingNodeId: null,
+      cameraPhase: 'idle',
+      cameraTransitionId: state.cameraTransitionId + 1,
+    }));
   },
 
   setViewMode: (viewMode) => {
+    const nextPhase: CameraPhase = viewMode === 'constellation' ? 'constellation' : 'idle';
     galaxySignals.focusingNodeId = null;
+    galaxySignals.isOrbReturning = false;
+    galaxySignals.cameraPhase = nextPhase;
     galaxySignals.nodeFocusStartMs = 0;
     galaxySignals.nodeFlareProgress = 0;
     galaxySignals.orbFlareBloomSpike = 0;
     set((state) => ({
       viewMode,
+      cameraPhase: nextPhase,
+      cameraTransitionId: state.cameraTransitionId + 1,
       focusingNodeId: null,
       activeModal: viewMode === 'constellation' ? null : state.activeModal,
       selectedMilestoneId: null,
@@ -138,52 +157,47 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   toggleViewMode: () => {
-    galaxySignals.focusingNodeId = null;
-    galaxySignals.nodeFocusStartMs = 0;
-    galaxySignals.nodeFlareProgress = 0;
-    galaxySignals.orbFlareBloomSpike = 0;
-    set((state) => {
-      const next: ViewMode = state.viewMode === 'galaxy' ? 'constellation' : 'galaxy';
-      return {
-        viewMode: next,
-        focusingNodeId: null,
-        activeModal: next === 'constellation' ? null : state.activeModal,
-        selectedMilestoneId: null,
-        constellationFinaleActive: false,
-        maxUnlockedMilestoneIndex: next === 'constellation' ? 0 : state.maxUnlockedMilestoneIndex,
-      };
-    });
+    const current = get().viewMode;
+    get().setViewMode(current === 'galaxy' ? 'constellation' : 'galaxy');
   },
 
-  setActiveModal: (activeModal) =>
-    set((state) => {
-      let nextCompleted = state.completedSteps;
-      let nextSupernovaDone = state.supernovaCompleted;
-      let nextDismissed = state.guidePillDismissed;
+  setCameraPhase: (cameraPhase) => {
+    galaxySignals.cameraPhase = cameraPhase;
+    if (cameraPhase !== 'returning_to_galaxy') {
+      galaxySignals.isOrbReturning = false;
+    }
+    set((state) => (state.cameraPhase === cameraPhase ? state : { cameraPhase }));
+  },
 
-      if (activeModal === null && state.activeModal) {
-        if (CORE_MODAL_STEPS.has(state.activeModal)) {
-          const prevLen = nextCompleted.length;
-          nextCompleted = appendCompletedStep(nextCompleted, state.activeModal as JourneyStepId);
-          if (prevLen < JOURNEY_STEPS.length && nextCompleted.length >= JOURNEY_STEPS.length) {
-            nextDismissed = false;
-          }
-        } else if (state.activeModal === 'secret') {
-          nextSupernovaDone = true;
-          nextDismissed = false;
-        }
-      }
+  setActiveModal: (activeModal) => {
+    if (activeModal === null) {
+      get().closeModalAndReturn();
+      return;
+    }
+    const nextPhase: CameraPhase = activeModal === 'secret' ? 'supernova' : 'modal_open';
+    galaxySignals.cameraPhase = nextPhase;
+    galaxySignals.isOrbReturning = false;
+    set((state) => ({
+      activeModal,
+      focusingNodeId: null,
+      cameraPhase: nextPhase,
+      cameraTransitionId: state.cameraTransitionId + 1,
+      selectedMilestoneId: null,
+    }));
+  },
 
-      return {
-        activeModal,
-        completedSteps: nextCompleted,
-        supernovaCompleted: nextSupernovaDone,
-        guidePillDismissed: nextDismissed,
-        ...(activeModal ? { selectedMilestoneId: null } : {}),
-      };
-    }),
-
-  openModal: (modal) => set({ activeModal: modal, focusingNodeId: null, selectedMilestoneId: null }),
+  openModal: (modal) => {
+    const nextPhase: CameraPhase = modal === 'secret' ? 'supernova' : 'modal_open';
+    galaxySignals.cameraPhase = nextPhase;
+    galaxySignals.isOrbReturning = false;
+    set((state) => ({
+      activeModal: modal,
+      focusingNodeId: null,
+      cameraPhase: nextPhase,
+      cameraTransitionId: state.cameraTransitionId + 1,
+      selectedMilestoneId: null,
+    }));
+  },
 
   openFeatureWithCameraFly: (nodeId) => {
     const state = get();
@@ -198,14 +212,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (nodeId === 'constellation') {
       if (state.viewMode === 'constellation') return false;
-      set({
+      galaxySignals.focusingNodeId = null;
+      galaxySignals.isOrbReturning = false;
+      galaxySignals.cameraPhase = 'constellation';
+      galaxySignals.nodeFocusStartMs = 0;
+      galaxySignals.nodeFlareProgress = 0;
+      galaxySignals.orbFlareBloomSpike = 0;
+      set((s) => ({
         viewMode: 'constellation',
+        cameraPhase: 'constellation',
+        cameraTransitionId: s.cameraTransitionId + 1,
         focusingNodeId: null,
         activeModal: null,
         selectedMilestoneId: null,
         constellationFinaleActive: false,
         maxUnlockedMilestoneIndex: 0,
-      });
+      }));
       return true;
     }
 
@@ -216,37 +238,62 @@ export const useAppStore = create<AppState>((set, get) => ({
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (prefersReducedMotion) {
-      set({ activeModal: nodeId, focusingNodeId: null, selectedMilestoneId: null });
+      galaxySignals.focusingNodeId = null;
+      galaxySignals.isOrbReturning = false;
+      galaxySignals.cameraPhase = 'modal_open';
+      set((s) => ({
+        activeModal: nodeId,
+        focusingNodeId: null,
+        cameraPhase: 'modal_open',
+        cameraTransitionId: s.cameraTransitionId + 1,
+        selectedMilestoneId: null,
+      }));
       return true;
     }
 
+    // Safe mid-return interrupt: immediately cancel any in-flight return and launch fly-to on a fresh token
     galaxySignals.focusingNodeId = nodeId;
+    galaxySignals.isOrbReturning = false;
+    galaxySignals.cameraPhase = 'flying_to_node';
     galaxySignals.nodeFocusStartMs = performance.now();
     galaxySignals.nodeFlareProgress = 0;
     galaxySignals.orbFlareBloomSpike = 0;
-    set({ focusingNodeId: nodeId, selectedMilestoneId: null });
+    set((s) => ({
+      focusingNodeId: nodeId,
+      cameraPhase: 'flying_to_node',
+      cameraTransitionId: s.cameraTransitionId + 1,
+      selectedMilestoneId: null,
+    }));
     return true;
   },
 
   completeNodeFocus: () =>
     set((state) => {
       if (!state.focusingNodeId) return state;
+      galaxySignals.cameraPhase = 'modal_open';
       return {
         activeModal: state.focusingNodeId,
         focusingNodeId: null,
+        cameraPhase: 'modal_open',
         selectedMilestoneId: null,
       };
     }),
 
   cancelNodeFocus: () => {
     galaxySignals.focusingNodeId = null;
+    galaxySignals.isOrbReturning = true;
+    galaxySignals.cameraPhase = 'returning_to_galaxy';
     galaxySignals.nodeFocusStartMs = 0;
     galaxySignals.nodeFlareProgress = 0;
     galaxySignals.orbFlareBloomSpike = 0;
-    set({ focusingNodeId: null });
+    set((state) => ({
+      focusingNodeId: null,
+      cameraPhase: state.viewMode === 'galaxy' ? 'returning_to_galaxy' : 'constellation',
+      cameraTransitionId: state.cameraTransitionId + 1,
+    }));
   },
 
-  closeModal: () =>
+  closeModalAndReturn: () =>
     set((state) => {
       let nextCompleted = state.completedSteps;
       let nextSupernovaDone = state.supernovaCompleted;
@@ -263,43 +310,43 @@ export const useAppStore = create<AppState>((set, get) => ({
         nextDismissed = false;
       }
 
+      const shouldReturnToGalaxy = state.stage === 'galaxy' && state.viewMode === 'galaxy';
+      const nextPhase: CameraPhase = shouldReturnToGalaxy
+        ? 'returning_to_galaxy'
+        : state.viewMode === 'constellation'
+          ? 'constellation'
+          : 'idle';
+
+      // Synchronously clear all modal/focus pause flags so useFrame immediately triggers the canonical return glide
+      galaxySignals.focusingNodeId = null;
+      galaxySignals.nodeFocusStartMs = 0;
+      galaxySignals.nodeFlareProgress = 0;
+      galaxySignals.orbFlareBloomSpike = 0;
+      galaxySignals.isOrbReturning = shouldReturnToGalaxy;
+      galaxySignals.cameraPhase = nextPhase;
+
       return {
         activeModal: null,
         focusingNodeId: null,
+        cameraPhase: nextPhase,
+        cameraTransitionId: state.cameraTransitionId + 1,
         completedSteps: nextCompleted,
         supernovaCompleted: nextSupernovaDone,
         guidePillDismissed: nextDismissed,
       };
     }),
 
-  toggleModal: (modal) =>
-    set((state) => {
-      const closing = state.activeModal === modal;
-      let nextCompleted = state.completedSteps;
-      let nextSupernovaDone = state.supernovaCompleted;
-      let nextDismissed = state.guidePillDismissed;
+  closeModal: () => {
+    get().closeModalAndReturn();
+  },
 
-      if (closing) {
-        if (CORE_MODAL_STEPS.has(modal)) {
-          const prevLen = nextCompleted.length;
-          nextCompleted = appendCompletedStep(nextCompleted, modal as JourneyStepId);
-          if (prevLen < JOURNEY_STEPS.length && nextCompleted.length >= JOURNEY_STEPS.length) {
-            nextDismissed = false;
-          }
-        } else if (modal === 'secret') {
-          nextSupernovaDone = true;
-          nextDismissed = false;
-        }
-      }
-
-      return {
-        activeModal: closing ? null : modal,
-        selectedMilestoneId: null,
-        completedSteps: nextCompleted,
-        supernovaCompleted: nextSupernovaDone,
-        guidePillDismissed: nextDismissed,
-      };
-    }),
+  toggleModal: (modal) => {
+    if (get().activeModal === modal) {
+      get().closeModalAndReturn();
+      return;
+    }
+    get().openModal(modal);
+  },
 
   setSelectedMilestoneId: (selectedMilestoneId) =>
     set((state) => {
@@ -332,8 +379,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const nextCompleted = appendCompletedStep(state.completedSteps, 'constellation');
       const justUnlockedAll =
         prevLen < JOURNEY_STEPS.length && nextCompleted.length >= JOURNEY_STEPS.length;
+      galaxySignals.focusingNodeId = null;
+      galaxySignals.isOrbReturning = false;
+      galaxySignals.cameraPhase = 'idle';
       return {
         viewMode: 'galaxy',
+        cameraPhase: 'idle',
+        cameraTransitionId: state.cameraTransitionId + 1,
         selectedMilestoneId: null,
         constellationFinaleActive: false,
         activeModal: state.activeModal,
@@ -375,6 +427,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 /** Atomic selector hooks so UI updates never trigger unnecessary WebGL Canvas re-renders. */
 export const useStage = () => useAppStore((s) => s.stage);
 export const useViewMode = () => useAppStore((s) => s.viewMode);
+export const useCameraPhase = () => useAppStore((s) => s.cameraPhase);
 export const useActiveModal = () => useAppStore((s) => s.activeModal);
 export const useFocusingNodeId = () => useAppStore((s) => s.focusingNodeId);
 export const useSelectedMilestoneId = () => useAppStore((s) => s.selectedMilestoneId);
