@@ -38,7 +38,7 @@ const HEART_ABSORB_END_SEC = 6.75;
 const CASCADE_TOTAL_SEC = 7.05;
 const PARTICLES_PER_STAR = 60; // 7 * 60 = 420 object-pooled GPU starfall particles
 const BEAM_WAKE_COUNT = 28; // Object-pooled twinkling stardust sparks trailing the travelling light head
-const HEART_ABSORB_WORLD = new THREE.Vector3(0, 4.45, 0);
+const HEART_ABSORB_WORLD = new THREE.Vector3(0, 5.05, 0);
 
 function easeInOutSine(t: number): number {
   return -(Math.cos(Math.PI * t) - 1) / 2;
