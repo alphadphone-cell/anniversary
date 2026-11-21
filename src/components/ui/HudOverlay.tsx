@@ -1,11 +1,8 @@
 import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Orbit, SkipForward, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Orbit, Sparkles } from 'lucide-react';
 import {
   useAppStore,
-  useCurrentTrackIndex,
-  useIsMusicPlaying,
-  useIsMuted,
   useIsTransitionFlashing,
   useStage,
   useSupernovaFlashKey,
@@ -14,7 +11,6 @@ import {
 } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
-import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
@@ -89,108 +85,6 @@ function SupernovaImpactOverlay() {
         }}
       />
     </div>
-  );
-}
-
-/** Minimal glassmorphism "Now Playing" HUD pill with animated equalizer bars, title, Mute/Unmute, and Next Track. */
-function NowPlayingPill() {
-  const isMuted = useIsMuted();
-  const isPlaying = useIsMusicPlaying();
-  const trackIndex = useCurrentTrackIndex();
-
-  const playlist = ANNIVERSARY_DATA.playlist;
-  const currentTrack = playlist[trackIndex % Math.max(1, playlist.length)] ?? {
-    id: 'default',
-    title: ANNIVERSARY_DATA.audio.trackTitle,
-    artist: ANNIVERSARY_DATA.audio.artist,
-    src: ANNIVERSARY_DATA.audio.src,
-  };
-
-  const activeBars = isPlaying && !isMuted;
-
-  const handleToggleMute = useCallback(() => {
-    musicEngine.toggleMuted();
-  }, []);
-
-  const handleNextTrack = useCallback(() => {
-    sfxEngine.playHoverTick();
-    musicEngine.nextTrack();
-  }, []);
-
-  return (
-    <motion.div
-      key="now-playing-pill"
-      role="region"
-      aria-label="Trình phát nhạc nền"
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.65, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto glass-surface inline-flex max-w-full items-center gap-1 rounded-full p-1"
-    >
-      {/* Mute / Unmute Button + Mini Equalizer */}
-      <button
-        type="button"
-        onClick={handleToggleMute}
-        onMouseEnter={() => sfxEngine.playHoverTick()}
-        aria-pressed={isMuted}
-        aria-label={isMuted ? 'Bật nhạc nền' : 'Tắt nhạc nền'}
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full px-2.5 ${
-          isMuted
-            ? 'border border-transparent text-lavender-muted hover:text-starlight'
-            : 'glass-active text-starlight'
-        }`}
-      >
-        {isMuted ? (
-          <VolumeX className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-        ) : (
-          <Volume2 className="h-4 w-4 shrink-0 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-        )}
-      </button>
-
-      {/* Animated Equalizer Bars + Song Title */}
-      <div
-        className="hidden items-center gap-2 px-1.5 md:flex"
-        title={`${currentTrack.title} — ${currentTrack.artist}`}
-      >
-        <span className="flex h-3.5 items-end gap-[2.5px]" aria-hidden="true">
-          <span
-            className={`w-[2.5px] rounded-full bg-neon-pink transition-all duration-300 ${
-              activeBars ? 'eq-bar-active h-3.5' : 'h-1 opacity-45'
-            }`}
-            style={{ animationDelay: '0ms' }}
-          />
-          <span
-            className={`w-[2.5px] rounded-full bg-neon-magenta transition-all duration-300 ${
-              activeBars ? 'eq-bar-active h-3.5' : 'h-1.5 opacity-45'
-            }`}
-            style={{ animationDelay: '220ms' }}
-          />
-          <span
-            className={`w-[2.5px] rounded-full bg-starlight transition-all duration-300 ${
-              activeBars ? 'eq-bar-active h-3' : 'h-1 opacity-45'
-            }`}
-            style={{ animationDelay: '440ms' }}
-          />
-        </span>
-
-        <span className="max-w-[144px] truncate text-xs leading-normal font-medium text-starlight">
-          {currentTrack.title}
-        </span>
-      </div>
-
-      {/* Subtle Next Track Button */}
-      <button
-        type="button"
-        onClick={handleNextTrack}
-        onMouseEnter={() => sfxEngine.playHoverTick()}
-        aria-label="Chuyển bài tiếp theo"
-        title="Chuyển bài tiếp theo"
-        className="glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full border border-transparent text-lavender hover:text-starlight"
-      >
-        <SkipForward className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      </button>
-    </motion.div>
   );
 }
 
@@ -311,10 +205,7 @@ export function HudOverlay() {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-          <AnimatePresence>{stage === 'galaxy' && <NowPlayingPill />}</AnimatePresence>
-          <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
-        </div>
+        <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
       </header>
 
       {/* Center Stage Overlay (Stage 1 Intro Card) */}
