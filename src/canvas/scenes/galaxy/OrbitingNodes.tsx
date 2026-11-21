@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { ANNIVERSARY_DATA, type GalaxyNodeConfig } from '../../../data/anniversaryData';
 import { getNextJourneyStep, useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
-import { galaxySignals } from '../../galaxySignals';
+import {
+  galaxySignals,
+  getLockedNodeOrbitMetrics,
+  MASTER_NODE_ORBIT_SPEED,
+  MASTER_NODE_ORBIT_START_ANGLE,
+  NODE_ORBIT_MIN_Y,
+} from '../../galaxySignals';
 
 const NODE_BEACON_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -287,19 +293,35 @@ function createNodeTexture(node: GalaxyNodeConfig): THREE.CanvasTexture {
 
 interface GalaxyNodeItemProps {
   node: GalaxyNodeConfig;
+  index: number;
+  totalNodes: number;
+  masterOrbitAngleRef: MutableRefObject<number>;
+  hoveredNodeIdRef: MutableRefObject<string | null>;
   interactive: boolean;
   reducedMotion: boolean;
 }
 
-function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProps) {
+function GalaxyNodeItem({
+  node,
+  index,
+  totalNodes,
+  masterOrbitAngleRef,
+  hoveredNodeIdRef,
+  interactive,
+  reducedMotion,
+}: GalaxyNodeItemProps) {
   const groupRef = useRef<THREE.Group>(null);
   const scaleWrapperRef = useRef<THREE.Group>(null);
   const beaconMeshRef = useRef<THREE.Mesh>(null);
   const portalRingRef = useRef<THREE.Mesh>(null);
   const portalSparklesRef = useRef<THREE.Points>(null);
-  const angleRef = useRef(node.orbitAngle);
   const colorScratchRef = useRef(new THREE.Color());
   const [hovered, setHovered] = useState(false);
+
+  const { sectorOffset, radius, baseY } = useMemo(
+    () => getLockedNodeOrbitMetrics(index, totalNodes),
+    [index, totalNodes]
+  );
 
   const {
     texture,
@@ -413,19 +435,25 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
   useEffect(() => {
     if (!interactive && hovered) {
       setHovered(false);
+      if (hoveredNodeIdRef.current === node.id) {
+        hoveredNodeIdRef.current = null;
+      }
       document.body.style.cursor = 'auto';
     }
-  }, [interactive, hovered]);
+  }, [interactive, hovered, hoveredNodeIdRef, node.id]);
 
   // Immediately clear hover state when any camera fly-to or modal begins so giant hover text never flashes across the lens
   useEffect(() => {
     return useAppStore.subscribe((state) => {
       if (state.focusingNodeId !== null || state.activeModal !== null) {
         setHovered(false);
+        if (hoveredNodeIdRef.current === node.id) {
+          hoveredNodeIdRef.current = null;
+        }
         document.body.style.cursor = 'auto';
       }
     });
-  }, []);
+  }, [hoveredNodeIdRef, node.id]);
 
   useEffect(() => {
     return () => {
@@ -466,10 +494,11 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       }
       event.stopPropagation();
       setHovered(true);
+      hoveredNodeIdRef.current = node.id;
       document.body.style.cursor = 'pointer';
       sfxEngine.playHoverTick();
     },
-    [interactive]
+    [interactive, hoveredNodeIdRef, node.id]
   );
 
   const handlePointerOut = useCallback(
@@ -477,9 +506,12 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       if (!interactive) return;
       event.stopPropagation();
       setHovered(false);
+      if (hoveredNodeIdRef.current === node.id) {
+        hoveredNodeIdRef.current = null;
+      }
       document.body.style.cursor = 'auto';
     },
-    [interactive]
+    [interactive, hoveredNodeIdRef, node.id]
   );
 
   const handleClick = useCallback(
@@ -487,10 +519,13 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       if (!interactive) return;
       event.stopPropagation();
       setHovered(false);
+      if (hoveredNodeIdRef.current === node.id) {
+        hoveredNodeIdRef.current = null;
+      }
       document.body.style.cursor = 'auto';
       useAppStore.getState().openFeatureWithCameraFly(node.id);
     },
-    [interactive, node.id]
+    [interactive, hoveredNodeIdRef, node.id]
   );
 
   useFrame((state, delta) => {
@@ -505,18 +540,15 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     const isAnyFocusOrModal =
       galaxySignals.focusingNodeId !== null || focusingNodeId !== null || activeModal !== null;
 
-    // Freeze target node cleanly during camera fly-to & open modal; slow peripheral orbs gently
-    if (!reducedMotion) {
-      const speedMul = isFocusedTarget ? 0 : isAnyFocusOrModal ? 0.22 : hovered ? 0.15 : 1;
-      angleRef.current += dt * node.orbitSpeed * speedMul;
-    }
-
+    // Strictly phase-locked orbital sector derived from the single shared masterOrbitAngleRef
     if (groupRef.current) {
-      const x = Math.cos(angleRef.current) * node.orbitRadius;
-      const z = Math.sin(angleRef.current) * node.orbitRadius;
-      const bobAmp = isFocusedTarget ? 0.04 : 0.18;
-      const bob = reducedMotion ? 0 : Math.sin(elapsed * 1.8 + node.orbitAngle * 2) * bobAmp;
-      groupRef.current.position.set(x, node.heightOffset + bob, z);
+      const sectorAngle = masterOrbitAngleRef.current + sectorOffset;
+      const x = Math.cos(sectorAngle) * radius;
+      const z = Math.sin(sectorAngle) * radius;
+      const bobAmp = isFocusedTarget ? 0.04 : 0.22;
+      const bob = reducedMotion ? 0 : Math.sin(elapsed * 0.9 + index * 1.4) * bobAmp;
+      const clampedY = Math.max(NODE_ORBIT_MIN_Y, baseY + bob);
+      groupRef.current.position.set(x, clampedY, z);
       groupRef.current.getWorldPosition(galaxySignals.nodeWorldPositions[node.id]);
     }
 
@@ -600,13 +632,14 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     }
   });
 
-  const initialX = Math.cos(node.orbitAngle) * node.orbitRadius;
-  const initialZ = Math.sin(node.orbitAngle) * node.orbitRadius;
+  const initialAngle = MASTER_NODE_ORBIT_START_ANGLE + sectorOffset;
+  const initialX = Math.cos(initialAngle) * radius;
+  const initialZ = Math.sin(initialAngle) * radius;
 
   return (
     <group
       ref={groupRef}
-      position={[initialX, node.heightOffset, initialZ]}
+      position={[initialX, baseY, initialZ]}
       name={`galaxy-node-${node.id}`}
     >
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
@@ -669,12 +702,47 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
 }
 
 export function OrbitingNodes({ interactive = true, reducedMotion = false }: OrbitingNodesProps) {
+  const nodes = ANNIVERSARY_DATA.galaxyNodes;
+  const totalNodes = nodes.length;
+  const masterOrbitAngleRef = useRef(MASTER_NODE_ORBIT_START_ANGLE);
+  const ringSpeedScaleRef = useRef(1);
+  const hoveredNodeIdRef = useRef<string | null>(null);
+
+  // Single Shared Master Orbital Clock: pauses/slows the ENTIRE ring synchronously so 72° sectors never drift
+  useFrame((_, delta) => {
+    if (reducedMotion) return;
+    const dt = Math.min(delta, 0.05);
+    const { activeModal, focusingNodeId } = useAppStore.getState();
+
+    const shouldPauseRing =
+      focusingNodeId !== null ||
+      activeModal !== null ||
+      galaxySignals.focusingNodeId !== null ||
+      galaxySignals.isOrbReturning ||
+      galaxySignals.isHoldingHeart;
+
+    const targetSpeedScale = shouldPauseRing ? 0 : hoveredNodeIdRef.current !== null ? 0.18 : 1;
+    ringSpeedScaleRef.current = THREE.MathUtils.lerp(
+      ringSpeedScaleRef.current,
+      targetSpeedScale,
+      Math.min(1, dt * (shouldPauseRing ? 8 : 4.5))
+    );
+
+    masterOrbitAngleRef.current =
+      (masterOrbitAngleRef.current + dt * MASTER_NODE_ORBIT_SPEED * ringSpeedScaleRef.current) %
+      (Math.PI * 2);
+  });
+
   return (
     <group name="orbiting-modal-nodes">
-      {ANNIVERSARY_DATA.galaxyNodes.map((node) => (
+      {nodes.map((node, index) => (
         <GalaxyNodeItem
           key={node.id}
           node={node}
+          index={index}
+          totalNodes={totalNodes}
+          masterOrbitAngleRef={masterOrbitAngleRef}
+          hoveredNodeIdRef={hoveredNodeIdRef}
           interactive={interactive}
           reducedMotion={reducedMotion}
         />

@@ -1,6 +1,22 @@
 import * as THREE from 'three';
 import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
 
+export const MASTER_NODE_ORBIT_START_ANGLE = 0.36;
+export const MASTER_NODE_ORBIT_SPEED = 0.085;
+export const NODE_ORBIT_MIN_Y = 1.32;
+
+/**
+ * Deterministic phase-locked orbital domain per clickable node.
+ * Guarantees exact (index / totalNodes) * 2π angular spacing and safe clearance above the bottom HUD.
+ */
+export function getLockedNodeOrbitMetrics(index: number, totalNodes: number) {
+  const safeTotal = Math.max(1, totalNodes);
+  const sectorOffset = (index / safeTotal) * Math.PI * 2;
+  const radius = 6.2 + (index % 2 === 0 ? -0.35 : 0.35);
+  const baseY = index % 2 === 0 ? 1.55 : 2.15;
+  return { sectorOffset, radius, baseY };
+}
+
 const initialNodePositions: Record<GalaxyNodeId, THREE.Vector3> = {
   letter: new THREE.Vector3(),
   counter: new THREE.Vector3(),
@@ -9,13 +25,16 @@ const initialNodePositions: Record<GalaxyNodeId, THREE.Vector3> = {
   gallery: new THREE.Vector3(),
 };
 
-for (const node of ANNIVERSARY_DATA.galaxyNodes) {
+const totalGalaxyNodes = ANNIVERSARY_DATA.galaxyNodes.length;
+ANNIVERSARY_DATA.galaxyNodes.forEach((node, index) => {
+  const { sectorOffset, radius, baseY } = getLockedNodeOrbitMetrics(index, totalGalaxyNodes);
+  const angle = MASTER_NODE_ORBIT_START_ANGLE + sectorOffset;
   initialNodePositions[node.id].set(
-    Math.cos(node.orbitAngle) * node.orbitRadius,
-    node.heightOffset,
-    Math.sin(node.orbitAngle) * node.orbitRadius
+    Math.cos(angle) * radius,
+    baseY,
+    Math.sin(angle) * radius
   );
-}
+});
 
 /**
  * Shared zero-allocation mutable signal bus for 60 FPS WebGL <-> Audio <-> Pointer coordination.

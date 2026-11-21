@@ -31,6 +31,7 @@ const UNIFORM_ORBIT_SPEED = 0.048;
 export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhrasesProps) {
   const { camera } = useThree();
   const orbitRef = useRef<THREE.Group>(null);
+  const masterTextAngleRef = useRef(0);
   const anchorRefs = useRef<Array<THREE.Group | null>>([]);
   const textRefs = useRef<Array<TroikaTextMesh | null>>([]);
 
@@ -59,7 +60,11 @@ export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhras
     if (!orbit) return;
 
     if (!reducedMotion) {
-      orbit.rotation.y -= Math.min(delta, 0.05) * UNIFORM_ORBIT_SPEED;
+      const dt = Math.min(delta, 0.05);
+      // Wrap single shared angular accumulator cleanly mod 2π so long idle sessions never lose precision
+      masterTextAngleRef.current =
+        (masterTextAngleRef.current - dt * UNIFORM_ORBIT_SPEED) % (Math.PI * 2);
+      orbit.rotation.y = masterTextAngleRef.current;
     }
 
     // Theatrical dim during Supernova build-up, Constellation View, or Orb Camera Fly-To focus
