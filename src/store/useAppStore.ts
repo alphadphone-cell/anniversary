@@ -24,30 +24,12 @@ const CORE_MODAL_STEPS: ReadonlySet<string> = new Set([
   'gallery',
 ]);
 
-const JOURNEY_STORAGE_KEY = 'anni_journey_completed_v1';
-
-function loadSessionCompletedSteps(): JourneyStepId[] {
-  if (typeof window === 'undefined') return [];
+// Clear any legacy sessionStorage journey key on page load so every F5 refresh starts fresh at 0/6
+if (typeof window !== 'undefined') {
   try {
-    const raw = window.sessionStorage.getItem(JOURNEY_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const validSet = new Set<string>(JOURNEY_STEPS);
-    return Array.from(
-      new Set(parsed.filter((item): item is JourneyStepId => typeof item === 'string' && validSet.has(item)))
-    );
+    window.sessionStorage.removeItem('anni_journey_completed_v1');
   } catch {
-    return [];
-  }
-}
-
-function saveSessionCompletedSteps(steps: JourneyStepId[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, JSON.stringify(steps));
-  } catch {
-    // Ignore restricted sessionStorage contexts
+    // Ignore restricted storage contexts
   }
 }
 
@@ -56,9 +38,7 @@ function appendCompletedStep(
   step: JourneyStepId
 ): JourneyStepId[] {
   if (current.includes(step)) return current;
-  const next = [...current, step];
-  saveSessionCompletedSteps(next);
-  return next;
+  return [...current, step];
 }
 
 /** Returns the first unvisited step in the guided journey, or null when all 6/6 are completed. */
@@ -118,7 +98,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedMilestoneId: null,
   maxUnlockedMilestoneIndex: 0,
   constellationFinaleActive: false,
-  completedSteps: loadSessionCompletedSteps(),
+  completedSteps: [],
   supernovaCompleted: false,
   guidePillDismissed: false,
   isMuted: false,
