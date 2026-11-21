@@ -491,7 +491,7 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       id: 'star-spring-2026',
       date: '03/02/2026',
       title: 'Nàng Thơ Dịu Dàng Của Anh',
-      caption: 'Qua 3 năm bên nhau, bé Tlinh trong tà áo dài trắng vẫn luôn là ngôi sao dịu dàng, trong trẻo và sáng nhất trên bầu trời của AD.',
+      caption: 'Qua 3 năm bên nhau, bé vẫn luôn là ngôi sao dịu dàng, trong trẻo và sáng nhất trên bầu trời của anh.',
       image: '/media/constellation/star-07-spring-2026.webp',
       aspect: 'landscape',
       // θ Cap (Theta Capricorni) — Sống lưng cong trên, khép trọn vòng cung Ma Kết về β Cap (Dabih)
