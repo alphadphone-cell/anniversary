@@ -655,20 +655,34 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
     const tex = createStarSpriteTexture();
     const plane = new THREE.PlaneGeometry(1.45, 1.45);
 
-    // Subdivide sequential milestone segments smoothly so progressive GLSL ignition & surge bolt flow seamlessly
+    // Subdivide sequential milestone segments + Capricornus closing ridge (Star #7 Theta -> Star #2 Dabih)
     const samplesPerSegment = 24;
-    const segCount = Math.max(0, milestones.length - 1);
-    const totalPoints = segCount > 0 ? segCount * samplesPerSegment + 1 : 0;
+    const baseSegCount = Math.max(0, milestones.length - 1);
+    const hasCapricornClosingArch = milestones.length >= 7;
+    const renderSegCount = baseSegCount + (hasCapricornClosingArch ? 1 : 0);
+    const totalPoints = renderSegCount > 0 ? renderSegCount * samplesPerSegment + 1 : 0;
 
     const positions = new Float32Array(totalPoints * 3);
     const progress = new Float32Array(totalPoints);
 
-    if (segCount > 0) {
+    if (renderSegCount > 0) {
       let ptr = 0;
-      for (let s = 0; s < segCount; s++) {
-        const a = milestones[s].position;
-        const b = milestones[s + 1].position;
-        const steps = s === segCount - 1 ? samplesPerSegment + 1 : samplesPerSegment;
+      for (let s = 0; s < renderSegCount; s++) {
+        const isClosingArch = hasCapricornClosingArch && s === renderSegCount - 1;
+        const a = isClosingArch ? milestones[milestones.length - 1].position : milestones[s].position;
+        const b = isClosingArch ? milestones[1].position : milestones[s + 1].position;
+        const steps = s === renderSegCount - 1 ? samplesPerSegment + 1 : samplesPerSegment;
+
+        // Map aProgress so unlocking the final star (07/07) smoothly draws both Star #6->#7 and closes #7->#2
+        let segStartProg = s / baseSegCount;
+        let segEndProg = (s + 1) / baseSegCount;
+        if (hasCapricornClosingArch && s === baseSegCount - 1) {
+          segStartProg = (baseSegCount - 1) / baseSegCount;
+          segEndProg = (baseSegCount - 0.5) / baseSegCount;
+        } else if (isClosingArch) {
+          segStartProg = (baseSegCount - 0.5) / baseSegCount;
+          segEndProg = 1.0;
+        }
 
         for (let k = 0; k < steps; k++) {
           const frac = k / samplesPerSegment;
@@ -676,7 +690,7 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
           positions[p3] = a[0] + (b[0] - a[0]) * frac;
           positions[p3 + 1] = a[1] + (b[1] - a[1]) * frac;
           positions[p3 + 2] = a[2] + (b[2] - a[2]) * frac;
-          progress[ptr] = (s + frac) / segCount;
+          progress[ptr] = segStartProg + (segEndProg - segStartProg) * frac;
           ptr++;
         }
       }

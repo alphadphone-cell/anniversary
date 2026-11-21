@@ -350,6 +350,9 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     signature: 'Mãi ở trong lực hút của em',
   },
 
+  // Chòm sao Ma Kết (Capricornus — 30/12/2007):
+  // Hình tam giác ngược / cánh cung đặc trưng của cung Ma Kết với 7 ngôi sao chính:
+  // α Cap (Algedi) -> β Cap (Dabih) -> ψ Cap -> ζ Cap (Marakk) -> γ Cap (Nashira) -> δ Cap (Deneb Algedi) -> θ Cap (khép vòng về Dabih)
   constellationMilestones: [
     {
       id: 'star-first-hello',
@@ -357,7 +360,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Tia Sáng Đầu Tiên Giữa Phố Đêm',
       caption: 'Buổi cà phê sân thượng hóa thành hàng giờ cười nói quên lối về dưới ánh đèn thành phố.',
       image: '/media/memory-01.svg',
-      position: [-6.8, 15.2, -7.2],
+      // α Cap (Algedi) — Đỉnh sừng trên bên trái của chòm Ma Kết
+      position: [-7.4, 18.8, -7.2],
     },
     {
       id: 'star-rain-cinema',
@@ -365,7 +369,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Cơn Mưa Sau Rạp Chiếu Phim',
       caption: 'Chung một chiếc ô nhỏ dưới ánh đèn neon, chỉ mong con đường về nhà dài thêm chút nữa.',
       image: '/media/memory-01.svg',
-      position: [-4.4, 17.8, -8.4],
+      // β Cap (Dabih) — Điểm nối sừng vào thân cung Ma Kết
+      position: [-6.1, 17.5, -7.5],
     },
     {
       id: 'star-coastal-dawn',
@@ -373,7 +378,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Đón Bình Minh Biển Phú Yên',
       caption: 'Gió biển dịu mát, cửa kính hạ xuống và vệt chân trời hồng đầu tiên tụi mình ngắm cùng nhau.',
       image: '/media/memory-03.svg',
-      position: [-1.7, 16.4, -7.6],
+      // ψ Cap (Psi Capricorni) — Đỉnh nhọn phía dưới bên trái
+      position: [-3.0, 13.9, -7.1],
     },
     {
       id: 'star-heart-zenith',
@@ -381,7 +387,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Điều Ước Dưới Trời Sao Đêm',
       caption: 'Ngước nhìn bầu trời trong vắt và tự đặt tên cho chòm sao của riêng chúng mình.',
       image: '/media/puzzle-couple.svg',
-      position: [0.0, 14.3, -6.5],
+      // ζ Cap (Marakk) — Đường cong đáy phía nam của chòm Ma Kết
+      position: [1.3, 14.3, -7.4],
     },
     {
       id: 'star-one-year',
@@ -389,7 +396,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Kỷ Niệm Một Năm Ở Đà Lạt',
       caption: 'Ánh đèn lồng bay nhẹ trong sương thông, đánh dấu trọn vẹn vòng quỹ đạo đầu tiên bên nhau.',
       image: '/media/memory-02.svg',
-      position: [2.1, 16.6, -7.8],
+      // γ Cap (Nashira) — Cánh phải vươn lên phía đuôi sao
+      position: [5.0, 16.2, -7.8],
     },
     {
       id: 'star-cat-ba',
@@ -397,7 +405,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Hoàng Hôn Tím Trên Vịnh Biển',
       caption: 'Chuyến phà chiều muộn nơi sắc tím hoàng hôn hòa tan vào ngàn sao trên mặt nước lặng.',
       image: '/media/memory-03.svg',
-      position: [4.8, 17.7, -8.5],
+      // δ Cap (Deneb Algedi) — Mũi đuôi sáng nhất chòm Ma Kết
+      position: [7.6, 17.6, -7.3],
     },
     {
       id: 'star-two-years',
@@ -405,7 +414,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       title: 'Hai Năm Mãi Mãi Yêu Thương',
       caption: 'Cảm ơn em đã luôn là bạn đồng hành tuyệt vời nhất — những vì sao rực rỡ nhất vẫn đang chờ tụi mình phía trước.',
       image: '/media/secret-supernova.svg',
-      position: [7.0, 15.1, -7.1],
+      // θ Cap (Theta Capricorni) — Sống lưng cong trên, khép trọn vòng cung Ma Kết về β Cap (Dabih)
+      position: [0.5, 17.0, -8.0],
     },
   ],
 
