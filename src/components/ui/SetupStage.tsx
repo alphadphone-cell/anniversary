@@ -209,24 +209,12 @@ export function SetupStage() {
     };
   }, [phase, setStage]);
 
-  // Subtle low-opacity "Bỏ qua" link: unlocks audio cleanly & enters Intro smoothly
-  const handleSkip = useCallback(() => {
-    clearAllTimers();
-    setMuted(false);
-    musicEngine.unlockAndPreload();
-    sfxEngine.unlock();
-    void acquireScreenWakeLock();
-    setStage('intro');
-  }, [clearAllTimers, setMuted, setStage]);
-
   const checkItems = [
     'Không gian đã mở rộng trọn vẹn cho em',
     'Nhạc nền của tụi mình đã lên sẵn rồi nè',
     'Màn hình sáng rõ, chỉ chờ mỗi em thôi',
     'Mọi kỷ niệm đã xếp ngay ngắn chờ em mở',
   ];
-
-  const isFinishing = phase === 'verifying' || phase === 'whisper';
 
   return (
     <motion.div
@@ -238,13 +226,10 @@ export function SetupStage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } }}
       style={{ willChange: 'opacity' }}
-      className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-between bg-[#000000] px-6 py-8 text-center sm:py-10"
+      className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#000000] px-6 py-8 text-center sm:py-10"
     >
-      {/* Top balanced spacer for vertical centering */}
-      <div aria-hidden="true" className="h-9" />
-
       {/* Centered Ultra-Minimal Sequential Prompt Area */}
-      <div className="flex w-full max-w-[460px] flex-1 flex-col items-center justify-center">
+      <div className="flex w-full max-w-[460px] flex-col items-center justify-center">
         <AnimatePresence mode="wait">
           {phase === 1 && (
             <motion.div
@@ -423,19 +408,6 @@ export function SetupStage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      {/* Subtle Low-Opacity Skip Link at Very Bottom */}
-      <div className="flex h-11 items-center justify-center">
-        {!isFinishing && (
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full px-5 font-sans text-xs font-normal tracking-wide text-white/35 transition-colors duration-200 hover:text-white/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
-          >
-            Vào thẳng luôn nha
-          </button>
-        )}
       </div>
     </motion.div>
   );
