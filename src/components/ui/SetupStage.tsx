@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Check, Music2 } from 'lucide-react';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { useAppStore } from '../../store/useAppStore';
@@ -7,6 +7,62 @@ import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 
 type SetupPhase = 1 | 2 | 3 | 4 | 'verifying' | 'whisper';
+
+interface StarlightMote {
+  id: number;
+  left: string;
+  top: string;
+  size: number;
+  driftY: number;
+  delay: number;
+  peakOpacity: number;
+  roseTint: boolean;
+}
+
+const WHISPER_STARLIGHT_MOTES: StarlightMote[] = [
+  { id: 0, left: '18%', top: '68%', size: 2.5, driftY: -46, delay: 0.05, peakOpacity: 0.62, roseTint: false },
+  { id: 1, left: '28%', top: '42%', size: 2, driftY: -38, delay: 0.25, peakOpacity: 0.48, roseTint: true },
+  { id: 2, left: '36%', top: '76%', size: 3, driftY: -54, delay: 0.15, peakOpacity: 0.55, roseTint: true },
+  { id: 3, left: '44%', top: '34%', size: 2, driftY: -34, delay: 0.4, peakOpacity: 0.44, roseTint: false },
+  { id: 4, left: '52%', top: '70%', size: 2.5, driftY: -48, delay: 0.2, peakOpacity: 0.58, roseTint: true },
+  { id: 5, left: '61%', top: '36%', size: 2.5, driftY: -40, delay: 0.35, peakOpacity: 0.52, roseTint: false },
+  { id: 6, left: '68%', top: '64%', size: 3, driftY: -52, delay: 0.1, peakOpacity: 0.6, roseTint: true },
+  { id: 7, left: '77%', top: '46%', size: 2, driftY: -36, delay: 0.3, peakOpacity: 0.46, roseTint: false },
+  { id: 8, left: '83%', top: '72%', size: 2.5, driftY: -44, delay: 0.18, peakOpacity: 0.5, roseTint: true },
+  { id: 9, left: '24%', top: '54%', size: 2, driftY: -32, delay: 0.45, peakOpacity: 0.42, roseTint: false },
+  { id: 10, left: '72%', top: '32%', size: 2, driftY: -30, delay: 0.5, peakOpacity: 0.45, roseTint: true },
+  { id: 11, left: '49%', top: '26%', size: 2.5, driftY: -36, delay: 0.28, peakOpacity: 0.48, roseTint: false },
+];
+
+const SMOOTH_EASE = [0.22, 1, 0.36, 1] as const;
+
+const STEP_TRANSITION_VARIANTS = {
+  initial: { opacity: 0, y: 8, filter: 'blur(4px)' },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: { duration: 0.7, ease: SMOOTH_EASE },
+  },
+  exit: {
+    opacity: 0,
+    y: -6,
+    filter: 'blur(4px)',
+    transition: { duration: 0.45, ease: SMOOTH_EASE },
+  },
+};
+
+const STEP_REDUCED_VARIANTS = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.35 } },
+  exit: { opacity: 0, transition: { duration: 0.25 } },
+};
+
+const CHECK_INITIAL_DELAY_MS = 700;
+const CHECK_STEP_INTERVAL_MS = 800;
+const CHECK_COMPLETE_HOLD_MS = 900;
+const WHISPER_POST_BREATH_MS = 250;
+const SOUNDWAVE_BAR_DELAYS = [0, 140, 280, 180, 70];
 
 interface FullscreenDocumentElement extends HTMLElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -61,18 +117,184 @@ async function tryEnterFullscreen(): Promise<boolean> {
   return false;
 }
 
-const CHECK_STEP_INTERVAL_MS = 280;
-const WHISPER_HOLD_MS = 650;
-const SOUNDWAVE_BAR_DELAYS = [0, 140, 280, 180, 70];
+/**
+ * Dedicated ~3.6s solo cinematic interlude ("Đi cùng anh nhé...") mounted ONLY after
+ * the 4-line checklist has completely faded to pure black (zero overlap with IntroStage).
+ * Beat timeline: 0.0-1.2s focus-in -> 1.2-2.7s calm drift -> 2.7-3.6s stardust dissolve -> 0.25s pure-black breath -> Intro.
+ */
+function WhisperInterlude({
+  reducedMotion,
+  onComplete,
+}: {
+  reducedMotion: boolean;
+  onComplete: () => void;
+}) {
+  const [beat, setBeat] = useState<'in' | 'hold' | 'out' | 'breath'>('in');
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    sfxEngine.playWhisperBloom();
+
+    const holdId = window.setTimeout(() => setBeat('hold'), 1200);
+    const outId = window.setTimeout(() => setBeat('out'), 2700);
+    // Guarantee clean exit into pure-black breath even if RAF lags under software WebGL
+    const breathFallbackId = window.setTimeout(() => {
+      setBeat((prev) => (prev === 'out' ? 'breath' : prev));
+    }, 3750);
+
+    return () => {
+      window.clearTimeout(holdId);
+      window.clearTimeout(outId);
+      window.clearTimeout(breathFallbackId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (beat !== 'breath') return;
+    const id = window.setTimeout(() => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      onComplete();
+    }, WHISPER_POST_BREATH_MS);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [beat, onComplete]);
+
+  const handleOutComplete = useCallback(() => {
+    setBeat((prev) => (prev === 'out' ? 'breath' : prev));
+  }, []);
+
+  const phraseAnimate = reducedMotion
+    ? beat === 'in' || beat === 'hold'
+      ? { opacity: 1 }
+      : { opacity: 0 }
+    : beat === 'in'
+      ? { opacity: 1, filter: 'blur(0px)', scale: 1, y: 0, letterSpacing: '0.03em' }
+      : beat === 'hold'
+        ? { opacity: 1, filter: 'blur(0px)', scale: 1.005, y: -4, letterSpacing: '0.03em' }
+        : { opacity: 0, filter: 'blur(10px)', scale: 1.02, y: -14, letterSpacing: '0.055em' };
+
+  const phraseTransition =
+    beat === 'in'
+      ? { duration: 1.2, ease: SMOOTH_EASE }
+      : beat === 'hold'
+        ? { duration: 1.5, ease: 'easeInOut' as const }
+        : { duration: 0.9, ease: 'easeInOut' as const };
+
+  const haloAnimate =
+    beat === 'in'
+      ? { opacity: 0.52, scale: 1.04 }
+      : beat === 'hold'
+        ? { opacity: 0.48, scale: 1.08 }
+        : { opacity: 0, scale: 1.16 };
+
+  return (
+    <motion.div
+      key="setup-whisper"
+      role="status"
+      aria-live="polite"
+      className="relative flex flex-col items-center justify-center"
+    >
+      {/* Sparse, ultra-delicate GPU-composited starlight motes drifting upward */}
+      {!reducedMotion && beat !== 'breath' && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 overflow-hidden"
+        >
+          {WHISPER_STARLIGHT_MOTES.map((mote) => (
+            <motion.span
+              key={mote.id}
+              initial={{ opacity: 0, y: 12, scale: 0.7 }}
+              animate={
+                beat === 'out'
+                  ? { opacity: 0, y: mote.driftY, scale: 0.65 }
+                  : beat === 'hold'
+                    ? { opacity: mote.peakOpacity * 0.8, y: mote.driftY * 0.65, scale: 0.96 }
+                    : { opacity: mote.peakOpacity, y: mote.driftY * 0.28, scale: 1.04 }
+              }
+              transition={
+                beat === 'in'
+                  ? { duration: 1.2, delay: mote.delay * 0.6, ease: SMOOTH_EASE }
+                  : beat === 'hold'
+                    ? { duration: 1.5, ease: 'easeInOut' }
+                    : { duration: 0.85, ease: 'easeInOut' }
+              }
+              style={{
+                left: mote.left,
+                top: mote.top,
+                width: mote.size,
+                height: mote.size,
+                willChange: 'transform, opacity',
+                backgroundColor: mote.roseTint ? '#fbcfe8' : '#fff7fb',
+                boxShadow: mote.roseTint
+                  ? '0 0 10px 2px rgba(244, 114, 182, 0.55)'
+                  : '0 0 9px 2px rgba(255, 245, 252, 0.5)',
+              }}
+              className="absolute rounded-full"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Soft ambient rose-pink halo breathing behind the whisper */}
+      {beat !== 'breath' && (
+        <motion.div
+          aria-hidden="true"
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={haloAnimate}
+          transition={phraseTransition}
+          style={{
+            willChange: 'transform, opacity',
+            background:
+              'radial-gradient(circle, rgba(244, 114, 182, 0.24) 0%, rgba(192, 132, 252, 0.1) 45%, rgba(0, 0, 0, 0) 74%)',
+          }}
+          className="pointer-events-none absolute -inset-x-20 -inset-y-12 rounded-full blur-2xl"
+        />
+      )}
+
+      {/* Three-beat solo choreography: 1.2s focus-in -> 1.5s calm drift -> 0.9s stardust dissolve */}
+      {beat !== 'breath' && (
+        <motion.p
+          initial={
+            reducedMotion
+              ? { opacity: 0 }
+              : {
+                  opacity: 0,
+                  filter: 'blur(10px)',
+                  scale: 0.96,
+                  y: 4,
+                  letterSpacing: '0.1em',
+                }
+          }
+          animate={phraseAnimate}
+          transition={phraseTransition}
+          onAnimationComplete={handleOutComplete}
+          style={{
+            willChange: 'transform, opacity, filter',
+            textShadow: '0 0 28px rgba(244, 114, 182, 0.38)',
+          }}
+          className={`relative px-2 py-1 font-display text-2xl leading-relaxed font-normal italic sm:text-3xl ${
+            reducedMotion ? 'text-pink-100/95' : 'whisper-shimmer-text'
+          }`}
+        >
+          Đi cùng anh nhé...
+        </motion.p>
+      )}
+    </motion.div>
+  );
+}
 
 /**
  * Minimalist Pure-Black (#000000) Pre-Intro Setup Stage (`stage === 'setup'`).
  * Unlocks Fullscreen, AudioContext, and Screen WakeLock on real user gestures while
- * keeping the main soundtrack completely silent until entering the existing Intro stage.
+ * keeping the main soundtrack completely silent until holding the Intro crystal heart.
  */
 export function SetupStage() {
   const setStage = useAppStore((s) => s.setStage);
   const setMuted = useAppStore((s) => s.setMuted);
+  const reducedMotion = Boolean(useReducedMotion());
+  const stepVariants = reducedMotion ? STEP_REDUCED_VARIANTS : STEP_TRANSITION_VARIANTS;
 
   const [phase, setPhase] = useState<SetupPhase>(1);
   const [checkedCount, setCheckedCount] = useState(0);
@@ -127,7 +349,7 @@ export function SetupStage() {
     chimeTimerRef.current = window.setTimeout(() => {
       chimeTimerRef.current = null;
       setIsChimePlaying(false);
-    }, 1550);
+    }, 2450);
   }, [setMuted]);
 
   // Step 1 -> Step 2: Request Fullscreen, unlock AudioContext, request WakeLock, play confirmation chime
@@ -181,7 +403,7 @@ export function SetupStage() {
     setPhase('verifying');
   }, [clearAllTimers]);
 
-  // Run the 4-item sequential verification (~1.4s) -> poetic whisper (~0.65s) -> smooth transition into Intro
+  // Run the calm 4-item sequential checklist (0.8s apart) -> 0.9s hold -> fade out cleanly -> solo whisper
   useEffect(() => {
     if (phase !== 'verifying') return;
 
@@ -190,13 +412,13 @@ export function SetupStage() {
       const tickId = window.setTimeout(() => {
         setCheckedCount(idx + 1);
         sfxEngine.playSetupCheckTick(idx);
-      }, 360 + idx * CHECK_STEP_INTERVAL_MS);
+      }, CHECK_INITIAL_DELAY_MS + idx * CHECK_STEP_INTERVAL_MS);
       localIds.push(tickId);
     }
 
     const whisperId = window.setTimeout(() => {
       setPhase('whisper');
-    }, 360 + 3 * CHECK_STEP_INTERVAL_MS + 380);
+    }, CHECK_INITIAL_DELAY_MS + 3 * CHECK_STEP_INTERVAL_MS + CHECK_COMPLETE_HOLD_MS);
     localIds.push(whisperId);
 
     timersRef.current.push(...localIds);
@@ -205,16 +427,9 @@ export function SetupStage() {
     };
   }, [phase]);
 
-  useEffect(() => {
-    if (phase !== 'whisper') return;
-    const finishId = window.setTimeout(() => {
-      setStage('intro');
-    }, WHISPER_HOLD_MS);
-    timersRef.current.push(finishId);
-    return () => {
-      window.clearTimeout(finishId);
-    };
-  }, [phase, setStage]);
+  const handleWhisperComplete = useCallback(() => {
+    setStage('intro');
+  }, [setStage]);
 
   const checkItems = [
     'Không gian đã mở rộng trọn vẹn cho em',
@@ -231,7 +446,7 @@ export function SetupStage() {
       aria-label="Nhắn nhỏ em trước khi bắt đầu"
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } }}
+      exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 1.1, ease: SMOOTH_EASE } }}
       style={{ willChange: 'opacity' }}
       className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#000000] px-6 py-8 text-center sm:py-10"
     >
@@ -241,10 +456,11 @@ export function SetupStage() {
           {phase === 1 && (
             <motion.div
               key="setup-step-1"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              variants={stepVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ willChange: 'transform, opacity, filter' }}
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
@@ -270,10 +486,11 @@ export function SetupStage() {
           {phase === 2 && (
             <motion.div
               key="setup-step-2"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              variants={stepVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ willChange: 'transform, opacity, filter' }}
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
@@ -327,10 +544,11 @@ export function SetupStage() {
           {phase === 3 && (
             <motion.div
               key="setup-step-3"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              variants={stepVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ willChange: 'transform, opacity, filter' }}
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
@@ -355,10 +573,11 @@ export function SetupStage() {
           {phase === 4 && (
             <motion.div
               key="setup-step-4"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              variants={stepVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ willChange: 'transform, opacity, filter' }}
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
@@ -387,10 +606,18 @@ export function SetupStage() {
           {phase === 'verifying' && (
             <motion.div
               key="setup-verifying"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, filter: 'blur(4px)' }}
+              animate={
+                reducedMotion
+                  ? { opacity: 1, transition: { duration: 0.4 } }
+                  : { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.6, ease: SMOOTH_EASE } }
+              }
+              exit={
+                reducedMotion
+                  ? { opacity: 0, transition: { duration: 0.35 } }
+                  : { opacity: 0, y: -6, filter: 'blur(4px)', transition: { duration: 0.65, ease: SMOOTH_EASE } }
+              }
+              style={{ willChange: 'transform, opacity, filter' }}
               className="w-full max-w-[360px] text-left"
               role="status"
               aria-live="polite"
@@ -399,21 +626,21 @@ export function SetupStage() {
                 ✦ CHỜ ANH XÍU NHA
               </p>
 
-              <ul className="space-y-3">
+              <ul className="space-y-3.5">
                 {checkItems.map((label, idx) => {
                   const done = checkedCount > idx;
                   return (
                     <motion.li
                       key={label}
-                      initial={{ opacity: 0.25, x: -4 }}
-                      animate={{ opacity: done ? 1 : 0.3, x: done ? 0 : -4 }}
-                      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-                      className="flex items-center gap-3 font-sans text-xs leading-relaxed text-white/90 sm:text-[13px]"
+                      initial={{ opacity: 0.22, x: -4 }}
+                      animate={{ opacity: done ? 1 : 0.28, x: done ? 0 : -4 }}
+                      transition={{ duration: 0.5, ease: SMOOTH_EASE }}
+                      className="flex items-center gap-3 font-sans text-xs leading-relaxed text-white/95 sm:text-[13px]"
                     >
                       <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-250 ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-500 ${
                           done
-                            ? 'border-pink-300/65 bg-pink-400/20 text-pink-200 shadow-[0_0_12px_rgba(244,114,182,0.45)]'
+                            ? 'border-pink-300/70 bg-pink-400/20 text-pink-200 shadow-[0_0_14px_rgba(244,114,182,0.52)]'
                             : 'border-white/15 bg-transparent text-transparent'
                         }`}
                       >
@@ -428,23 +655,11 @@ export function SetupStage() {
           )}
 
           {phase === 'whisper' && (
-            <motion.div
-              key="setup-whisper"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-              role="status"
-              aria-live="polite"
-              className="flex flex-col items-center"
-            >
-              <p
-                className="font-display text-2xl font-normal italic tracking-wide text-pink-100/95 sm:text-3xl"
-                style={{ textShadow: '0 0 26px rgba(244, 114, 182, 0.42)' }}
-              >
-                Đi cùng anh nhé...
-              </p>
-            </motion.div>
+            <WhisperInterlude
+              key="setup-whisper-interlude"
+              reducedMotion={reducedMotion}
+              onComplete={handleWhisperComplete}
+            />
           )}
         </AnimatePresence>
       </div>

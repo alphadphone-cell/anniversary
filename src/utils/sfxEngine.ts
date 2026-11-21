@@ -824,14 +824,14 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Warm, gentle celestial chime sequence for Pre-Intro Setup Step 2 volume & headphones test. */
+  /** Warm, gentle celesta / music-box chime sequence for Pre-Intro Setup Step 2 volume & headphones test. */
   public playSetupTestChime(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
-    // Warm romantic arpeggio (D5 -> F#5 -> A5 -> D6 -> E6)
+    // Soft, unhurried romantic music-box arpeggio (D5 -> F#5 -> A5 -> D6 -> E6)
     const notes = [587.33, 739.99, 880.0, 1174.66, 1318.51];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
@@ -839,7 +839,7 @@ class ProceduralSfxEngine {
       const gain = ctx.createGain();
       const oGain = ctx.createGain();
       const lpf = ctx.createBiquadFilter();
-      const t0 = now + idx * 0.14;
+      const t0 = now + idx * 0.26;
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
@@ -847,15 +847,16 @@ class ProceduralSfxEngine {
       overtone.frequency.setValueAtTime(freq * 2, t0);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(2400, t0);
+      lpf.frequency.setValueAtTime(1950, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1150, t0 + 1.35);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.068 - idx * 0.006, t0 + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.95);
+      gain.gain.linearRampToValueAtTime(0.056 - idx * 0.004, t0 + 0.045);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.45);
 
       oGain.gain.setValueAtTime(0.0001, t0);
-      oGain.gain.linearRampToValueAtTime(0.014, t0 + 0.02);
-      oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+      oGain.gain.linearRampToValueAtTime(0.011, t0 + 0.035);
+      oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
 
       osc.connect(lpf);
       overtone.connect(oGain);
@@ -865,8 +866,8 @@ class ProceduralSfxEngine {
 
       osc.start(t0);
       overtone.start(t0);
-      osc.stop(t0 + 1.0);
-      overtone.stop(t0 + 0.5);
+      osc.stop(t0 + 1.5);
+      overtone.stop(t0 + 0.7);
       osc.onended = () => {
         osc.disconnect();
         overtone.disconnect();
@@ -877,32 +878,104 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Delicate ascending crystalline tick chime for each line in the Setup auto-verification checklist. */
+  /** Delicate ascending crystalline drop chime for each line in the Setup checklist. */
   public playSetupCheckTick(stepIdx: number): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
-    const scale = [659.25, 783.99, 987.77, 1318.51];
+    const scale = [587.33, 739.99, 880.0, 1174.66];
     const freq = scale[Math.max(0, Math.min(scale.length - 1, stepIdx))] ?? 880;
     const osc = ctx.createOscillator();
+    const lpf = ctx.createBiquadFilter();
     const gain = ctx.createGain();
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.042, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+    lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(2100, now);
 
-    osc.connect(gain);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.038, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+
+    osc.connect(lpf);
+    lpf.connect(gain);
     gain.connect(this.masterGain);
     osc.start(now);
-    osc.stop(now + 0.32);
+    osc.stop(now + 0.62);
     osc.onended = () => {
       osc.disconnect();
+      lpf.disconnect();
       gain.disconnect();
     };
+  }
+
+  /** Warm, sustained ethereal pad + gentle starlight bell chime for the "Đi cùng anh nhé..." solo interlude. */
+  public playWhisperBloom(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const totalDur = 3.4;
+
+    // Airy Dmaj9 warm pad (D4, A4, E5, F#5) swelling slowly and dissolving into silence
+    const padNotes = [293.66, 440.0, 659.25, 739.99];
+    padNotes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.detune.setValueAtTime((idx % 2 === 0 ? 1 : -1) * 4.5, now);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(980, now);
+      lpf.frequency.linearRampToValueAtTime(1450, now + 1.25);
+      lpf.frequency.exponentialRampToValueAtTime(620, now + totalDur);
+
+      const peak = idx === 0 ? 0.024 : 0.014;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 1.15);
+      gain.gain.setValueAtTime(peak * 0.92, now + 2.25);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + totalDur);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + totalDur + 0.08);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
+
+    // Single delicate high crystalline fifth chime as the rose-gold shimmer glides across the letters
+    [1174.66, 1760.0].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + 0.25 + idx * 0.32;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.028 : 0.018, t0 + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.1);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 2.18);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
   }
 
   /** Soft rising crystalline gliding tone synced with the 1.2s Constellation Light-Beam Tracer. */
