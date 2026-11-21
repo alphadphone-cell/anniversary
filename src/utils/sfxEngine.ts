@@ -881,7 +881,145 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Warm harmonic completion chord (Dmaj9) played during the 1.2s full-constellation finale showcase. */
+  /**
+   * ~2.6s Celestial Awakening & Starfall Cascade Audio Choreography:
+   * - 0.0s -> 0.88s: Rapid rising 7-note crystalline circuit arpeggio synced to the golden-white surge
+   * - 0.90s: Lush Celestial Burst Chime (Dmaj9 sparkle) + soft warm sub-bass swell (55Hz -> 44Hz)
+   */
+  public playConstellationAwakeningSequence(starCount = 7): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    // Phase 1 (0.0s -> 0.86s): Fast rising crystalline arpeggio across all 7 stars
+    const surgeScale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1479.98];
+    const count = Math.max(2, Math.min(surgeScale.length, starCount));
+    for (let i = 0; i < count; i++) {
+      const t0 = now + (i / (count - 1)) * 0.82;
+      const freq = surgeScale[i];
+
+      const osc = ctx.createOscillator();
+      const overtone = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const overGain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      overtone.type = 'triangle';
+      overtone.frequency.setValueAtTime(freq * 2, t0);
+      overGain.gain.setValueAtTime(0.28, t0);
+
+      const peak = 0.036 + i * 0.0055;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.58);
+
+      osc.connect(gain);
+      overtone.connect(overGain);
+      overGain.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t0);
+      overtone.start(t0);
+      osc.stop(t0 + 0.62);
+      overtone.stop(t0 + 0.62);
+      osc.onended = () => {
+        osc.disconnect();
+        overtone.disconnect();
+        overGain.disconnect();
+        gain.disconnect();
+      };
+    }
+
+    // Phase 2 (0.90s): Simultaneous Constellation Burst — Celestial Burst Chime + Soft Sub-Bass Swell
+    const burstAt = now + 0.9;
+
+    // Warm soft sub-bass swell (55Hz -> 44Hz)
+    const sub = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(55, burstAt);
+    sub.frequency.exponentialRampToValueAtTime(44, burstAt + 1.35);
+
+    subGain.gain.setValueAtTime(0.0001, burstAt);
+    subGain.gain.linearRampToValueAtTime(0.24, burstAt + 0.08);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, burstAt + 1.55);
+
+    sub.connect(subGain);
+    subGain.connect(this.masterGain);
+    sub.start(burstAt);
+    sub.stop(burstAt + 1.62);
+    sub.onended = () => {
+      sub.disconnect();
+      subGain.disconnect();
+    };
+
+    // Shimmering Dmaj9 Celestial Burst Chord + high starlight sparkles
+    const burstFreqs = [293.66, 440.0, 587.33, 739.99, 880.0, 1108.73, 1318.51, 1760.0];
+    burstFreqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+      const t0 = burstAt + idx * 0.028;
+
+      osc.type = idx < 4 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 3.5) * 3.2, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(2800 + idx * 260, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1100, t0 + 1.85);
+
+      const peak = 0.048 - idx * 0.0032;
+      env.gain.setValueAtTime(0.0001, t0);
+      env.gain.linearRampToValueAtTime(peak, t0 + 0.045);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.05);
+
+      osc.connect(lpf);
+      lpf.connect(env);
+      env.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 2.12);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        env.disconnect();
+      };
+    });
+  }
+
+  /** Warm crystalline absorption shimmer when falling starlight merges into the 3D Particle Heart. */
+  public playHeartAbsorptionShimmer(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const notes = [587.33, 739.99, 880.0, 1174.66, 1479.98];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.04;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.036 - idx * 0.003, t0 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 1.22);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
+  /** Warm harmonic completion chord (Dmaj9) played during the full-constellation finale showcase. */
   public playConstellationFinaleChord(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();

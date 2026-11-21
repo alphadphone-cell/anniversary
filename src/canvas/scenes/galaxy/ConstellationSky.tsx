@@ -6,6 +6,7 @@ import {
   ANNIVERSARY_DATA,
   type ConstellationMilestone,
 } from '../../../data/anniversaryData';
+import { galaxySignals } from '../../galaxySignals';
 import {
   useAppStore,
   useConstellationFinaleActive,
@@ -22,21 +23,29 @@ interface ConstellationSkyProps {
 
 const LINE_IGNITE_DURATION_MS = 450;
 const STAR_IGNITE_BURST_MS = 620;
+const SURGE_DURATION_SEC = 0.9; // Phase 1: blazing golden-white pulse racing Star #1 -> Star #7
+const CASCADE_TOTAL_SEC = 3.45; // Total wall-clock lifecycle including descent into the Particle Heart
+const PARTICLES_PER_STAR = 60; // 7 * 60 = 420 object-pooled GPU starfall particles
+const HEART_ABSORB_WORLD = new THREE.Vector3(0, 4.45, 0);
 
 const COLOR_DORMANT = new THREE.Color(0.46, 0.50, 0.78);
 const COLOR_GALAXY_BG = new THREE.Color(0.95, 0.88, 1.18);
 const COLOR_VISITED = new THREE.Color(1.22, 1.06, 1.38);
 const COLOR_ACTIVE = new THREE.Color(1.66, 1.34, 1.78);
 const COLOR_IGNITE_PEAK = new THREE.Color(2.35, 1.98, 2.45);
+const COLOR_SURGE_GOLD = new THREE.Color(2.65, 2.24, 1.62);
 
 const LINE_VERTEX_SHADER = /* glsl */ `
   attribute float aProgress;
   uniform float uDrawProgress;
   uniform float uTime;
+  uniform float uSurgeProgress;
 
   varying float vProgress;
   varying float vLit;
   varying float vLeading;
+  varying float vSurgeBolt;
+  varying float vSurgeTrail;
   varying float vPulse;
 
   void main() {
@@ -46,6 +55,12 @@ const LINE_VERTEX_SHADER = /* glsl */ `
     vLit = 1.0 - smoothstep(uDrawProgress - 0.025, uDrawProgress + 0.008, aProgress);
     float distToTip = abs(aProgress - uDrawProgress);
     vLeading = exp(-distToTip * distToTip * 950.0);
+
+    // Phase 1 Finale: blazing golden-white energy bolt racing Star #1 -> Star #7
+    float distToSurge = aProgress - uSurgeProgress;
+    vSurgeBolt = exp(-distToSurge * distToSurge * 220.0);
+    vSurgeTrail = smoothstep(-0.28, 0.0, distToSurge) * step(distToSurge, 0.02);
+
     vPulse = 0.74 + 0.26 * sin(aProgress * 18.0 - uTime * 2.4);
   }
 `;
@@ -54,9 +69,12 @@ const LINE_FRAGMENT_SHADER = /* glsl */ `
   uniform float uOpacity;
   uniform float uIgniteWave;
   uniform float uFinaleBoost;
+  uniform float uSurgeIntensity;
   varying float vProgress;
   varying float vLit;
   varying float vLeading;
+  varying float vSurgeBolt;
+  varying float vSurgeTrail;
   varying float vPulse;
 
   void main() {
@@ -64,23 +82,157 @@ const LINE_FRAGMENT_SHADER = /* glsl */ `
 
     // Ultra-faint dormant sky guide (~0.08) for upcoming unvisited segments
     float dormantAlpha = 0.08 * (1.0 - vLit);
-    float litAlpha = vLit * (0.58 + 0.42 * vPulse) * (1.0 + uFinaleBoost * 0.22);
+    float litAlpha = vLit * (0.58 + 0.42 * vPulse) * (1.0 + uFinaleBoost * 0.25);
     float waveSpark = vLeading * uIgniteWave * 0.95;
+    float surgeGlow = (vSurgeBolt * 1.35 + vSurgeTrail * 0.48) * uSurgeIntensity;
 
-    float alpha = clamp((dormantAlpha + litAlpha + waveSpark) * uOpacity, 0.0, 1.0);
+    float alpha = clamp((dormantAlpha + litAlpha + waveSpark + surgeGlow) * uOpacity, 0.0, 1.0);
     if (alpha <= 0.005) discard;
 
     vec3 cDormant = vec3(0.46, 0.50, 0.78);
     vec3 cLavender = vec3(0.95, 0.86, 1.52);
     vec3 cPink = vec3(1.42, 0.48, 0.98);
     vec3 cSpark = vec3(2.2, 1.85, 2.35);
+    vec3 cGoldBolt = vec3(2.85, 2.42, 1.65);
 
     vec3 litCol = mix(cLavender, cPink, 0.45 + 0.35 * sin(vProgress * 6.2831));
-    litCol *= (1.0 + uFinaleBoost * 0.28);
+    litCol *= (1.0 + uFinaleBoost * 0.38);
 
     vec3 col = mix(cDormant, litCol, vLit);
     col = mix(col, cSpark, clamp(waveSpark, 0.0, 1.0));
+    col = mix(col, cGoldBolt, clamp(surgeGlow, 0.0, 1.0));
     gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/** Expanding 3D celestial rose-gold/white shockwave halo across the sky dome on Simultaneous Burst (t = 0.9s). */
+const CELESTIAL_SHOCKWAVE_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CELESTIAL_SHOCKWAVE_FRAGMENT = /* glsl */ `
+  uniform float uProgress;
+  uniform float uOpacity;
+  varying vec2 vUv;
+
+  void main() {
+    if (uOpacity <= 0.004) discard;
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    float radius = mix(0.05, 0.95, uProgress);
+    float ring = exp(-pow((r - radius) / 0.052, 2.0));
+    float innerHalo = exp(-pow((r - radius * 0.84) / 0.11, 2.0)) * 0.38;
+    float edgeFade = smoothstep(1.0, 0.78, r);
+    float alpha = clamp((ring + innerHalo) * edgeFade * uOpacity, 0.0, 1.0);
+    if (alpha <= 0.004) discard;
+
+    vec3 cWhiteGold = vec3(2.4, 2.15, 1.65);
+    vec3 cRosePink = vec3(1.85, 0.72, 1.38);
+    vec3 col = mix(cRosePink, cWhiteGold, clamp(ring * 1.1, 0.0, 1.0));
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * Object-pooled GPU Starfall Cascade (420 golden-pink shooting-star particles):
+ * - uCascadeTime 0.0 -> 0.65s: explosive 360° burst outward from all 7 constellation stars
+ * - uCascadeTime 0.65 -> 2.45s: gravity pulls sparkling streams smoothly down into the 3D Particle Heart
+ */
+const STARFALL_VERTEX_SHADER = /* glsl */ `
+  attribute vec3 aBurstVel;
+  attribute float aScale;
+  attribute float aDelay;
+  attribute float aColorMix;
+  attribute float aSeed;
+
+  uniform float uCascadeTime;
+  uniform float uPixelRatio;
+  uniform vec3 uHeartTarget;
+
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vStreak;
+
+  void main() {
+    float t = uCascadeTime - aDelay;
+    if (uCascadeTime < 0.0 || t <= 0.0 || t > 2.45) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      vAlpha = 0.0;
+      vColor = vec3(1.0);
+      vStreak = 0.0;
+      return;
+    }
+
+    // Phase A (0.0 -> 0.65s): crisp 360° starlight burst with air-drag deceleration
+    float drag = 1.0 - exp(-t * 4.2);
+    vec3 burstPos = position + aBurstVel * drag * 3.1;
+
+    // Phase B (0.55 -> 2.15s): gravity starfall ribbons curving gracefully down into the 3D Particle Heart
+    float fallU = clamp((t - 0.52) / 1.58, 0.0, 1.0);
+    float fallEase = fallU * fallU * (2.6 - 1.6 * fallU);
+
+    // Curved quadratic Bezier path with dreamy sky-to-heart swirl
+    vec3 midCtrl = mix(burstPos, uHeartTarget, 0.45) + vec3(
+      sin(aSeed * 6.2831 + t * 1.8) * 3.2,
+      -2.2 - aSeed * 1.8,
+      2.6 + cos(aSeed * 6.2831) * 2.2
+    );
+    vec3 q0 = mix(burstPos, midCtrl, fallEase);
+    vec3 q1 = mix(midCtrl, uHeartTarget, fallEase);
+    vec3 finalPos = mix(q0, q1, fallEase);
+
+    // Subtle sparkle drift during initial burst before descent kicks in
+    finalPos.y -= pow(min(t, 0.7), 2.0) * 0.9 * (1.0 - fallEase);
+
+    vec4 mvPos = modelViewMatrix * vec4(finalPos, 1.0);
+    gl_Position = projectionMatrix * mvPos;
+
+    float fadeIn = smoothstep(0.0, 0.08, t);
+    float fadeOut = 1.0 - smoothstep(1.85, 2.38, t);
+    float twinkle = 0.68 + 0.32 * sin(t * (14.0 + aSeed * 10.0) + aSeed * 20.0);
+
+    vAlpha = fadeIn * fadeOut * twinkle;
+    vStreak = smoothstep(0.45, 1.0, fallU) * (1.0 - smoothstep(0.92, 1.0, fallU));
+
+    vec3 cGold = vec3(2.35, 1.92, 1.08);
+    vec3 cRose = vec3(2.15, 0.72, 1.48);
+    vec3 cWhite = vec3(2.45, 2.32, 2.48);
+    vec3 baseCol = mix(cGold, cRose, aColorMix);
+    float flash = exp(-t * 4.0);
+    vColor = mix(baseCol, cWhite, clamp(flash * 0.65 + vStreak * 0.3, 0.0, 0.85));
+
+    float atten = 42.0 / max(-mvPos.z, 2.0);
+    gl_PointSize = clamp(aScale * (1.0 + flash * 0.75 + vStreak * 0.4) * uPixelRatio * atten, 2.0, 22.0);
+  }
+`;
+
+const STARFALL_FRAGMENT_SHADER = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vStreak;
+
+  void main() {
+    if (vAlpha <= 0.005) discard;
+    vec2 uv = gl_PointCoord - vec2(0.5);
+    float d = length(uv);
+    if (d > 0.5) discard;
+
+    float core = exp(-d * d * 20.0);
+    float halo = smoothstep(0.5, 0.08, d) * 0.55;
+    float crossSpark = max(
+      exp(-abs(uv.x) * 26.0) * exp(-abs(uv.y) * 5.2),
+      exp(-abs(uv.y) * 26.0) * exp(-abs(uv.x) * 5.2)
+    ) * (0.45 + vStreak * 0.65);
+
+    float alpha = clamp((core + halo + crossSpark) * vAlpha, 0.0, 1.0);
+    gl_FragColor = vec4(vColor * (core * 1.25 + halo * 0.75 + crossSpark), alpha);
   }
 `;
 
@@ -142,6 +294,7 @@ function createStarSpriteTexture(): THREE.CanvasTexture {
 interface StarNodeProps {
   milestone: ConstellationMilestone;
   index: number;
+  totalCount: number;
   texture: THREE.CanvasTexture;
   planeGeo: THREE.PlaneGeometry;
   interactive: boolean;
@@ -161,6 +314,7 @@ interface TroikaTextHandle {
 function ConstellationStarNode({
   milestone,
   index,
+  totalCount,
   texture,
   planeGeo,
   interactive,
@@ -262,19 +416,49 @@ function ConstellationStarNode({
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
     const elapsed = state.clock.elapsedTime;
+    const nowMs = performance.now();
 
-    // Compute wall-clock ignition burst (peaks as the 0.45s connecting line reaches this star)
+    // Compute wall-clock ignition burst (on unlocking next star OR Star #1 auto-arrival pulse)
     let igniteBurst = 0;
-    if (igniteStartMsRef.current !== null && !reducedMotion) {
-      const elapsedMs = performance.now() - igniteStartMsRef.current;
-      const delayMs = 140;
-      if (elapsedMs >= delayMs) {
-        const t = (elapsedMs - delayMs) / STAR_IGNITE_BURST_MS;
-        if (t >= 1) {
-          igniteStartMsRef.current = null;
-        } else {
-          igniteBurst = Math.sin(Math.PI * t);
+    if (!reducedMotion) {
+      if (index === 0 && galaxySignals.constellationStar0IgniteMs > 0) {
+        const entryElapsedMs = nowMs - galaxySignals.constellationStar0IgniteMs;
+        if (entryElapsedMs >= 0 && entryElapsedMs < STAR_IGNITE_BURST_MS) {
+          igniteBurst = Math.max(igniteBurst, Math.sin(Math.PI * (entryElapsedMs / STAR_IGNITE_BURST_MS)));
         }
+      }
+      if (igniteStartMsRef.current !== null) {
+        const elapsedMs = nowMs - igniteStartMsRef.current;
+        const delayMs = 140;
+        if (elapsedMs >= delayMs) {
+          const t = (elapsedMs - delayMs) / STAR_IGNITE_BURST_MS;
+          if (t >= 1) {
+            igniteStartMsRef.current = null;
+          } else {
+            igniteBurst = Math.max(igniteBurst, Math.sin(Math.PI * t));
+          }
+        }
+      }
+    }
+
+    // Compute Phase 1 Surge Flare & Phase 2 Simultaneous Rose-Gold Burst during Finale
+    let surgeFlare = 0;
+    let simultaneousBurst = 0;
+    if (isFinale && galaxySignals.constellationFinaleStartMs > 0 && !reducedMotion) {
+      const fSec = (nowMs - galaxySignals.constellationFinaleStartMs) / 1000;
+      const starNorm = totalCount > 1 ? index / (totalCount - 1) : 0;
+
+      if (fSec >= 0 && fSec < SURGE_DURATION_SEC + 0.25) {
+        const surgeT = THREE.MathUtils.clamp(fSec / SURGE_DURATION_SEC, 0, 1);
+        const easedSurge = surgeT * surgeT * (3 - 2 * surgeT);
+        // Blazing flare right as the golden-white pulse sweeps through this star
+        const hitDist = easedSurge - starNorm;
+        surgeFlare = Math.exp(-hitDist * hitDist * 75) * (1.0 - THREE.MathUtils.smoothstep(fSec, 0.85, 1.05));
+      }
+
+      if (fSec >= SURGE_DURATION_SEC) {
+        const burstT = fSec - SURGE_DURATION_SEC;
+        simultaneousBurst = Math.exp(-burstT * 3.1) * THREE.MathUtils.smoothstep(burstT, 0, 0.06);
       }
     }
 
@@ -295,7 +479,7 @@ function ConstellationStarNode({
       // Active star or Grand Finale showcase: brightest glow + gentle breathing halo
       const breathe = reducedMotion ? 1 : 1 + Math.sin(elapsed * 2.8 + index * 0.9) * 0.11;
       targetOpacity = 1.0;
-      targetScale = (isFinale ? 1.38 : 1.48) * breathe;
+      targetScale = (isFinale ? 1.42 : 1.48) * breathe;
       targetColor.copy(COLOR_ACTIVE);
     } else {
       // Previously unlocked / visited star (or inviting Star 0 before first click)
@@ -313,7 +497,15 @@ function ConstellationStarNode({
       targetColor.lerp(COLOR_IGNITE_PEAK, igniteBurst * 0.85);
     }
 
-    const lerpRate = Math.min(1, dt * (igniteBurst > 0 ? 15 : 7.5));
+    const finaleEnergy = Math.max(surgeFlare, simultaneousBurst);
+    if (finaleEnergy > 0.001) {
+      targetScale += surgeFlare * 0.55 + simultaneousBurst * 0.82;
+      targetOpacity = 1.0;
+      targetColor.lerp(COLOR_SURGE_GOLD, Math.min(1, surgeFlare * 0.85 + simultaneousBurst * 0.95));
+    }
+
+    const fastLerp = igniteBurst > 0 || finaleEnergy > 0.05;
+    const lerpRate = Math.min(1, dt * (fastLerp ? 18 : 7.5));
     material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, lerpRate);
     material.color.lerp(targetColor, lerpRate);
 
@@ -321,7 +513,7 @@ function ConstellationStarNode({
       const nextScale = THREE.MathUtils.lerp(
         scaleGroupRef.current.scale.x,
         targetScale,
-        Math.min(1, dt * (igniteBurst > 0 ? 16 : 9.5))
+        Math.min(1, dt * (fastLerp ? 18 : 9.5))
       );
       scaleGroupRef.current.scale.setScalar(nextScale);
     }
@@ -415,6 +607,9 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
   const igniteWaveRef = useRef(0);
   const finaleBoostRef = useRef(0);
 
+  const shockRef = useRef<THREE.Mesh>(null);
+  const starfallRef = useRef<THREE.Points>(null);
+
   const milestones = ANNIVERSARY_DATA.constellationMilestones;
   const totalSegments = Math.max(1, milestones.length - 1);
 
@@ -445,11 +640,22 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
     }
   }, [isConstellation, maxUnlockedIndex, totalSegments, reducedMotion]);
 
-  const { starTexture, starPlaneGeo, lineObject, lineGeo, lineMat } = useMemo(() => {
+  const {
+    starTexture,
+    starPlaneGeo,
+    lineObject,
+    lineGeo,
+    lineMat,
+    shockGeo,
+    shockMat,
+    starfallGeo,
+    starfallMat,
+    constellationCenter,
+  } = useMemo(() => {
     const tex = createStarSpriteTexture();
     const plane = new THREE.PlaneGeometry(1.45, 1.45);
 
-    // Subdivide sequential milestone segments smoothly so progressive GLSL ignition flows seamlessly
+    // Subdivide sequential milestone segments smoothly so progressive GLSL ignition & surge bolt flow seamlessly
     const samplesPerSegment = 24;
     const segCount = Math.max(0, milestones.length - 1);
     const totalPoints = segCount > 0 ? segCount * samplesPerSegment + 1 : 0;
@@ -489,6 +695,8 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
         uOpacity: { value: 0 },
         uIgniteWave: { value: 0 },
         uFinaleBoost: { value: 0 },
+        uSurgeProgress: { value: -0.5 },
+        uSurgeIntensity: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -498,12 +706,107 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
     const line = new THREE.Line(lGeo, lMat);
     line.frustumCulled = false;
 
+    // Constellation center for the expanding 3D celestial shockwave halo
+    const center: [number, number, number] = [0, 16.2, -7.8];
+    if (milestones.length > 0) {
+      let cx = 0;
+      let cy = 0;
+      let cz = 0;
+      for (const m of milestones) {
+        cx += m.position[0];
+        cy += m.position[1];
+        cz += m.position[2];
+      }
+      center[0] = cx / milestones.length;
+      center[1] = cy / milestones.length;
+      center[2] = cz / milestones.length;
+    }
+
+    const sGeo = new THREE.PlaneGeometry(34, 34);
+    const sMat = new THREE.ShaderMaterial({
+      vertexShader: CELESTIAL_SHOCKWAVE_VERTEX,
+      fragmentShader: CELESTIAL_SHOCKWAVE_FRAGMENT,
+      uniforms: {
+        uProgress: { value: 0 },
+        uOpacity: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Object-pooled 420 golden-pink Starfall Cascade particles (60 seeded at each constellation star)
+    const count = milestones.length * PARTICLES_PER_STAR;
+    const sfPos = new Float32Array(count * 3);
+    const sfVel = new Float32Array(count * 3);
+    const sfScale = new Float32Array(count);
+    const sfDelay = new Float32Array(count);
+    const sfColorMix = new Float32Array(count);
+    const sfSeed = new Float32Array(count);
+
+    // Deterministic LCG for zero-variance crisp starburst distribution
+    let seed = 20261120;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+
+    let idx = 0;
+    for (let m = 0; m < milestones.length; m++) {
+      const origin = milestones[m].position;
+      for (let k = 0; k < PARTICLES_PER_STAR; k++) {
+        const i3 = idx * 3;
+        sfPos[i3] = origin[0];
+        sfPos[i3 + 1] = origin[1];
+        sfPos[i3 + 2] = origin[2];
+
+        const theta = rand() * Math.PI * 2;
+        const phi = Math.acos(2 * rand() - 1);
+        const speed = 0.55 + rand() * 1.35;
+        sfVel[i3] = Math.sin(phi) * Math.cos(theta) * speed;
+        sfVel[i3 + 1] = Math.cos(phi) * speed * 0.92 + 0.25;
+        sfVel[i3 + 2] = Math.sin(phi) * Math.sin(theta) * speed * 0.85;
+
+        sfScale[idx] = 0.85 + rand() * 1.45;
+        sfDelay[idx] = rand() * 0.26;
+        sfColorMix[idx] = rand();
+        sfSeed[idx] = rand();
+        idx++;
+      }
+    }
+
+    const sfGeo = new THREE.BufferGeometry();
+    sfGeo.setAttribute('position', new THREE.BufferAttribute(sfPos, 3));
+    sfGeo.setAttribute('aBurstVel', new THREE.BufferAttribute(sfVel, 3));
+    sfGeo.setAttribute('aScale', new THREE.BufferAttribute(sfScale, 1));
+    sfGeo.setAttribute('aDelay', new THREE.BufferAttribute(sfDelay, 1));
+    sfGeo.setAttribute('aColorMix', new THREE.BufferAttribute(sfColorMix, 1));
+    sfGeo.setAttribute('aSeed', new THREE.BufferAttribute(sfSeed, 1));
+
+    const sfMat = new THREE.ShaderMaterial({
+      vertexShader: STARFALL_VERTEX_SHADER,
+      fragmentShader: STARFALL_FRAGMENT_SHADER,
+      uniforms: {
+        uCascadeTime: { value: -1 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        uHeartTarget: { value: HEART_ABSORB_WORLD.clone() },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
     return {
       starTexture: tex,
       starPlaneGeo: plane,
       lineObject: line,
       lineGeo: lGeo,
       lineMat: lMat,
+      shockGeo: sGeo,
+      shockMat: sMat,
+      starfallGeo: sfGeo,
+      starfallMat: sfMat,
+      constellationCenter: center,
     };
   }, [milestones]);
 
@@ -513,16 +816,24 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       starPlaneGeo.dispose();
       lineGeo.dispose();
       lineMat.dispose();
+      shockGeo.dispose();
+      shockMat.dispose();
+      starfallGeo.dispose();
+      starfallMat.dispose();
+      galaxySignals.constellationBloomSpike = 0;
+      galaxySignals.heartAbsorptionGlow = 0;
     };
-  }, [starTexture, starPlaneGeo, lineGeo, lineMat]);
+  }, [starTexture, starPlaneGeo, lineGeo, lineMat, shockGeo, shockMat, starfallGeo, starfallMat]);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
+    const nowMs = performance.now();
     lineMat.uniforms.uTime.value = state.clock.elapsedTime;
+    starfallMat.uniforms.uPixelRatio.value = state.gl.getPixelRatio();
 
     if (isConstellation && lineAnimActiveRef.current) {
       const t = THREE.MathUtils.clamp(
-        (performance.now() - lineAnimStartMsRef.current) / LINE_IGNITE_DURATION_MS,
+        (nowMs - lineAnimStartMsRef.current) / LINE_IGNITE_DURATION_MS,
         0,
         1
       );
@@ -543,6 +854,57 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       igniteWaveRef.current = THREE.MathUtils.lerp(igniteWaveRef.current, 0, Math.min(1, dt * 10));
     }
 
+    // ─── ~2.6s CELESTIAL AWAKENING & STARFALL CASCADE STATE MACHINE ───
+    let surgeProgress = -0.5;
+    let surgeIntensity = 0;
+    let shockProg = 0;
+    let shockOp = 0;
+    let cascadeTime = -1;
+    let bloomSpike = 0;
+    let heartAbsorb = 0;
+
+    if (galaxySignals.constellationFinaleStartMs > 0 && !reducedMotion) {
+      const fSec = (nowMs - galaxySignals.constellationFinaleStartMs) / 1000;
+
+      if (fSec < CASCADE_TOTAL_SEC) {
+        // Phase 1 (0.0s -> 0.9s): Golden-white surge pulse racing Star #1 -> Star #7
+        if (fSec < SURGE_DURATION_SEC + 0.18) {
+          const sT = THREE.MathUtils.clamp(fSec / SURGE_DURATION_SEC, 0, 1);
+          surgeProgress = sT * sT * (3 - 2 * sT);
+          surgeIntensity =
+            THREE.MathUtils.smoothstep(fSec, 0, 0.08) *
+            (1.0 - THREE.MathUtils.smoothstep(fSec, SURGE_DURATION_SEC, SURGE_DURATION_SEC + 0.18));
+        }
+
+        // Phase 2 & 3 (0.9s -> 3.45s): Simultaneous Burst, Shockwave Halo, Starfall Descent -> Heart Absorption
+        if (fSec >= SURGE_DURATION_SEC) {
+          cascadeTime = fSec - SURGE_DURATION_SEC;
+
+          // Expanding 3D celestial shockwave halo (0.9s -> 1.85s)
+          if (cascadeTime < 0.95) {
+            shockProg = 1.0 - Math.exp(-cascadeTime * 3.2);
+            shockOp = Math.pow(Math.max(0, 1.0 - cascadeTime / 0.92), 1.35) * 0.92;
+          }
+
+          // Luminous bloom spike right at burst impact (0.9s -> 1.45s)
+          if (cascadeTime < 0.55) {
+            bloomSpike = Math.exp(-cascadeTime * 6.5) * 0.82;
+          }
+
+          // Warm joyous absorption shimmer on the 3D Particle Heart as starfall arrives (2.15s -> 3.25s)
+          if (fSec >= 2.15 && fSec <= 3.3) {
+            const absU = (fSec - 2.15) / 1.15;
+            heartAbsorb = Math.sin(Math.PI * absU);
+          }
+        }
+      } else {
+        galaxySignals.constellationFinaleStartMs = 0;
+      }
+    }
+
+    galaxySignals.constellationBloomSpike = bloomSpike;
+    galaxySignals.heartAbsorptionGlow = heartAbsorb;
+
     finaleBoostRef.current = THREE.MathUtils.lerp(
       finaleBoostRef.current,
       isConstellation && isFinale ? 1 : 0,
@@ -552,6 +914,8 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
     lineMat.uniforms.uDrawProgress.value = drawProgressRef.current;
     lineMat.uniforms.uIgniteWave.value = igniteWaveRef.current;
     lineMat.uniforms.uFinaleBoost.value = finaleBoostRef.current;
+    lineMat.uniforms.uSurgeProgress.value = surgeProgress;
+    lineMat.uniforms.uSurgeIntensity.value = surgeIntensity;
 
     const targetOpacity = isConstellation ? 0.94 : 0;
     lineMat.uniforms.uOpacity.value = THREE.MathUtils.lerp(
@@ -559,6 +923,17 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       targetOpacity,
       Math.min(1, dt * 5.5)
     );
+
+    shockMat.uniforms.uProgress.value = shockProg;
+    shockMat.uniforms.uOpacity.value = shockOp;
+    if (shockRef.current) {
+      shockRef.current.visible = shockOp > 0.005;
+    }
+
+    starfallMat.uniforms.uCascadeTime.value = cascadeTime;
+    if (starfallRef.current) {
+      starfallRef.current.visible = cascadeTime >= 0 && cascadeTime < 2.6;
+    }
   });
 
   if (!milestones.length) return null;
@@ -566,11 +941,27 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
   return (
     <group name="constellation-timeline-sky">
       <primitive object={lineObject} />
+
+      {/* Expanding 3D Celestial Shockwave Halo on Simultaneous Burst */}
+      <Billboard position={constellationCenter} follow>
+        <mesh ref={shockRef} geometry={shockGeo} material={shockMat} visible={false} />
+      </Billboard>
+
+      {/* Object-Pooled 420-Particle Starfall Cascade descending from Constellation -> Particle Heart */}
+      <points
+        ref={starfallRef}
+        geometry={starfallGeo}
+        material={starfallMat}
+        visible={false}
+        frustumCulled={false}
+      />
+
       {milestones.map((milestone, index) => (
         <ConstellationStarNode
           key={milestone.id}
           milestone={milestone}
           index={index}
+          totalCount={milestones.length}
           texture={starTexture}
           planeGeo={starPlaneGeo}
           interactive={isConstellation && !isFinale}

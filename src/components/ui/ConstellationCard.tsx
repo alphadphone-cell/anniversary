@@ -2,17 +2,22 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Calendar, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
+import { galaxySignals } from '../../canvas/galaxySignals';
 import {
   useAppStore,
   useMaxUnlockedMilestoneIndex,
   useSelectedMilestoneId,
+  useStage,
   useViewMode,
 } from '../../store/useAppStore';
 import { sfxEngine } from '../../utils/sfxEngine';
 
-const FINALE_SHOWCASE_MS = 1200;
+const ENTRY_AUTO_OPEN_MS = 800;
+const STARFALL_DESCENT_MS = 1600; // Phase 1 (0->0.9s surge) + Phase 2 (0.9->1.6s simultaneous burst) -> descend!
+const HEART_ABSORPTION_CHIME_MS = 2280; // Chime right as falling starlight pours into the 3D Particle Heart
 
 export function ConstellationCard() {
+  const stage = useStage();
   const viewMode = useViewMode();
   const selectedId = useSelectedMilestoneId();
   const maxUnlockedIndex = useMaxUnlockedMilestoneIndex();
@@ -20,7 +25,9 @@ export function ConstellationCard() {
   const startConstellationFinale = useAppStore((s) => s.startConstellationFinale);
   const endConstellationFinale = useAppStore((s) => s.endConstellationFinale);
 
+  const entryTimerRef = useRef<number | null>(null);
   const finaleTimerRef = useRef<number | null>(null);
+  const absorptionTimerRef = useRef<number | null>(null);
 
   const milestones = ANNIVERSARY_DATA.constellationMilestones;
   const currentIndex = milestones.findIndex((m) => m.id === selectedId);
@@ -28,19 +35,74 @@ export function ConstellationCard() {
   const isFirst = currentIndex <= 0;
   const isLast = currentIndex === milestones.length - 1;
 
-  // Cancel any pending finale return timer if user manually switches back to Galaxy View or unmounts
+  // Auto-focus & auto-open Star #1 (~0.8s) upon entering Constellation View, and clean up timers on exit
   useEffect(() => {
-    if (viewMode !== 'constellation' && finaleTimerRef.current !== null) {
+    if (entryTimerRef.current !== null) {
+      window.clearTimeout(entryTimerRef.current);
+      entryTimerRef.current = null;
+    }
+
+    if (stage === 'galaxy' && viewMode === 'constellation') {
+      // Fresh entry into Constellation View: clear any previous finale/cascade state
+      galaxySignals.constellationFinaleStartMs = 0;
+      galaxySignals.constellationBloomSpike = 0;
+      galaxySignals.heartAbsorptionGlow = 0;
+      if (absorptionTimerRef.current !== null) {
+        window.clearTimeout(absorptionTimerRef.current);
+        absorptionTimerRef.current = null;
+      }
+
+      const firstMilestone = milestones[0];
+      if (firstMilestone) {
+        entryTimerRef.current = window.setTimeout(() => {
+          entryTimerRef.current = null;
+          const latest = useAppStore.getState();
+          if (
+            latest.stage === 'galaxy' &&
+            latest.viewMode === 'constellation' &&
+            !latest.constellationFinaleActive &&
+            latest.selectedMilestoneId === null
+          ) {
+            galaxySignals.constellationStar0IgniteMs = performance.now();
+            sfxEngine.playStarIgnite(0);
+            latest.setSelectedMilestoneId(firstMilestone.id);
+          }
+        }, ENTRY_AUTO_OPEN_MS);
+      }
+    } else if (finaleTimerRef.current !== null) {
+      // User manually toggled back to Galaxy before 1.6s descent — cancel pending finale switch cleanly
       window.clearTimeout(finaleTimerRef.current);
       finaleTimerRef.current = null;
+      galaxySignals.constellationFinaleStartMs = 0;
+      galaxySignals.constellationBloomSpike = 0;
+      if (absorptionTimerRef.current !== null) {
+        window.clearTimeout(absorptionTimerRef.current);
+        absorptionTimerRef.current = null;
+      }
     }
-  }, [viewMode]);
+  }, [stage, viewMode, milestones]);
+
+  // Cancel entry auto-open if user selects a star manually before 0.8s
+  useEffect(() => {
+    if (selectedId && entryTimerRef.current !== null) {
+      window.clearTimeout(entryTimerRef.current);
+      entryTimerRef.current = null;
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     return () => {
+      if (entryTimerRef.current !== null) {
+        window.clearTimeout(entryTimerRef.current);
+        entryTimerRef.current = null;
+      }
       if (finaleTimerRef.current !== null) {
         window.clearTimeout(finaleTimerRef.current);
         finaleTimerRef.current = null;
+      }
+      if (absorptionTimerRef.current !== null) {
+        window.clearTimeout(absorptionTimerRef.current);
+        absorptionTimerRef.current = null;
       }
     };
   }, []);
@@ -54,11 +116,12 @@ export function ConstellationCard() {
   const handleCompleteConstellation = useCallback(() => {
     if (finaleTimerRef.current !== null || useAppStore.getState().constellationFinaleActive) return;
 
-    // Step 1: Close Milestone Card & hold ~1.2s full-constellation showcase with warm harmonic chord
-    sfxEngine.playConstellationFinaleChord();
+    // 0.0s -> 1.6s: Close Milestone Card, pull camera back, fire blazing line surge + simultaneous burst & starfall
+    galaxySignals.constellationFinaleStartMs = performance.now();
+    sfxEngine.playConstellationAwakeningSequence(milestones.length);
     startConstellationFinale();
 
-    // Step 2: Automatically glide smoothly back down to the 3D Love Galaxy
+    // 1.6s: Switch back to Galaxy View & glide camera smoothly downward following the falling starlight
     finaleTimerRef.current = window.setTimeout(() => {
       finaleTimerRef.current = null;
       const latest = useAppStore.getState();
@@ -66,8 +129,19 @@ export function ConstellationCard() {
         sfxEngine.playCelestialChime('down');
         endConstellationFinale();
       }
-    }, FINALE_SHOWCASE_MS);
-  }, [endConstellationFinale, startConstellationFinale]);
+    }, STARFALL_DESCENT_MS);
+
+    // ~2.28s: Warm crystalline chime as the falling starlight streams merge into the 3D Particle Heart
+    if (absorptionTimerRef.current !== null) {
+      window.clearTimeout(absorptionTimerRef.current);
+    }
+    absorptionTimerRef.current = window.setTimeout(() => {
+      absorptionTimerRef.current = null;
+      if (galaxySignals.constellationFinaleStartMs > 0) {
+        sfxEngine.playHeartAbsorptionShimmer();
+      }
+    }, HEART_ABSORPTION_CHIME_MS);
+  }, [endConstellationFinale, milestones.length, startConstellationFinale]);
 
   const goNext = useCallback(() => {
     if (!milestones.length || currentIndex < 0) return;

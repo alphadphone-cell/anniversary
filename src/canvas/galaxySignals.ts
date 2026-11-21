@@ -29,4 +29,12 @@ export const galaxySignals = {
   supernovaAmbientDim: 0,
   /** Brief [0..1] post-processing bloom spike right at Supernova detonation (~160ms). */
   supernovaBloomSpike: 0,
+  /** Wall-clock timestamp (ms) when Star #1 auto-ignites upon entering Constellation View (0 when idle). */
+  constellationStar0IgniteMs: 0,
+  /** Wall-clock timestamp (ms) when the ~2.6s Celestial Awakening & Starfall Cascade starts (0 when idle). */
+  constellationFinaleStartMs: 0,
+  /** Brief [0..1] post-processing bloom spike at Constellation simultaneous burst (t = 0.9s). */
+  constellationBloomSpike: 0,
+  /** Warm [0..1] absorption shimmer & pulse on the 3D Particle Heart when falling starlight arrives. */
+  heartAbsorptionGlow: 0,
 };

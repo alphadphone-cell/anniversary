@@ -15,8 +15,12 @@ export function PostProcessing({ quality = 1 }: PostProcessingProps) {
   useFrame(() => {
     const effect = bloomRef.current;
     if (!effect) return;
-    // Brief radial lens bloom spike (~150ms) at Supernova whiteout impact, zero React re-renders
-    effect.intensity = (0.95 + galaxySignals.supernovaBloomSpike * 1.45) * quality;
+    // Brief radial lens bloom spike at Supernova detonation or Constellation Burst, zero React re-renders
+    const boost = Math.max(
+      galaxySignals.supernovaBloomSpike * 1.45,
+      galaxySignals.constellationBloomSpike * 0.95
+    );
+    effect.intensity = (0.95 + boost) * quality;
   });
 
   if (quality < 0.6) return null;

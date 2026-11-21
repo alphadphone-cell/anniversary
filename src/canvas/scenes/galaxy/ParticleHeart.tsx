@@ -50,6 +50,7 @@ const HEART_VERTEX_SHADER = /* glsl */ `
   uniform float uSupernovaFreeze;
   uniform float uDetonateTime;
   uniform float uReformFactor;
+  uniform float uAbsorptionGlow;
 
   varying vec3 vColor;
   varying float vAlpha;
@@ -68,9 +69,9 @@ const HEART_VERTEX_SHADER = /* glsl */ `
     float motion = 1.0 - uReducedMotion;
     vec3 heartCenter = vec3(0.0, 0.28, 0.0);
 
-    // Base idle target position (audio-reactive breathing)
+    // Base idle target position (audio-reactive breathing + joyous Starfall absorption swell)
     float handOff = smoothstep(2.42, 2.8, uMorphTime);
-    float beatScale = 1.0 + (uPulse * 0.04 + uBass * 0.085) * handOff;
+    float beatScale = 1.0 + (uPulse * 0.04 + uBass * 0.085 + uAbsorptionGlow * 0.095) * handOff;
     vec3 targetPos = position * beatScale;
     targetPos.x += sin(uTime * 1.4 * motion + aPhase) * 0.025 * motion * handOff;
     targetPos.y += cos(uTime * 1.2 * motion + aPhase) * 0.025 * motion * handOff;
@@ -200,17 +201,18 @@ const HEART_VERTEX_SHADER = /* glsl */ `
     float sparkle = 0.72 + 0.28 * sin(uTime * (2.6 + uSupernovaCharge * 6.0) * motion + aPhase);
     float dimMul = 1.0 - uDim * 0.72;
     float energyGlow =
-      (0.94 + uPulse * 0.16 + uBass * 0.36 + lockPulse * 0.78 + singularityGlow + detGlow) * dimMul;
+      (0.94 + uPulse * 0.16 + uBass * 0.36 + lockPulse * 0.78 + singularityGlow + detGlow + uAbsorptionGlow * 0.72) * dimMul;
 
     vec3 starHighlight = vec3(1.92, 1.55, 1.88);
     vec3 champagneGold = vec3(1.82, 1.52, 0.98);
-    float hotMix = clamp(sparkBoost * 0.62 + singularityGlow * 0.45 + detGlow * 0.4, 0.0, 0.85);
+    float hotMix = clamp(sparkBoost * 0.62 + singularityGlow * 0.45 + detGlow * 0.4 + uAbsorptionGlow * 0.32, 0.0, 0.85);
     vec3 baseCol = mix(aColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
-    vColor = mix(baseCol, champagneGold * (1.0 + detGlow * 0.35), finaleWarm * 0.52);
-    vAlpha = clamp(sparkle + sparkBoost * 0.35 + lockPulse * 0.28 + singularityGlow * 0.4, 0.0, 1.0) * (1.0 - uDim * 0.45);
-    vSparkBoost = sparkBoost;
+    float warmMix = clamp(finaleWarm * 0.52 + uAbsorptionGlow * (0.42 + 0.25 * sin(uTime * 5.0 + aPhase)), 0.0, 0.78);
+    vColor = mix(baseCol, champagneGold * (1.0 + (detGlow + uAbsorptionGlow) * 0.38), warmMix);
+    vAlpha = clamp(sparkle + sparkBoost * 0.35 + lockPulse * 0.28 + singularityGlow * 0.4 + uAbsorptionGlow * 0.35, 0.0, 1.0) * (1.0 - uDim * 0.45);
+    vSparkBoost = max(sparkBoost, uAbsorptionGlow * 0.9);
 
-    float sizeBoost = 1.0 + uBass * 0.16 + sparkBoost * 0.52 + lockPulse * 0.28 + detGlow * 0.25;
+    float sizeBoost = 1.0 + uBass * 0.16 + sparkBoost * 0.52 + lockPulse * 0.28 + detGlow * 0.25 + uAbsorptionGlow * 0.34;
     float atten = 30.0 / max(-mvPosition.z, 2.0);
     gl_PointSize = clamp(aScale * sizeBoost * uPixelRatio * atten, 1.6, 20.0);
   }
@@ -644,6 +646,7 @@ export function ParticleHeart({
         uSupernovaFreeze: { value: 0 },
         uDetonateTime: { value: -1 },
         uReformFactor: { value: 0 },
+        uAbsorptionGlow: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -1221,6 +1224,7 @@ export function ParticleHeart({
     hm.uSupernovaFreeze.value = galaxySignals.supernovaFreeze;
     hm.uDetonateTime.value = galaxySignals.supernovaDetonateTime;
     hm.uReformFactor.value = reformFactor;
+    hm.uAbsorptionGlow.value = galaxySignals.heartAbsorptionGlow;
 
     const rmUniforms = resources.raysMat.uniforms;
     rmUniforms.uTime.value = elapsed;

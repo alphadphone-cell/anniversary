@@ -125,14 +125,29 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
 
       if (stage !== 'galaxy') return;
 
-      // Glide smoothly between Galaxy View and Constellation View (~1.4s)
+      // Glide smoothly between Galaxy View and Constellation View
       if (state.viewMode !== prev.viewMode) {
         if (state.viewMode === 'constellation') {
-          startCameraGlide(
-            CONSTELLATION_DEFAULT_POS,
-            CONSTELLATION_DEFAULT_TARGET,
-            VIEW_GLIDE_DURATION
-          );
+          // Auto-focus directly onto Star #1 (~0.9s) so the user never has to search for it
+          const star0 = ANNIVERSARY_DATA.constellationMilestones[0];
+          if (star0) {
+            starPosScratchRef.current.set(star0.position[0], star0.position[1], star0.position[2]);
+            const focusTarget = toTargetRef.current
+              .copy(CONSTELLATION_DEFAULT_TARGET)
+              .lerp(starPosScratchRef.current, 0.55);
+            const focusPos = toPosRef.current.set(
+              star0.position[0] * 0.42,
+              13.2 + (star0.position[1] - 16) * 0.25,
+              11.4
+            );
+            startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.9);
+          } else {
+            startCameraGlide(
+              CONSTELLATION_DEFAULT_POS,
+              CONSTELLATION_DEFAULT_TARGET,
+              VIEW_GLIDE_DURATION
+            );
+          }
         } else {
           startCameraGlide(GALAXY_DEFAULT_POS, GALAXY_DEFAULT_TARGET, VIEW_GLIDE_DURATION);
         }
