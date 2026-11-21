@@ -130,7 +130,7 @@ function NowPlayingBadge() {
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.65, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
       className={`glass-surface hidden h-11 items-center gap-2 rounded-full px-3.5 md:inline-flex ${
-        isSupernovaTrack ? 'border-amber-200/40 shadow-[0_0_20px_rgba(255,95,180,0.28)]' : ''
+        isSupernovaTrack ? 'border-pink-300/45 shadow-[0_0_20px_rgba(255,95,180,0.34)]' : ''
       }`}
     >
       <span className="flex h-3.5 items-end gap-[2.5px]" aria-hidden="true">
@@ -220,14 +220,14 @@ function ViewModeToggle() {
           viewMode === 'constellation'
             ? 'glass-active text-starlight'
             : isConstellationNext
-              ? '!border-amber-200/75 bg-neon-pink/18 text-starlight shadow-[0_0_24px_rgba(255,62,165,0.48),0_0_14px_rgba(253,224,71,0.34)]'
+              ? '!border-pink-300/75 bg-neon-pink/20 text-starlight shadow-[0_0_24px_rgba(255,62,165,0.52),0_0_12px_rgba(244,114,182,0.36)]'
               : 'border border-transparent text-lavender hover:text-starlight'
         }`}
       >
         {isConstellationNext && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -inset-0.5 animate-pulse rounded-full border border-amber-200/65"
+            className="pointer-events-none absolute -inset-0.5 animate-pulse rounded-full border border-pink-300/65"
           />
         )}
         <Sparkles
@@ -240,7 +240,7 @@ function ViewModeToggle() {
         <span className="hidden sm:inline">Chòm Sao</span>
         {isConstellationDone && (
           <Star
-            className="h-3 w-3 shrink-0 fill-amber-300 text-amber-300"
+            className="h-3 w-3 shrink-0 fill-pink-300 text-pink-300"
             strokeWidth={1.75}
             aria-hidden="true"
           />

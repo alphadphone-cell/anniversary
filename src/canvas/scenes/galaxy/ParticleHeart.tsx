@@ -504,20 +504,19 @@ const HEART_TARGET_RING_FRAGMENT = /* glsl */ `
     float r = length(p);
     if (r > 1.0) discard;
 
-    // Two gossamer pulsing concentric rose-gold invitation ripples around the heart (zero outer disk edge)
-    float p1 = fract(uTime * 0.38);
-    float p2 = fract(uTime * 0.38 + 0.5);
-    float edgeFade = smoothstep(0.98, 0.58, r);
-    float ring1 = exp(-pow((r - mix(0.32, 0.90, p1)) / 0.016, 2.0)) * (1.0 - p1);
-    float ring2 = exp(-pow((r - mix(0.32, 0.90, p2)) / 0.016, 2.0)) * (1.0 - p2);
-    float steady = exp(-pow((r - 0.54) / 0.014, 2.0)) * (0.28 + 0.14 * sin(uTime * 2.6));
+    // Pure invisible-edge rose-pink (#f472b6) & pearlescent-white (#fdf2f8) soft breathing aura (zero disk boundary)
+    float p1 = fract(uTime * 0.34);
+    float edgeFade = smoothstep(0.88, 0.22, r);
+    edgeFade *= edgeFade;
+    float softAura = exp(-r * r * 7.5) * (0.32 + 0.1 * sin(uTime * 2.4));
+    float gossamerRipple = exp(-pow((r - mix(0.28, 0.74, p1)) / 0.015, 2.0)) * (1.0 - p1) * 0.42;
 
-    float alpha = clamp((ring1 * 0.55 + ring2 * 0.55 + steady) * edgeFade * uOpacity, 0.0, 0.62);
-    if (alpha <= 0.005) discard;
+    float alpha = clamp((softAura + gossamerRipple) * edgeFade * uOpacity, 0.0, 0.42);
+    if (alpha <= 0.004) discard;
 
-    vec3 cGold = vec3(1.65, 1.32, 0.82);
-    vec3 cRose = vec3(1.48, 0.46, 1.02);
-    vec3 col = mix(cRose, cGold, 0.52 + 0.25 * sin(uTime * 1.8));
+    vec3 cRose = vec3(1.52, 0.52, 1.08);
+    vec3 cPearl = vec3(1.64, 1.48, 1.60);
+    vec3 col = mix(cRose, cPearl, clamp(gossamerRipple * 1.6 + exp(-r * r * 8.0) * 0.45, 0.0, 1.0));
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -1421,13 +1420,13 @@ export function ParticleHeart({
             <Text
               ref={heartHintTextRef}
               font="/fonts/BeVietnamPro-SemiBold.ttf"
-              fontSize={0.28}
+              fontSize={0.27}
               letterSpacing={0.08}
-              color="#fde68a"
+              color="#fdf2f8"
               anchorX="center"
               anchorY="middle"
               outlineWidth={0.018}
-              outlineColor="#be185d"
+              outlineColor="#db2777"
               fillOpacity={0}
               outlineOpacity={0}
               material-toneMapped={false}

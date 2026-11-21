@@ -409,7 +409,7 @@ export function ConstellationCard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="pointer-events-none fixed inset-0 z-15"
+            className="pointer-events-none fixed inset-0 z-10"
             style={{
               background:
                 'radial-gradient(ellipse at 50% 58%, rgba(7, 3, 16, 0.54) 0%, rgba(5, 2, 12, 0.22) 55%, rgba(5, 2, 12, 0.04) 100%)',
