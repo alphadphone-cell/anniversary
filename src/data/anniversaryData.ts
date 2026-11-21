@@ -439,18 +439,17 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
 
   // ---------------------------------------------------------------------------
   // NHẠC ĐIỆP KHÚC CAO TRÀO SECRET SUPERNOVA (Deck B — Dual-Deck Chorus Drop)
-  // Hướng dẫn tùy chỉnh:
-  //   1. Thả file nhạc cao trào của bạn vào: `public/music/supernova-finale.mp3`
-  //   2. Chỉnh `chorusStartTime` (tính bằng giây, vd: 58.4 hoặc 60.0) khớp đúng nhịp
-  //      điệp khúc bùng nổ để nhạc drop ngay khoảnh khắc lóe trắng vụ nổ Supernova.
-  //   3. Nếu chưa có file `supernova-finale.mp3`, hệ thống tự phát đoạn hòa âm cao trào
-  //      dự phòng (không gây lỗi 404).
+  // Đã tích hợp sẵn: `public/music/supernova-finale.mp3` — ALWAYS (Hậu Duệ Mặt Trời OST)
+  //   - `chorusStartTime: 147.0` (2:27.0): Khoảnh khắc cao trào cuối "I love you~" + dàn dây
+  //     bùng nổ khớp ngay lúc lóe trắng vụ nổ Supernova & mở Thư Bí Mật.
+  //   - Bạn có thể thay bằng file `.mp3` khác vào `public/music/supernova-finale.mp3` và chỉnh
+  //     lại `chorusStartTime` theo đúng giây điệp khúc mong muốn.
   // ---------------------------------------------------------------------------
   supernovaFinaleTrack: {
-    title: 'Vũ Trụ Của Riêng Hai Đứa (Finale)',
-    artist: 'Supernova Climax · Special OST',
+    title: 'ALWAYS',
+    artist: 't Yoonmirae · Descendants of the Sun OST',
     src: '/music/supernova-finale.mp3',
-    chorusStartTime: 60.0,
+    chorusStartTime: 147.0,
   },
 
   audio: {
