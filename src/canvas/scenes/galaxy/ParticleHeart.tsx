@@ -851,7 +851,7 @@ export function ParticleHeart({
       snPhaseRef.current = 'idle';
       galaxySignals.isHoldingHeart = false;
       sfxEngine.cutSupernovaImplosion();
-      musicEngine.swellFromSupernova(0, 0.25);
+      musicEngine.cancelSupernovaHold();
     }
   }, []);
 
@@ -902,22 +902,21 @@ export function ParticleHeart({
           galaxySignals.supernovaCharge = 0;
           galaxySignals.supernovaFreeze = 0;
           sfxEngine.cutSupernovaImplosion();
-          musicEngine.swellFromSupernova(0, 0.35);
+          musicEngine.cancelSupernovaHold();
         } else if (snPhaseRef.current === 'detonated') {
           snPhaseRef.current = 'reforming';
           reformStartMsRef.current = performance.now();
-          musicEngine.swellFromSupernova(0, 0.4);
+          musicEngine.crossfadeBackFromSupernova(2.0);
         }
         return;
       }
 
-      if (
-        prev.activeModal === 'secret' &&
-        !state.activeModal &&
-        snPhaseRef.current === 'detonated'
-      ) {
-        snPhaseRef.current = 'reforming';
-        reformStartMsRef.current = performance.now();
+      if (prev.activeModal === 'secret' && !state.activeModal) {
+        musicEngine.crossfadeBackFromSupernova(2.0);
+        if (snPhaseRef.current === 'detonated') {
+          snPhaseRef.current = 'reforming';
+          reformStartMsRef.current = performance.now();
+        }
       }
     });
     return unsub;
@@ -973,6 +972,9 @@ export function ParticleHeart({
       if (useAppStore.getState().viewMode !== 'galaxy') return;
 
       sfxEngine.unlock();
+      // Dual-Deck Mobile Zero-Latency Pre-Cue: fade Deck A -> 0 over hold duration & prime Deck B at chorusStartTime
+      musicEngine.beginSupernovaHold(IMPLOSION_END_SEC);
+
       snPhaseRef.current = 'imploding';
       galaxySignals.isHoldingHeart = true;
       holdStartPosRef.current.x = event.nativeEvent.clientX;
@@ -1048,7 +1050,7 @@ export function ParticleHeart({
       }
 
       if (holdSec >= IMPLOSION_END_SEC) {
-        // Enter Beat 1b: 120ms razor-sharp pinpoint freeze + dark ambient contrast dip + music duck (-35%)
+        // Enter Beat 1b: 120ms razor-sharp pinpoint freeze in near-silence before chorus drop
         snPhaseRef.current = 'freezing';
         freezeStartMsRef.current = nowMs;
         sfxEngine.cutSupernovaImplosion();
@@ -1082,8 +1084,8 @@ export function ParticleHeart({
         galaxySignals.supernovaBloomSpike = 1;
 
         sfxEngine.playSupernovaBurst();
-        // Swell romantic K-Drama OST smoothly back to 100% during slow-motion stardust aftermath
-        musicEngine.swellFromSupernova(0.38, 1.55);
+        // Dual-Deck Chorus Drop: pause Deck A (saved timestamp) & unleash Deck B at chorusStartTime (120ms attack)
+        musicEngine.unleashSupernovaChorus();
 
         // Full-screen pure-white -> rose-pink whiteout splash + chromatic lens kick (`z-30`)
         if (!reducedMotion) {

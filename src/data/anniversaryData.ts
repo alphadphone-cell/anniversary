@@ -79,6 +79,15 @@ export interface PlaylistTrack {
   src: string;
 }
 
+export interface SupernovaFinaleTrack {
+  title: string;
+  artist: string;
+  /** Đường dẫn file .mp3 đặt trong thư mục public/music/ (ví dụ: /music/supernova-finale.mp3) */
+  src: string;
+  /** Thời điểm chính xác (tính bằng giây) đoạn điệp khúc bùng nổ bắt đầu drop */
+  chorusStartTime: number;
+}
+
 export interface AnniversaryConfig {
   coupleNames: [string, string];
   experienceTitle: string;
@@ -106,6 +115,8 @@ export interface AnniversaryConfig {
   constellationMilestones: ConstellationMilestone[];
   /** Danh sách phát nhạc nền liên tục (đặt file .mp3 vào public/music/) */
   playlist: PlaylistTrack[];
+  /** Bản nhạc điệp khúc cao trào riêng cho màn nổ Secret Supernova (Deck B) */
+  supernovaFinaleTrack: SupernovaFinaleTrack;
   audio: {
     trackTitle: string;
     artist: string;
@@ -425,6 +436,22 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       src: '/music/track-3.mp3',
     },
   ],
+
+  // ---------------------------------------------------------------------------
+  // NHẠC ĐIỆP KHÚC CAO TRÀO SECRET SUPERNOVA (Deck B — Dual-Deck Chorus Drop)
+  // Hướng dẫn tùy chỉnh:
+  //   1. Thả file nhạc cao trào của bạn vào: `public/music/supernova-finale.mp3`
+  //   2. Chỉnh `chorusStartTime` (tính bằng giây, vd: 58.4 hoặc 60.0) khớp đúng nhịp
+  //      điệp khúc bùng nổ để nhạc drop ngay khoảnh khắc lóe trắng vụ nổ Supernova.
+  //   3. Nếu chưa có file `supernova-finale.mp3`, hệ thống tự phát đoạn hòa âm cao trào
+  //      dự phòng (không gây lỗi 404).
+  // ---------------------------------------------------------------------------
+  supernovaFinaleTrack: {
+    title: 'Vũ Trụ Của Riêng Hai Đứa (Finale)',
+    artist: 'Supernova Climax · Special OST',
+    src: '/music/supernova-finale.mp3',
+    chorusStartTime: 60.0,
+  },
 
   audio: {
     trackTitle: 'Beautiful',

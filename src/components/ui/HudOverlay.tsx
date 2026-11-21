@@ -3,6 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Orbit, Sparkles } from 'lucide-react';
 import {
   useAppStore,
+  useCurrentTrackIndex,
+  useIsMusicPlaying,
+  useIsMuted,
+  useIsSupernovaTrackActive,
   useIsTransitionFlashing,
   useStage,
   useSupernovaFlashKey,
@@ -85,6 +89,72 @@ function SupernovaImpactOverlay() {
         }}
       />
     </div>
+  );
+}
+
+/** Passive, read-only "Now Playing" status badge (no play/skip buttons) that reflects Deck A vs Supernova Deck B. */
+function NowPlayingBadge() {
+  const isMuted = useIsMuted();
+  const isPlaying = useIsMusicPlaying();
+  const trackIndex = useCurrentTrackIndex();
+  const isSupernovaTrack = useIsSupernovaTrackActive();
+
+  const playlist = ANNIVERSARY_DATA.playlist;
+  const activeDeckATrack = playlist[trackIndex % Math.max(1, playlist.length)] ?? {
+    id: 'default',
+    title: ANNIVERSARY_DATA.audio.trackTitle,
+    artist: ANNIVERSARY_DATA.audio.artist,
+    src: ANNIVERSARY_DATA.audio.src,
+  };
+
+  const displayTitle = isSupernovaTrack
+    ? ANNIVERSARY_DATA.supernovaFinaleTrack.title
+    : activeDeckATrack.title;
+  const displayArtist = isSupernovaTrack
+    ? ANNIVERSARY_DATA.supernovaFinaleTrack.artist
+    : activeDeckATrack.artist;
+  const activeBars = isPlaying && !isMuted;
+
+  return (
+    <motion.div
+      key="now-playing-badge"
+      role="status"
+      aria-live="polite"
+      aria-label={`Đang phát: ${displayTitle}`}
+      title={`${displayTitle} — ${displayArtist}`}
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.65, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
+      className={`glass-surface hidden h-11 items-center gap-2 rounded-full px-3.5 md:inline-flex ${
+        isSupernovaTrack ? 'border-amber-200/40 shadow-[0_0_20px_rgba(255,95,180,0.28)]' : ''
+      }`}
+    >
+      <span className="flex h-3.5 items-end gap-[2.5px]" aria-hidden="true">
+        <span
+          className={`w-[2.5px] rounded-full bg-neon-pink transition-all duration-300 ${
+            activeBars ? 'eq-bar-active h-3.5' : 'h-1 opacity-45'
+          }`}
+          style={{ animationDelay: '0ms' }}
+        />
+        <span
+          className={`w-[2.5px] rounded-full bg-neon-magenta transition-all duration-300 ${
+            activeBars ? 'eq-bar-active h-3.5' : 'h-1.5 opacity-45'
+          }`}
+          style={{ animationDelay: '220ms' }}
+        />
+        <span
+          className={`w-[2.5px] rounded-full bg-starlight transition-all duration-300 ${
+            activeBars ? 'eq-bar-active h-3' : 'h-1 opacity-45'
+          }`}
+          style={{ animationDelay: '440ms' }}
+        />
+      </span>
+
+      <span className="max-w-[168px] truncate text-xs leading-normal font-medium text-starlight">
+        {displayTitle}
+      </span>
+    </motion.div>
   );
 }
 
@@ -205,7 +275,10 @@ export function HudOverlay() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
+        <div className="flex items-center gap-2">
+          <AnimatePresence>{stage === 'galaxy' && <NowPlayingBadge />}</AnimatePresence>
+          <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
+        </div>
       </header>
 
       {/* Center Stage Overlay (Stage 1 Intro Card) */}

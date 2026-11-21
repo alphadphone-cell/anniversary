@@ -17,7 +17,45 @@ interface ProceduralTrackSong {
 
 const FADE_IN_SEC = 1.5;
 const CROSSFADE_SEC = 0.9;
-const SUPERNOVA_DUCK_FACTOR = 0.65; // Gently duck volume by ~35% during pinpoint silence
+const SUPERNOVA_HOLD_FADE_SEC = 2.88;
+const SUPERNOVA_CANCEL_RECOVER_SEC = 0.8;
+const SUPERNOVA_ATTACK_SEC = 0.12;
+const SUPERNOVA_EXIT_CROSSFADE_SEC = 2.0;
+
+/**
+ * Soaring romantic K-Drama climax chorus progression used seamlessly on Deck B whenever
+ * `public/music/supernova-finale.mp3` has not been dropped in yet (zero 404 console errors).
+ */
+const SUPERNOVA_FALLBACK_CHORUS: ProceduralTrackSong = {
+  stepMs: 310,
+  chords: [
+    // Gmaj9 -> A6/9 -> Bm7 -> F#m7 (epic uplifted romantic chorus drop in D Major)
+    {
+      bass: 98.0, // G2
+      pad: [196.0, 293.66, 369.99, 440.0, 587.33],
+      arp: [293.66, 369.99, 493.88, 587.33, 739.99, 587.33, 493.88, 739.99],
+      melody: [987.77, null, 880.0, 739.99, 880.0, 987.77, 1174.66, null],
+    },
+    {
+      bass: 110.0, // A2
+      pad: [220.0, 277.18, 329.63, 440.0, 554.37],
+      arp: [277.18, 329.63, 440.0, 554.37, 659.25, 554.37, 440.0, 659.25],
+      melody: [1108.73, null, 987.77, 880.0, 987.77, null, 880.0, 739.99],
+    },
+    {
+      bass: 61.74, // B1
+      pad: [123.47, 185.0, 246.94, 369.99, 493.88],
+      arp: [246.94, 293.66, 369.99, 493.88, 587.33, 493.88, 369.99, 587.33],
+      melody: [1174.66, null, 1108.73, 987.77, 880.0, null, 739.99, 880.0],
+    },
+    {
+      bass: 73.42, // D2 (warm triumphant resolution)
+      pad: [146.83, 220.0, 293.66, 369.99, 440.0],
+      arp: [293.66, 369.99, 440.0, 587.33, 739.99, 880.0, 739.99, 587.33],
+      melody: [987.77, null, 880.0, 739.99, 587.33, null, 739.99, null],
+    },
+  ],
+};
 
 /**
  * 3 distinct, emotional K-Drama OST piano + warm strings compositions used seamlessly
@@ -123,10 +161,26 @@ const FALLBACK_SONGS: ProceduralTrackSong[] = [
  * in `public/music/`, and plays a genuine romantic K-Drama piano + strings composition as fallback.
  */
 class ContinuousMusicEngine {
+  // Deck A: Main continuous background playlist (2 elements for seamless playlist crossfades)
   private decks: [Deck, Deck] | null = null;
   private activeDeckIdx: 0 | 1 = 0;
+  private deckAGain: GainNode | null = null;
+
+  // Deck B: Dedicated Secret Supernova chorus drop channel
+  private deckB: Deck | null = null;
+  private deckBGain: GainNode | null = null;
+  private deckBPrimed = false;
+  private deckBHoldActive = false;
+  private supernovaFinalePlaying = false;
+  private savedDeckATime = 0;
+  private deckBCleanupTimer: number | null = null;
+  private finaleSeqTimer: number | null = null;
+  private finaleSeqStep = 0;
+  private finaleSeqBusGain: GainNode | null = null;
+  private finaleSeqNodes = new Set<OscillatorNode>();
+
+  // Shared master output & AnalyserNode (both Deck A & Deck B feed this so 3D heart stays audio-reactive)
   private masterGain: GainNode | null = null;
-  private duckGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private frequencyData: Uint8Array<ArrayBuffer> | null = null;
   private graphReady = false;
@@ -136,7 +190,7 @@ class ContinuousMusicEngine {
   private transitionLockUntil = 0;
   private activeMode: 'none' | 'html-audio' | 'procedural-ost' = 'none';
 
-  // Procedural K-Drama OST sequencer state
+  // Procedural K-Drama OST sequencer state (Deck A fallback)
   private seqTimer: number | null = null;
   private seqStep = 0;
   private seqBarsPlayed = 0;
@@ -211,35 +265,62 @@ class ContinuousMusicEngine {
     return this.decks;
   }
 
-  /** Lazily wires decks + procedural OST into masterGain -> duckGain -> analyser -> destination. */
+  private ensureDeckB(): Deck | null {
+    if (typeof window === 'undefined') return null;
+    if (!this.deckB) {
+      const el = new Audio();
+      el.crossOrigin = 'anonymous';
+      el.preload = 'auto';
+      el.loop = true;
+      el.muted = false;
+      el.volume = 1;
+      el.setAttribute('playsinline', 'true');
+
+      el.addEventListener('error', () => {
+        if (this.supernovaFinalePlaying) {
+          this.startSupernovaProceduralChorus(SUPERNOVA_ATTACK_SEC);
+        }
+      });
+
+      this.deckB = { audio: el, source: null, gain: null };
+    }
+    return this.deckB;
+  }
+
+  /** Lazily wires Deck A + Deck B into (deckAGain | deckBGain) -> masterGain -> analyser -> destination. */
   private ensureAudioGraph(): AudioContext | null {
     const ctx = sfxEngine.getContext();
     if (!ctx) return null;
 
     if (!this.graphReady) {
+      const deckA = ctx.createGain();
+      deckA.gain.setValueAtTime(1.0, ctx.currentTime);
+
+      const deckB = ctx.createGain();
+      deckB.gain.setValueAtTime(0.0001, ctx.currentTime);
+
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.0001, ctx.currentTime);
-
-      const duck = ctx.createGain();
-      duck.gain.setValueAtTime(1.0, ctx.currentTime);
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.82;
 
-      master.connect(duck);
-      duck.connect(analyser);
+      deckA.connect(master);
+      deckB.connect(master);
+      master.connect(analyser);
       analyser.connect(ctx.destination);
 
+      this.deckAGain = deckA;
+      this.deckBGain = deckB;
       this.masterGain = master;
-      this.duckGain = duck;
       this.analyser = analyser;
       this.frequencyData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
       this.graphReady = true;
     }
 
     const decks = this.ensureDecks();
-    if (decks && this.masterGain) {
+    if (decks && this.deckAGain) {
       for (const deck of decks) {
         if (!deck.source) {
           try {
@@ -247,7 +328,7 @@ class ContinuousMusicEngine {
             const g = ctx.createGain();
             g.gain.setValueAtTime(0, ctx.currentTime);
             src.connect(g);
-            g.connect(this.masterGain);
+            g.connect(this.deckAGain);
             deck.source = src;
             deck.gain = g;
           } catch {
@@ -257,18 +338,36 @@ class ContinuousMusicEngine {
       }
     }
 
+    const deckB = this.ensureDeckB();
+    if (deckB && this.deckBGain && !deckB.source) {
+      try {
+        const srcB = ctx.createMediaElementSource(deckB.audio);
+        srcB.connect(this.deckBGain);
+        deckB.source = srcB;
+        deckB.gain = this.deckBGain;
+      } catch {
+        // Fallback: native element volume
+      }
+    }
+
     return ctx;
+  }
+
+  /** Smooth click-free gain ramp helper (never jumps or clips). */
+  private rampGain(gainNode: GainNode | null, target: number, durationSec: number): void {
+    const ctx = sfxEngine.getContext();
+    if (!ctx || !gainNode) return;
+    const now = ctx.currentTime;
+    const clampedTarget = Math.max(0.0001, target);
+    const current = Math.max(0.0001, gainNode.gain.value);
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(current, now);
+    gainNode.gain.linearRampToValueAtTime(clampedTarget, now + Math.max(0.02, durationSec));
   }
 
   /** Smoothly schedules master gain so AudioContext never stalls at 0.0001 after resume(). */
   private rampMasterGain(targetVol: number, fadeSec: number): void {
-    const ctx = sfxEngine.getContext();
-    if (!ctx || !this.masterGain) return;
-    const now = ctx.currentTime;
-    const safeTarget = targetVol > 0 ? targetVol : 0.0001;
-    this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
-    this.masterGain.gain.linearRampToValueAtTime(safeTarget, now + Math.max(0.08, fadeSec));
+    this.rampGain(this.masterGain, targetVol, Math.max(0.08, fadeSec));
   }
 
   private stopProceduralOst(fadeSec = 0.4): void {
@@ -319,7 +418,8 @@ class ContinuousMusicEngine {
     freq: number,
     peakGain: number,
     durationSec: number,
-    bright = false
+    bright = false,
+    nodeSet: Set<OscillatorNode> = this.seqActiveNodes
   ): void {
     const now = ctx.currentTime;
     const osc1 = ctx.createOscillator();
@@ -355,12 +455,12 @@ class ContinuousMusicEngine {
     osc1.stop(now + durationSec + 0.05);
     osc2.stop(now + durationSec + 0.05);
 
-    this.seqActiveNodes.add(osc1);
-    this.seqActiveNodes.add(osc2);
+    nodeSet.add(osc1);
+    nodeSet.add(osc2);
 
     osc1.onended = () => {
-      this.seqActiveNodes.delete(osc1);
-      this.seqActiveNodes.delete(osc2);
+      nodeSet.delete(osc1);
+      nodeSet.delete(osc2);
       osc1.disconnect();
       osc2.disconnect();
       overtoneGain.disconnect();
@@ -375,7 +475,8 @@ class ContinuousMusicEngine {
     bus: GainNode,
     bassHz: number,
     padHz: number[],
-    barSec: number
+    barSec: number,
+    nodeSet: Set<OscillatorNode> = this.seqActiveNodes
   ): void {
     const now = ctx.currentTime;
 
@@ -394,9 +495,9 @@ class ContinuousMusicEngine {
     bassEnv.connect(bus);
     bassOsc.start(now);
     bassOsc.stop(now + barSec + 0.4);
-    this.seqActiveNodes.add(bassOsc);
+    nodeSet.add(bassOsc);
     bassOsc.onended = () => {
-      this.seqActiveNodes.delete(bassOsc);
+      nodeSet.delete(bassOsc);
       bassOsc.disconnect();
       bassEnv.disconnect();
     };
@@ -423,9 +524,9 @@ class ContinuousMusicEngine {
       osc.connect(lp);
       osc.start(now);
       osc.stop(now + barSec + 0.5);
-      this.seqActiveNodes.add(osc);
+      nodeSet.add(osc);
       osc.onended = () => {
-        this.seqActiveNodes.delete(osc);
+        nodeSet.delete(osc);
         osc.disconnect();
         if (i === padHz.length - 1) {
           lp.disconnect();
@@ -441,7 +542,7 @@ class ContinuousMusicEngine {
    */
   private startProceduralOst(trackIndex: number, fadeSec: number): void {
     const ctx = this.ensureAudioGraph();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.deckAGain) return;
 
     this.stopProceduralOst(0.35);
     this.activeMode = 'procedural-ost';
@@ -450,7 +551,7 @@ class ContinuousMusicEngine {
     const bus = ctx.createGain();
     bus.gain.setValueAtTime(0.0001, ctx.currentTime);
     bus.gain.linearRampToValueAtTime(0.92, ctx.currentTime + Math.max(0.25, fadeSec));
-    bus.connect(this.masterGain);
+    bus.connect(this.deckAGain);
     this.seqBusGain = bus;
 
     this.seqStep = 0;
@@ -701,28 +802,415 @@ class ContinuousMusicEngine {
     this.setMuted(!useAppStore.getState().isMuted);
   }
 
-  /**
-   * Cinematic Ducking: gently ducks background music by ~35% during the Supernova pinpoint silence
-   * so the detonation drop hits with maximum impact.
-   */
-  public duckForSupernova(): void {
-    const ctx = sfxEngine.getContext();
-    if (!ctx || !this.duckGain) return;
-    const now = ctx.currentTime;
-    this.duckGain.gain.cancelScheduledValues(now);
-    this.duckGain.gain.setValueAtTime(Math.max(0.01, this.duckGain.gain.value), now);
-    this.duckGain.gain.linearRampToValueAtTime(SUPERNOVA_DUCK_FACTOR, now + 0.08);
+  private getSafeChorusStartTime(audio?: HTMLAudioElement): number {
+    const configured = Math.max(0, ANNIVERSARY_DATA.supernovaFinaleTrack.chorusStartTime || 0);
+    if (audio && Number.isFinite(audio.duration) && audio.duration > 2) {
+      return configured < audio.duration - 1.5 ? configured : 0;
+    }
+    return configured;
   }
 
-  /** Swells background music smoothly back to 100% during the slow-motion stardust finale. */
-  public swellFromSupernova(delaySec = 0.35, rampSec = 1.45): void {
+  private stopSupernovaProceduralChorus(fadeSec = 0.25): void {
+    if (this.finaleSeqTimer !== null) {
+      window.clearInterval(this.finaleSeqTimer);
+      this.finaleSeqTimer = null;
+    }
+    const bus = this.finaleSeqBusGain;
+    this.finaleSeqBusGain = null;
     const ctx = sfxEngine.getContext();
-    if (!ctx || !this.duckGain) return;
-    const now = ctx.currentTime;
-    this.duckGain.gain.cancelScheduledValues(now);
-    this.duckGain.gain.setValueAtTime(Math.max(0.01, this.duckGain.gain.value), now);
-    this.duckGain.gain.setValueAtTime(Math.max(0.01, this.duckGain.gain.value), now + delaySec);
-    this.duckGain.gain.linearRampToValueAtTime(1.0, now + delaySec + rampSec);
+
+    if (bus && ctx) {
+      const now = ctx.currentTime;
+      try {
+        bus.gain.cancelScheduledValues(now);
+        bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), now);
+        bus.gain.linearRampToValueAtTime(0.0001, now + Math.max(0.04, fadeSec));
+        window.setTimeout(() => {
+          try {
+            bus.disconnect();
+          } catch {
+            // Already disconnected
+          }
+        }, fadeSec * 1000 + 100);
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (ctx) {
+      const stopAt = ctx.currentTime + Math.max(0.05, fadeSec) + 0.04;
+      for (const osc of this.finaleSeqNodes) {
+        try {
+          osc.stop(stopAt);
+        } catch {
+          // Already stopped
+        }
+      }
+    }
+    this.finaleSeqNodes.clear();
+  }
+
+  /** Soaring romantic K-Drama climax chorus routed into Deck B when `supernova-finale.mp3` is absent. */
+  private startSupernovaProceduralChorus(attackSec: number): void {
+    const ctx = this.ensureAudioGraph();
+    if (!ctx || !this.deckBGain) return;
+
+    this.stopSupernovaProceduralChorus(0.05);
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.0001, ctx.currentTime);
+    bus.gain.linearRampToValueAtTime(1.0, ctx.currentTime + Math.max(0.04, attackSec));
+    bus.connect(this.deckBGain);
+    this.finaleSeqBusGain = bus;
+    this.finaleSeqStep = 0;
+
+    const song = SUPERNOVA_FALLBACK_CHORUS;
+
+    const tick = () => {
+      if (!this.supernovaFinalePlaying || !this.finaleSeqBusGain) return;
+      const activeCtx = sfxEngine.getContext();
+      if (!activeCtx || activeCtx.state !== 'running') return;
+
+      const stepInBar = this.finaleSeqStep % 8;
+      const chordIdx = Math.floor(this.finaleSeqStep / 8) % song.chords.length;
+      const chord = song.chords[chordIdx];
+
+      if (stepInBar === 0) {
+        const barSec = (song.stepMs * 8) / 1000;
+        this.triggerWarmStringsBar(
+          activeCtx,
+          this.finaleSeqBusGain,
+          chord.bass,
+          chord.pad,
+          barSec,
+          this.finaleSeqNodes
+        );
+      }
+
+      const arpFreq = chord.arp[stepInBar % chord.arp.length];
+      this.triggerPianoNote(
+        activeCtx,
+        this.finaleSeqBusGain,
+        arpFreq,
+        0.17,
+        1.35,
+        false,
+        this.finaleSeqNodes
+      );
+
+      const melFreq = chord.melody[stepInBar];
+      if (melFreq) {
+        this.triggerPianoNote(
+          activeCtx,
+          this.finaleSeqBusGain,
+          melFreq,
+          0.25,
+          2.1,
+          true,
+          this.finaleSeqNodes
+        );
+      }
+
+      this.finaleSeqStep += 1;
+    };
+
+    if (ctx.state === 'running') {
+      tick();
+    } else {
+      void ctx
+        .resume()
+        .then(() => {
+          if (this.supernovaFinalePlaying && this.finaleSeqStep === 0) {
+            tick();
+          }
+        })
+        .catch(() => {});
+    }
+
+    this.finaleSeqTimer = window.setInterval(tick, song.stepMs);
+  }
+
+  /**
+   * Beat 1 Hold Start (0% -> 100% build-up):
+   * 1. Smoothly fades Deck A down from 1.0 -> 0.0 over the hold duration so rising hum + heartbeat own the silence.
+   * 2. CRITICAL MOBILE ZERO-LATENCY PRE-CUE: unlocks & pre-buffers Deck B right inside the user's pointerdown gesture
+   *    at `chorusStartTime` with gain = 0 so detonation drops on the exact millisecond on iOS Safari & Chrome.
+   */
+  public beginSupernovaHold(holdDurationSec = SUPERNOVA_HOLD_FADE_SEC): void {
+    sfxEngine.unlock();
+    const ctx = this.ensureAudioGraph();
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    if (this.deckBCleanupTimer !== null) {
+      window.clearTimeout(this.deckBCleanupTimer);
+      this.deckBCleanupTimer = null;
+    }
+
+    this.deckBHoldActive = true;
+    this.supernovaFinalePlaying = false;
+
+    // Fade Deck A smoothly to silence over the implosion build-up
+    this.rampGain(this.deckAGain, 0.0001, Math.max(0.25, holdDurationSec));
+    this.rampGain(this.deckBGain, 0.0001, 0.04);
+
+    // Pre-cue Deck B synchronously inside the pointerdown gesture if local MP3 exists
+    const finale = ANNIVERSARY_DATA.supernovaFinaleTrack;
+    if (!this.isLocalFileAvailable(finale.src)) {
+      return;
+    }
+
+    const deckB = this.ensureDeckB();
+    if (!deckB) return;
+
+    const el = deckB.audio;
+    el.loop = true;
+    if (!deckB.source) {
+      el.volume = 0;
+    }
+
+    const expectedPath = new URL(finale.src, window.location.origin).href;
+    if (el.src !== expectedPath) {
+      el.src = finale.src;
+      el.load();
+    }
+
+    const seekToChorus = () => {
+      const targetTime = this.getSafeChorusStartTime(el);
+      try {
+        if (Math.abs(el.currentTime - targetTime) > 0.12) {
+          el.currentTime = targetTime;
+        }
+      } catch {
+        // Metadata not yet ready; loadedmetadata listener below will seek cleanly
+      }
+    };
+
+    if (el.readyState >= 1) {
+      seekToChorus();
+    } else {
+      el.addEventListener('loadedmetadata', seekToChorus, { once: true });
+    }
+
+    // Silent mobile unlock + buffer prime inside pointerdown, immediately paused at chorusStartTime
+    if (!this.deckBPrimed) {
+      const primePromise = el.play();
+      if (primePromise && typeof primePromise.then === 'function') {
+        void primePromise
+          .then(() => {
+            this.deckBPrimed = true;
+            if (!this.supernovaFinalePlaying) {
+              el.pause();
+              seekToChorus();
+            }
+          })
+          .catch(() => {
+            // Will retry on detonation
+          });
+      }
+    }
+  }
+
+  /**
+   * Hold Cancelled Early (user released before 100%):
+   * Smoothly fades Deck A back up to 1.0 over 0.8s and resets Deck B cleanly.
+   */
+  public cancelSupernovaHold(): void {
+    if (!this.deckBHoldActive && !this.supernovaFinalePlaying) return;
+
+    this.deckBHoldActive = false;
+    this.supernovaFinalePlaying = false;
+    useAppStore.getState().setSupernovaTrackActive(false);
+
+    // Recover Deck A smoothly over 0.8s
+    this.rampGain(this.deckAGain, 1.0, SUPERNOVA_CANCEL_RECOVER_SEC);
+    if (this.activeMode === 'html-audio' && this.decks) {
+      const active = this.decks[this.activeDeckIdx];
+      if (active.audio.paused && !useAppStore.getState().isMuted && this.started) {
+        void active.audio.play().catch(() => {});
+      }
+    }
+
+    // Silence & reset Deck B
+    this.rampGain(this.deckBGain, 0.0001, 0.15);
+    this.stopSupernovaProceduralChorus(0.15);
+    if (this.deckB) {
+      this.deckB.audio.pause();
+      try {
+        this.deckB.audio.currentTime = this.getSafeChorusStartTime(this.deckB.audio);
+      } catch {
+        // Ignore if not loaded
+      }
+    }
+  }
+
+  /**
+   * Exact Detonation Moment (Whiteout Flash Peak):
+   * 1. Pauses Deck A (preserving exact currentTime to resume seamlessly later).
+   * 2. Unleashes Deck B at `chorusStartTime` with a punchy 120ms attack fade (0 -> 1.0).
+   * 3. Updates active track state so the HUD displays the Supernova finale track title.
+   */
+  public unleashSupernovaChorus(): void {
+    const ctx = this.ensureAudioGraph();
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    if (this.deckBCleanupTimer !== null) {
+      window.clearTimeout(this.deckBCleanupTimer);
+      this.deckBCleanupTimer = null;
+    }
+
+    this.deckBHoldActive = false;
+    this.supernovaFinalePlaying = true;
+    if (!this.started) {
+      this.started = true;
+    }
+
+    // Respect global isMuted on masterGain at all times
+    this.rampMasterGain(this.getTargetVolume(), 0.08);
+
+    // 1. Freeze Deck A at exact currentTime
+    this.rampGain(this.deckAGain, 0.0001, 0.03);
+    if (this.activeMode === 'html-audio' && this.decks) {
+      const activeA = this.decks[this.activeDeckIdx];
+      this.savedDeckATime = activeA.audio.currentTime || 0;
+      activeA.audio.pause();
+    } else if (this.activeMode === 'procedural-ost') {
+      this.stopProceduralOst(0.08);
+    }
+
+    // 2. Unleash Deck B at chorusStartTime with punchy 120ms attack fade
+    const finale = ANNIVERSARY_DATA.supernovaFinaleTrack;
+    if (this.isLocalFileAvailable(finale.src)) {
+      const deckB = this.ensureDeckB();
+      if (deckB) {
+        const el = deckB.audio;
+        el.loop = true;
+        const expectedPath = new URL(finale.src, window.location.origin).href;
+        if (el.src !== expectedPath) {
+          el.src = finale.src;
+        }
+
+        const startSec = this.getSafeChorusStartTime(el);
+        try {
+          if (Math.abs(el.currentTime - startSec) > 0.15) {
+            el.currentTime = startSec;
+          }
+        } catch {
+          // Seek once metadata arrives
+          el.addEventListener(
+            'loadedmetadata',
+            () => {
+              try {
+                el.currentTime = this.getSafeChorusStartTime(el);
+              } catch {
+                // Ignore
+              }
+            },
+            { once: true }
+          );
+        }
+
+        if (deckB.source) {
+          this.rampGain(this.deckBGain, 1.0, SUPERNOVA_ATTACK_SEC);
+        } else {
+          el.volume = this.getTargetVolume();
+        }
+
+        void el.play().catch(() => {
+          if (this.supernovaFinalePlaying) {
+            this.rampGain(this.deckBGain, 1.0, SUPERNOVA_ATTACK_SEC);
+            this.startSupernovaProceduralChorus(SUPERNOVA_ATTACK_SEC);
+          }
+        });
+      }
+    } else {
+      // Graceful audible fallback when `public/music/supernova-finale.mp3` is not added yet
+      this.rampGain(this.deckBGain, 1.0, SUPERNOVA_ATTACK_SEC);
+      this.startSupernovaProceduralChorus(SUPERNOVA_ATTACK_SEC);
+    }
+
+    useAppStore.getState().setSupernovaTrackActive(true);
+    useAppStore.getState().setIsMusicPlaying(!useAppStore.getState().isMuted);
+  }
+
+  /**
+   * Secret Modal Close (ĐÓNG ×):
+   * Smoothly crossfades over 2.0s: Deck B fades 1.0 -> 0.0 (then pauses & resets to chorusStartTime)
+   * while Deck A resumes from its exact saved timestamp and fades 0.0 -> 1.0.
+   */
+  public crossfadeBackFromSupernova(durationSec = SUPERNOVA_EXIT_CROSSFADE_SEC): void {
+    if (!this.supernovaFinalePlaying && !this.deckBHoldActive) return;
+
+    this.supernovaFinalePlaying = false;
+    this.deckBHoldActive = false;
+    useAppStore.getState().setSupernovaTrackActive(false);
+
+    const ctx = this.ensureAudioGraph();
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    const fadeDur = Math.max(0.25, durationSec);
+
+    // 1. Fade Deck B smoothly down to 0.0, then pause & reset to chorusStartTime
+    this.rampGain(this.deckBGain, 0.0001, fadeDur);
+    if (this.deckB && !this.deckB.source) {
+      this.deckB.audio.volume = 0;
+    }
+
+    if (this.deckBCleanupTimer !== null) {
+      window.clearTimeout(this.deckBCleanupTimer);
+    }
+    this.deckBCleanupTimer = window.setTimeout(() => {
+      this.deckBCleanupTimer = null;
+      if (this.supernovaFinalePlaying || this.deckBHoldActive) return;
+
+      this.stopSupernovaProceduralChorus(0.15);
+      if (this.deckB) {
+        this.deckB.audio.pause();
+        try {
+          this.deckB.audio.currentTime = this.getSafeChorusStartTime(this.deckB.audio);
+        } catch {
+          // Ignore
+        }
+      }
+    }, fadeDur * 1000 + 80);
+
+    // 2. Simultaneously resume Deck A from its saved timestamp and fade 0.0 -> 1.0 over 2.0s
+    if (this.activeMode === 'html-audio' && this.decks) {
+      const activeA = this.decks[this.activeDeckIdx];
+      try {
+        if (this.savedDeckATime > 0 && Math.abs(activeA.audio.currentTime - this.savedDeckATime) > 0.35) {
+          activeA.audio.currentTime = this.savedDeckATime;
+        }
+      } catch {
+        // Ignore
+      }
+      if (activeA.audio.paused) {
+        void activeA.audio.play().catch(() => {});
+      }
+      this.rampGain(this.deckAGain, 1.0, fadeDur);
+    } else {
+      this.rampGain(this.deckAGain, 1.0, fadeDur);
+      this.startProceduralOst(this.currentIndex, fadeDur);
+    }
+  }
+
+  /** Backward-compatible aliases kept for safety if any caller invokes legacy duck/swell hooks. */
+  public duckForSupernova(): void {
+    this.rampGain(this.deckAGain, 0.0001, 0.12);
+  }
+
+  public swellFromSupernova(_delaySec = 0, rampSec = SUPERNOVA_CANCEL_RECOVER_SEC): void {
+    if (this.supernovaFinalePlaying) {
+      this.crossfadeBackFromSupernova(Math.max(rampSec, SUPERNOVA_EXIT_CROSSFADE_SEC));
+    } else if (this.deckBHoldActive) {
+      this.cancelSupernovaHold();
+    } else {
+      this.rampGain(this.deckAGain, 1.0, rampSec);
+    }
   }
 
   /**

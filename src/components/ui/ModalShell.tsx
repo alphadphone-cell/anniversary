@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useActiveModal, useAppStore, type ModalId } from '../../store/useAppStore';
+import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 import { LetterModal } from './modals/LetterModal';
 import { CounterModal } from './modals/CounterModal';
@@ -34,6 +35,9 @@ export function ModalShell() {
 
   const handleClose = useCallback(() => {
     sfxEngine.playModalClose();
+    if (useAppStore.getState().activeModal === 'secret') {
+      musicEngine.crossfadeBackFromSupernova(2.0);
+    }
     closeModalStore();
   }, [closeModalStore]);
 

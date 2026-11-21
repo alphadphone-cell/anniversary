@@ -15,6 +15,7 @@ interface AppState {
   isMuted: boolean;
   isMusicPlaying: boolean;
   currentTrackIndex: number;
+  isSupernovaTrackActive: boolean;
   isTransitionFlashing: boolean;
   supernovaFlashKey: number;
   setStage: (stage: AppStage) => void;
@@ -31,6 +32,7 @@ interface AppState {
   toggleMuted: () => void;
   setIsMusicPlaying: (playing: boolean) => void;
   setCurrentTrackIndex: (index: number) => void;
+  setSupernovaTrackActive: (active: boolean) => void;
   setTransitionFlashing: (flashing: boolean) => void;
   triggerSupernovaFlash: () => void;
 }
@@ -45,6 +47,7 @@ export const useAppStore = create<AppState>((set) => ({
   isMuted: false,
   isMusicPlaying: false,
   currentTrackIndex: 0,
+  isSupernovaTrackActive: false,
   isTransitionFlashing: false,
   supernovaFlashKey: 0,
 
@@ -128,6 +131,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   setCurrentTrackIndex: (currentTrackIndex) => set({ currentTrackIndex }),
 
+  setSupernovaTrackActive: (isSupernovaTrackActive) => set({ isSupernovaTrackActive }),
+
   setTransitionFlashing: (isTransitionFlashing) => set({ isTransitionFlashing }),
   triggerSupernovaFlash: () => set((state) => ({ supernovaFlashKey: state.supernovaFlashKey + 1 })),
 }));
@@ -142,5 +147,6 @@ export const useConstellationFinaleActive = () => useAppStore((s) => s.constella
 export const useIsMuted = () => useAppStore((s) => s.isMuted);
 export const useIsMusicPlaying = () => useAppStore((s) => s.isMusicPlaying);
 export const useCurrentTrackIndex = () => useAppStore((s) => s.currentTrackIndex);
+export const useIsSupernovaTrackActive = () => useAppStore((s) => s.isSupernovaTrackActive);
 export const useIsTransitionFlashing = () => useAppStore((s) => s.isTransitionFlashing);
 export const useSupernovaFlashKey = () => useAppStore((s) => s.supernovaFlashKey);
