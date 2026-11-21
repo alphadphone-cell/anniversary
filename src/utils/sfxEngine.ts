@@ -989,6 +989,37 @@ class ProceduralSfxEngine {
     });
   }
 
+  /** Brief, magical ascending rose-gold sparkle chime when 6/6 core memories unlock the Secret Supernova hint. */
+  public playFinaleUnlockChime(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const notes = [587.33, 739.99, 880.0, 1108.73, 1174.66, 1479.98]; // D5 -> F#5 -> A5 -> C#6 -> D6 -> F#6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.065;
+
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.048 - idx * 0.0035, t0 + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.18);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 1.24);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
   /** Warm crystalline absorption shimmer when falling starlight merges into the 3D Particle Heart. */
   public playHeartAbsorptionShimmer(): void {
     if (useAppStore.getState().isMuted) return;

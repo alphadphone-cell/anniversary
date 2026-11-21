@@ -1,8 +1,10 @@
 import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Orbit, Sparkles } from 'lucide-react';
+import { Orbit, Sparkles, Star } from 'lucide-react';
 import {
+  getNextJourneyStep,
   useAppStore,
+  useCompletedSteps,
   useCurrentTrackIndex,
   useIsMusicPlaying,
   useIsMuted,
@@ -19,6 +21,7 @@ import { sfxEngine } from '../../utils/sfxEngine';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
 import { ConstellationCard } from './ConstellationCard';
+import { JourneyGuidePill } from './JourneyGuidePill';
 
 /** Isolated flash overlay so flashing never re-renders the main HUD or WebGL canvas. */
 function WarpFlashOverlay() {
@@ -161,7 +164,12 @@ function NowPlayingBadge() {
 /** Compact top-right glassmorphism view switcher for Galaxy View / Constellation View. */
 function ViewModeToggle() {
   const viewMode = useViewMode();
+  const completedSteps = useCompletedSteps();
   const setViewMode = useAppStore((s) => s.setViewMode);
+
+  const nextStep = getNextJourneyStep(completedSteps);
+  const isConstellationNext = nextStep === 'constellation' && viewMode === 'galaxy';
+  const isConstellationDone = completedSteps.includes('constellation');
 
   const handleSelect = useCallback(
     (next: ViewMode) => {
@@ -188,7 +196,7 @@ function ViewModeToggle() {
         onMouseEnter={() => sfxEngine.playHoverTick()}
         aria-pressed={viewMode === 'galaxy'}
         aria-label="Góc nhìn Ngân Hà"
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium sm:px-3.5 ${
+        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 sm:px-3.5 ${
           viewMode === 'galaxy'
             ? 'glass-active text-starlight'
             : 'border border-transparent text-lavender hover:text-starlight'
@@ -208,18 +216,35 @@ function ViewModeToggle() {
         onMouseEnter={() => sfxEngine.playHoverTick()}
         aria-pressed={viewMode === 'constellation'}
         aria-label="Góc nhìn Chòm Sao"
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium sm:px-3.5 ${
+        className={`glass-interactive relative flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 sm:px-3.5 ${
           viewMode === 'constellation'
             ? 'glass-active text-starlight'
-            : 'border border-transparent text-lavender hover:text-starlight'
+            : isConstellationNext
+              ? '!border-amber-200/75 bg-neon-pink/18 text-starlight shadow-[0_0_24px_rgba(255,62,165,0.48),0_0_14px_rgba(253,224,71,0.34)]'
+              : 'border border-transparent text-lavender hover:text-starlight'
         }`}
       >
+        {isConstellationNext && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-0.5 animate-pulse rounded-full border border-amber-200/65"
+          />
+        )}
         <Sparkles
-          className={`h-4 w-4 shrink-0 ${viewMode === 'constellation' ? 'text-neon-pink' : ''}`}
+          className={`h-4 w-4 shrink-0 ${
+            viewMode === 'constellation' || isConstellationNext ? 'text-neon-pink' : ''
+          }`}
           strokeWidth={1.75}
           aria-hidden="true"
         />
         <span className="hidden sm:inline">Chòm Sao</span>
+        {isConstellationDone && (
+          <Star
+            className="h-3 w-3 shrink-0 fill-amber-300 text-amber-300"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+        )}
       </button>
     </motion.nav>
   );
@@ -288,6 +313,7 @@ export function HudOverlay() {
         </AnimatePresence>
       </div>
 
+      <JourneyGuidePill />
       <ConstellationCard />
       <ModalShell />
       <WarpFlashOverlay />

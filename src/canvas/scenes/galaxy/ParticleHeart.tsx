@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Billboard } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { galaxySignals } from '../../galaxySignals';
-import { useAppStore } from '../../../store/useAppStore';
+import { isAllCoreJourneyCompleted, useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
 import { musicEngine } from '../../../utils/musicEngine';
 
@@ -485,6 +485,48 @@ function mulberry32(seed: number) {
   };
 }
 
+const HEART_TARGET_RING_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const HEART_TARGET_RING_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uOpacity;
+  varying vec2 vUv;
+
+  void main() {
+    if (uOpacity <= 0.005) discard;
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    // Two gossamer pulsing concentric rose-gold invitation ripples around the heart (zero outer disk edge)
+    float p1 = fract(uTime * 0.38);
+    float p2 = fract(uTime * 0.38 + 0.5);
+    float edgeFade = smoothstep(0.98, 0.58, r);
+    float ring1 = exp(-pow((r - mix(0.32, 0.90, p1)) / 0.016, 2.0)) * (1.0 - p1);
+    float ring2 = exp(-pow((r - mix(0.32, 0.90, p2)) / 0.016, 2.0)) * (1.0 - p2);
+    float steady = exp(-pow((r - 0.54) / 0.014, 2.0)) * (0.28 + 0.14 * sin(uTime * 2.6));
+
+    float alpha = clamp((ring1 * 0.55 + ring2 * 0.55 + steady) * edgeFade * uOpacity, 0.0, 0.62);
+    if (alpha <= 0.005) discard;
+
+    vec3 cGold = vec3(1.65, 1.32, 0.82);
+    vec3 cRose = vec3(1.48, 0.46, 1.02);
+    vec3 col = mix(cRose, cGold, 0.52 + 0.25 * sin(uTime * 1.8));
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+interface TroikaHintTextHandle {
+  fillOpacity: number;
+  outlineOpacity: number;
+}
+
 export function ParticleHeart({
   active,
   interactive = true,
@@ -495,6 +537,10 @@ export function ParticleHeart({
   const shockRingARef = useRef<THREE.Mesh>(null);
   const shockRingBRef = useRef<THREE.Mesh>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
+  const targetRingRef = useRef<THREE.Mesh>(null);
+  const heartHintGroupRef = useRef<THREE.Group>(null);
+  const heartHintTextRef = useRef<TroikaHintTextHandle | null>(null);
+  const finaleCueAlphaRef = useRef(0);
 
   // Pre-allocated math objects (ZERO per-frame allocations)
   const invMatrixRef = useRef(new THREE.Matrix4());
@@ -800,6 +846,20 @@ export function ParticleHeart({
       blending: THREE.AdditiveBlending,
     });
 
+    // Subtle pulsing concentric rose-gold target ring once 6/6 core memories unlock the Supernova finale
+    const targetRingGeo = new THREE.PlaneGeometry(7.2, 7.2);
+    const targetRingMat = new THREE.ShaderMaterial({
+      vertexShader: HEART_TARGET_RING_VERTEX,
+      fragmentShader: HEART_TARGET_RING_FRAGMENT,
+      uniforms: {
+        uTime: { value: 0 },
+        uOpacity: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
     const hitGeo = new THREE.SphereGeometry(2.55, 16, 16);
     const hitMat = new THREE.MeshBasicMaterial({
       transparent: true,
@@ -821,6 +881,8 @@ export function ParticleHeart({
       nebulaMat,
       finaleRainGeo,
       finaleRainMat,
+      targetRingGeo,
+      targetRingMat,
       hitGeo,
       hitMat,
     };
@@ -950,6 +1012,8 @@ export function ParticleHeart({
       resources.nebulaMat.dispose();
       resources.finaleRainGeo.dispose();
       resources.finaleRainMat.dispose();
+      resources.targetRingGeo.dispose();
+      resources.targetRingMat.dispose();
       resources.hitGeo.dispose();
       resources.hitMat.dispose();
       if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
@@ -1258,6 +1322,39 @@ export function ParticleHeart({
       nebulaRef.current.visible = nebulaIntensity > 0.004;
     }
 
+    // Grand Finale Unlock Cue (6/6 completed & !supernovaCompleted): pulsing target ring + floating hint below heart
+    const appState = useAppStore.getState();
+    const showFinaleCue =
+      active &&
+      interactive &&
+      morphTimeRef.current >= 2.65 &&
+      phase === 'idle' &&
+      appState.viewMode === 'galaxy' &&
+      appState.activeModal === null &&
+      isAllCoreJourneyCompleted(appState.completedSteps) &&
+      !appState.supernovaCompleted;
+
+    finaleCueAlphaRef.current = THREE.MathUtils.lerp(
+      finaleCueAlphaRef.current,
+      showFinaleCue ? 1 : 0,
+      Math.min(1, dt * 6)
+    );
+    const cueAlpha = finaleCueAlphaRef.current;
+
+    resources.targetRingMat.uniforms.uTime.value = elapsed;
+    resources.targetRingMat.uniforms.uOpacity.value = cueAlpha * 0.52;
+    if (targetRingRef.current) {
+      targetRingRef.current.visible = cueAlpha > 0.01;
+    }
+    if (heartHintGroupRef.current) {
+      heartHintGroupRef.current.visible = cueAlpha > 0.015;
+    }
+    if (heartHintTextRef.current) {
+      const breatheAlpha = reducedMotion ? 1 : 0.78 + 0.22 * Math.sin(elapsed * 2.6);
+      heartHintTextRef.current.fillOpacity = cueAlpha * breatheAlpha;
+      heartHintTextRef.current.outlineOpacity = cueAlpha * 0.85;
+    }
+
     // Idle gentle rotation & float (pauses during Beat 1b freeze so pinpoint stays rock-steady)
     if (heartGroupRef.current && !reducedMotion) {
       const idleWeight = THREE.MathUtils.smoothstep(morphTimeRef.current, 2.25, 2.8);
@@ -1310,6 +1407,34 @@ export function ParticleHeart({
             geometry={resources.nebulaGeo}
             material={resources.nebulaMat}
           />
+        </Billboard>
+
+        {/* Subtle pulsing concentric target ring + floating hold hint once 6/6 memories unlock */}
+        <Billboard position={[0, 0.28, -0.15]} follow>
+          <mesh
+            ref={targetRingRef}
+            visible={false}
+            geometry={resources.targetRingGeo}
+            material={resources.targetRingMat}
+          />
+          <group ref={heartHintGroupRef} position={[0, -3.15, 0.1]} visible={false}>
+            <Text
+              ref={heartHintTextRef}
+              font="/fonts/BeVietnamPro-SemiBold.ttf"
+              fontSize={0.28}
+              letterSpacing={0.08}
+              color="#fde68a"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.018}
+              outlineColor="#be185d"
+              fillOpacity={0}
+              outlineOpacity={0}
+              material-toneMapped={false}
+            >
+              CHẠM &amp; GIỮ TRÁI TIM 3 GIÂY
+            </Text>
+          </group>
         </Billboard>
 
         {/* Blinding singularity pinpoint & crisp detonation core flash */}

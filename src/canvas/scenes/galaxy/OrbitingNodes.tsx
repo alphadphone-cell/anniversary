@@ -3,8 +3,47 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { ANNIVERSARY_DATA, type GalaxyNodeConfig } from '../../../data/anniversaryData';
-import { useAppStore } from '../../../store/useAppStore';
+import { getNextJourneyStep, useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
+
+const NODE_BEACON_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const NODE_BEACON_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uMode; // 0 = off, 1 = next-step rose-gold spotlight pulse, 2 = completed golden ring
+  varying vec2 vUv;
+
+  void main() {
+    if (uMode < 0.5) discard;
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    if (uMode < 1.5) {
+      // Soft pulsing neon rose-gold spotlight halo ring around the next guided step
+      float pulse = 0.72 + 0.28 * sin(uTime * 3.4);
+      float ringR = 0.64 + 0.08 * sin(uTime * 3.4);
+      float ring = exp(-pow((r - ringR) / 0.065, 2.0));
+      float ripple = exp(-pow((r - fract(uTime * 0.55) * 0.92) / 0.06, 2.0)) * (1.0 - fract(uTime * 0.55)) * 0.65;
+      float alpha = clamp((ring * 0.85 + ripple) * pulse, 0.0, 0.95);
+      if (alpha <= 0.008) discard;
+      vec3 col = mix(vec3(1.65, 0.52, 1.15), vec3(1.95, 1.55, 0.92), 0.5 + 0.35 * sin(uTime * 2.2));
+      gl_FragColor = vec4(col, alpha);
+    } else {
+      // Subtle serene golden completion aura ring for already-visited memories
+      float ring = exp(-pow((r - 0.68) / 0.045, 2.0));
+      float alpha = ring * 0.42;
+      if (alpha <= 0.008) discard;
+      gl_FragColor = vec4(vec3(1.68, 1.38, 0.76), alpha);
+    }
+  }
+`;
 
 interface OrbitingNodesProps {
   interactive?: boolean;
@@ -127,10 +166,12 @@ interface GalaxyNodeItemProps {
 function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProps) {
   const groupRef = useRef<THREE.Group>(null);
   const scaleWrapperRef = useRef<THREE.Group>(null);
+  const beaconMeshRef = useRef<THREE.Mesh>(null);
   const angleRef = useRef(node.orbitAngle);
+  const colorScratchRef = useRef(new THREE.Color());
   const [hovered, setHovered] = useState(false);
 
-  const { texture, geometry, material } = useMemo(() => {
+  const { texture, geometry, material, beaconGeo, beaconMat } = useMemo(() => {
     const tex = createNodeTexture(node);
     const geo = new THREE.PlaneGeometry(1.65, 1.65);
     const mat = new THREE.MeshBasicMaterial({
@@ -140,7 +181,19 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       toneMapped: false,
       color: new THREE.Color(1.22, 1.15, 1.25),
     });
-    return { texture: tex, geometry: geo, material: mat };
+    const bGeo = new THREE.PlaneGeometry(2.38, 2.38);
+    const bMat = new THREE.ShaderMaterial({
+      vertexShader: NODE_BEACON_VERTEX,
+      fragmentShader: NODE_BEACON_FRAGMENT,
+      uniforms: {
+        uTime: { value: 0 },
+        uMode: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    return { texture: tex, geometry: geo, material: mat, beaconGeo: bGeo, beaconMat: bMat };
   }, [node]);
 
   useEffect(() => {
@@ -155,9 +208,11 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       texture.dispose();
       geometry.dispose();
       material.dispose();
+      beaconGeo.dispose();
+      beaconMat.dispose();
       document.body.style.cursor = 'auto';
     };
-  }, [texture, geometry, material]);
+  }, [texture, geometry, material, beaconGeo, beaconMat]);
 
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
@@ -207,10 +262,32 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       groupRef.current.position.set(x, node.heightOffset + bob, z);
     }
 
+    // Imperative zero-re-render journey beacon lookup (never re-renders WebGL Canvas)
+    const { completedSteps, viewMode } = useAppStore.getState();
+    const nextStep = getNextJourneyStep(completedSteps);
+    const isNextSpotlight = interactive && viewMode === 'galaxy' && nextStep === node.id;
+    const isCompleted = interactive && viewMode === 'galaxy' && completedSteps.includes(node.id);
+
+    beaconMat.uniforms.uTime.value = elapsed;
+    beaconMat.uniforms.uMode.value = isNextSpotlight ? 1 : isCompleted ? 2 : 0;
+    if (beaconMeshRef.current) {
+      beaconMeshRef.current.visible = isNextSpotlight || isCompleted;
+    }
+
+    const spotlightPulse = isNextSpotlight && !reducedMotion ? Math.sin(elapsed * 3.4) * 0.08 : 0;
+    if (isNextSpotlight) {
+      colorScratchRef.current.setRGB(1.48, 1.32, 1.42);
+    } else if (isCompleted) {
+      colorScratchRef.current.setRGB(1.32, 1.24, 1.16);
+    } else {
+      colorScratchRef.current.setRGB(1.22, 1.15, 1.25);
+    }
+    material.color.lerp(colorScratchRef.current, Math.min(1, dt * 6));
+
     if (scaleWrapperRef.current) {
-      const targetScale = hovered ? 1.28 : 1.0;
+      const baseScale = hovered ? 1.28 : isNextSpotlight ? 1.14 + spotlightPulse : 1.0;
       const current = scaleWrapperRef.current.scale.x;
-      const next = THREE.MathUtils.lerp(current, targetScale, 0.16);
+      const next = THREE.MathUtils.lerp(current, baseScale, 0.16);
       scaleWrapperRef.current.scale.setScalar(next);
     }
   });
@@ -226,6 +303,13 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     >
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
         <group ref={scaleWrapperRef}>
+          <mesh
+            ref={beaconMeshRef}
+            position={[0, 0, -0.04]}
+            geometry={beaconGeo}
+            material={beaconMat}
+            visible={false}
+          />
           <mesh
             geometry={geometry}
             material={material}
