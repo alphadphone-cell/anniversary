@@ -400,36 +400,35 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
 
   // ---------------------------------------------------------------------------
   // DANH SÁCH NHẠC NỀN K-DRAMA / ROMANTIC OST (Phát liên tục & tự động chuyển bài)
-  // Hướng dẫn: Thả các file .mp3 của bạn vào thư mục `public/music/` với đúng tên:
-  //   - public/music/track-1.mp3
-  //   - public/music/track-2.mp3
-  //   - public/music/track-3.mp3
-  // Nếu chưa thả file .mp3, hệ thống tự chuyển sang nền hòa âm lãng mạn dự phòng.
+  // Các file .mp3 đã được tích hợp sẵn trong `public/music/` (chuẩn hóa loudnorm 128kbps):
+  //   - public/music/track-1.mp3 — Crush - Beautiful (Goblin OST)
+  //   - public/music/track-2.mp3 — Paul Kim - Every Day, Every Moment (Should We Kiss First? OST)
+  //   - public/music/track-3.mp3 — 10CM - Spring Snow (Lovely Runner OST)
   // ---------------------------------------------------------------------------
   playlist: [
     {
       id: 'ost-1',
-      title: 'Dưới Bầu Trời Sao Đêm',
-      artist: 'K-Drama OST · Track 01',
+      title: 'Beautiful',
+      artist: 'Crush · Goblin OST',
       src: '/music/track-1.mp3',
     },
     {
       id: 'ost-2',
-      title: 'Giai Điệu Mùa Thu Bên Em',
-      artist: 'K-Drama OST · Track 02',
+      title: 'Every Day, Every Moment',
+      artist: 'Paul Kim · K-Drama OST',
       src: '/music/track-2.mp3',
     },
     {
       id: 'ost-3',
-      title: 'Ánh Trăng Của Riêng Hai Đứa',
-      artist: 'K-Drama OST · Track 03',
+      title: 'Spring Snow (봄눈)',
+      artist: '10CM · Lovely Runner OST',
       src: '/music/track-3.mp3',
     },
   ],
 
   audio: {
-    trackTitle: 'Dưới Bầu Trời Sao Đêm',
-    artist: 'Nhạc Nền Kỷ Niệm',
+    trackTitle: 'Beautiful',
+    artist: 'Crush · Goblin OST',
     src: '/music/track-1.mp3',
     defaultVolume: 0.72,
   },
