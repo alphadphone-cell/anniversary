@@ -824,6 +824,75 @@ class ProceduralSfxEngine {
     });
   }
 
+  /** Soft rising crystalline gliding tone synced with the 1.2s Constellation Light-Beam Tracer. */
+  public playBeamGlideTone(stepIndex: number): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const duration = 1.18;
+    const baseFreqs = [440.0, 493.88, 554.37, 587.33, 659.25, 739.99, 880.0];
+    const startFreq = baseFreqs[Math.max(0, Math.min(baseFreqs.length - 1, stepIndex - 1))] ?? 440.0;
+    const endFreq = baseFreqs[Math.max(0, Math.min(baseFreqs.length - 1, stepIndex))] ?? 587.33;
+
+    // Silky rising sine + airy fifth shimmer gliding across the night sky
+    [1, 1.5].forEach((mult, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = idx === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(startFreq * mult, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(120, endFreq * mult), now + duration);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(900, now);
+      lpf.frequency.exponentialRampToValueAtTime(2400, now + duration);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.032 : 0.015, now + 0.25);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.028 : 0.013, now + duration - 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.08);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + duration + 0.12);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
+
+    // Subtle airy stardust whisper along the beam wake
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.getNoiseBuffer(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1100, now);
+    filter.frequency.exponentialRampToValueAtTime(2800, now + duration);
+    filter.Q.setValueAtTime(2.6, now);
+
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.0001, now);
+    nGain.gain.linearRampToValueAtTime(0.022, now + 0.28);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.04);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.masterGain);
+    noise.start(now);
+    noise.stop(now + duration + 0.08);
+    noise.onended = () => {
+      noise.disconnect();
+      filter.disconnect();
+      nGain.disconnect();
+    };
+  }
+
   /** Soft downward chime + gentle airy recede on modal close. */
   public playModalClose(): void {
     if (useAppStore.getState().isMuted) return;

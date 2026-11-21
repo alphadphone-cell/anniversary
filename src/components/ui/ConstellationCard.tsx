@@ -12,22 +12,40 @@ import {
 import { sfxEngine } from '../../utils/sfxEngine';
 
 const ENTRY_AUTO_OPEN_MS = 850;
-// Unobstructed 3-Beat Star-to-Star Transition Choreography (~1.45s before Beat 3 card reveal):
-const BEAT1_CLEAR_SKY_MS = 280; // Beat 1: fade & scale out current card completely so sky is 100% clear
-const BEAT3_REVEAL_CARD_MS = 1450; // Beat 2 ends (~0.6s line + star flare + ~0.45s admiration hold) -> Beat 3 card reveal!
+// Unhurried 4-Beat Travelling Light-Beam Choreography (~2.15s before Card Reveal):
+const BEAT1_CLEAR_SKY_MS = 350; // Beat 1 (0.00s -> 0.35s): Clear current card & vignette completely
+const BEAM_DRAW_DURATION_MS = 1200; // Beat 2 (0.35s -> 1.55s): 1.2s slow white-gold light beam + line draw
+const BEAT3_STAR_IGNITE_MS = BEAT1_CLEAR_SKY_MS + BEAM_DRAW_DURATION_MS; // 1.55s: exact beam impact flare + chime
+const BEAT4_REVEAL_CARD_MS = 2150; // Beat 4 (2.15s -> 2.60s): 0.6s admiration hold -> graceful 450ms card reveal
 
-// Balanced ~5.2s Constellation Emblem Finale Timeline:
-const EMBLEM_REVEAL_MS = 1800; // Phase 3: Logo materializes right as 0.85s->1.80s circuit surge finishes
-const EMBLEM_DISSOLVE_MS = 3950; // Phase 4: ~2.15s admiration hold -> dissolves into 7-star burst & Starfall
-const RETURN_TO_GALAXY_MS = 4200; // Camera glides down following falling starlight back into Love Galaxy
-const HEART_ABSORPTION_CHIME_MS = 5020; // Warm shimmer chime as falling starlight pours into the 3D Heart
+// Layered Separation Capricorn Emblem Finale Timeline:
+const EMBLEM_REVEAL_MS = 2050; // Phase 3: appears after 0.0->1.4s Circuit Surge & 1.4->2.05s Recede/Soft Dim (~22%)
+const EMBLEM_DISSOLVE_MS = 4650; // Phase 5: ~2.6s Emblem hold (incl. 1.0s SVG draw) -> dissolves into Starfall
+const RETURN_TO_GALAXY_MS = 4900; // Slow 1.5s camera return gliding down with golden-pink stardust into Love Galaxy
+const HEART_ABSORPTION_CHIME_MS = 5700; // Warm shimmer chime as falling starlight pours into the 3D Heart
 
 type EmblemPhase = 'hidden' | 'visible' | 'dissolving';
 
+const ASTROLABE_TICKS = Array.from({ length: 24 }, (_, idx) => {
+  const angle = (idx / 24) * Math.PI * 2;
+  const isMajor = idx % 6 === 0;
+  const rInner = isMajor ? 92 : 95.5;
+  const rOuter = 100;
+  return {
+    key: idx,
+    x1: 110 + Math.cos(angle) * rInner,
+    y1: 110 + Math.sin(angle) * rInner,
+    x2: 110 + Math.cos(angle) * rOuter,
+    y2: 110 + Math.sin(angle) * rOuter,
+    isMajor,
+  };
+});
+
 /**
- * GPU-accelerated Celestial Constellation Emblem / Logo Reveal overlay (`1.80s -> 3.95s`).
- * Draws the customizable `constellationEmblem.svgPath` with rose-gold/white neon glow, rotating
- * celestial astrolabe rings, twinkling vertex stars, and Playfair Display / Be Vietnam Pro typography.
+ * Clean, Unobstructed Capricorn (♑) Celestial Centerpiece Overlay (Phase 3: `2.05s -> 4.65s`).
+ * - Positioned slightly above viewport center over a soft seamless dark radial vignette (zero harsh box).
+ * - Thin celestial astrolabe ring with slowly rotating degree ticks + 1.0s champagne-gold/rose-white pathLength draw.
+ * - Uncluttered borderless Playfair Display & Be Vietnam Pro typography cleanly below the outer ring (`mt-6`).
  */
 function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
   const emblem = ANNIVERSARY_DATA.constellationEmblem;
@@ -42,86 +60,93 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
             role="status"
             aria-live="polite"
             aria-label={`Biểu tượng ${emblem.name}`}
-            initial={{ opacity: 0, scale: 0.88 }}
+            initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.14 }}
-            transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             style={{ willChange: 'transform, opacity' }}
-            className="flex flex-col items-center"
+            className="relative flex -translate-y-4 flex-col items-center sm:-translate-y-5"
           >
-            {/* Glowing SVG Emblem + Counter-Rotating Celestial Rings */}
-            <div className="relative flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52">
+            {/* Seamless Soft Dark Radial Vignette Halo (prevents background stars from bleeding into symbol or text) */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-1/2 h-[440px] w-[440px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[520px] sm:w-[520px]"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(5,2,10,0.86) 0%, rgba(5,2,10,0.68) 38%, rgba(5,2,10,0.22) 66%, rgba(5,2,10,0) 86%)',
+              }}
+            />
+
+            {/* Crisp Celestial Astrolabe Ring + Champagne-Gold Capricorn (♑) Emblem */}
+            <div className="relative flex h-48 w-48 items-center justify-center sm:h-56 sm:w-56">
+              {/* Outer Astrolabe Ring with Slowly Rotating Degree Ticks */}
               <motion.svg
-                viewBox="0 0 200 200"
+                viewBox="0 0 220 220"
                 aria-hidden="true"
-                initial={{ opacity: 0, rotate: -18, scale: 0.9 }}
-                animate={{ opacity: 0.72, rotate: 28, scale: 1 }}
-                transition={{ duration: 2.6, ease: 'easeOut' }}
+                initial={{ opacity: 0, rotate: -14, scale: 0.94 }}
+                animate={{ opacity: 0.85, rotate: 22, scale: 1 }}
+                transition={{ duration: 3.4, ease: 'easeOut' }}
                 style={{ willChange: 'transform, opacity' }}
                 className="absolute inset-0 h-full w-full"
               >
                 <circle
-                  cx="100"
-                  cy="100"
-                  r="92"
+                  cx="110"
+                  cy="110"
+                  r="100"
                   fill="none"
-                  stroke="rgba(253, 224, 71, 0.34)"
+                  stroke="rgba(246, 211, 139, 0.36)"
                   strokeWidth="0.9"
-                  strokeDasharray="4 6"
                 />
                 <circle
-                  cx="100"
-                  cy="100"
-                  r="80"
+                  cx="110"
+                  cy="110"
+                  r="90"
                   fill="none"
-                  stroke="rgba(255, 118, 198, 0.32)"
-                  strokeWidth="0.75"
+                  stroke="rgba(253, 164, 207, 0.24)"
+                  strokeWidth="0.7"
+                  strokeDasharray="3 7"
                 />
+                {ASTROLABE_TICKS.map((tick) => (
+                  <line
+                    key={tick.key}
+                    x1={tick.x1}
+                    y1={tick.y1}
+                    x2={tick.x2}
+                    y2={tick.y2}
+                    stroke={
+                      tick.isMajor ? 'rgba(255, 245, 214, 0.78)' : 'rgba(246, 211, 139, 0.38)'
+                    }
+                    strokeWidth={tick.isMajor ? '1.35' : '0.8'}
+                    strokeLinecap="round"
+                  />
+                ))}
               </motion.svg>
 
-              <motion.svg
-                viewBox="0 0 200 200"
-                aria-hidden="true"
-                initial={{ opacity: 0, rotate: 22 }}
-                animate={{ opacity: 0.56, rotate: -22 }}
-                transition={{ duration: 2.6, ease: 'easeOut' }}
-                style={{ willChange: 'transform, opacity' }}
-                className="absolute inset-0 h-full w-full"
-              >
-                <circle
-                  cx="100"
-                  cy="100"
-                  r="66"
-                  fill="none"
-                  stroke="rgba(255, 240, 250, 0.24)"
-                  strokeWidth="0.75"
-                  strokeDasharray="2 9"
-                />
-              </motion.svg>
-
+              {/* Subtle Warm Celestial Inner Backlight */}
               <div
                 aria-hidden="true"
-                className="absolute inset-6 rounded-full opacity-75"
+                className="absolute inset-7 rounded-full opacity-70"
                 style={{
                   background:
-                    'radial-gradient(circle, rgba(255,118,198,0.28) 0%, rgba(253,224,71,0.16) 45%, rgba(10,4,20,0) 74%)',
+                    'radial-gradient(circle, rgba(246,211,139,0.22) 0%, rgba(244,114,182,0.14) 48%, rgba(5,2,10,0) 76%)',
                 }}
               />
 
+              {/* Higher-Contrast Champagne-Gold to Rose-White Capricorn (♑) SVG */}
               <svg
                 viewBox="0 0 160 160"
                 aria-hidden="true"
                 className="relative h-36 w-36 sm:h-40 sm:w-40"
                 style={{
                   filter:
-                    'drop-shadow(0 0 10px rgba(255, 244, 252, 0.95)) drop-shadow(0 0 22px rgba(255, 92, 184, 0.85)) drop-shadow(0 0 36px rgba(253, 224, 71, 0.55))',
+                    'drop-shadow(0 0 8px rgba(255, 251, 240, 0.95)) drop-shadow(0 0 20px rgba(246, 211, 139, 0.65)) drop-shadow(0 0 34px rgba(244, 114, 182, 0.45))',
                 }}
               >
                 <defs>
                   <linearGradient id="constellation-emblem-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#fff9fe" />
-                    <stop offset="50%" stopColor="#fde68a" />
-                    <stop offset="100%" stopColor="#ff7ac8" />
+                    <stop offset="0%" stopColor="#fffdf7" />
+                    <stop offset="48%" stopColor="#f6d38b" />
+                    <stop offset="100%" stopColor="#fda4cf" />
                   </linearGradient>
                 </defs>
 
@@ -129,12 +154,12 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                   d={emblem.svgPath}
                   fill="none"
                   stroke="url(#constellation-emblem-grad)"
-                  strokeWidth="3.2"
+                  strokeWidth="3.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   initial={{ pathLength: 0, opacity: 0.25 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.78, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
                 />
 
                 {emblem.starDots?.map(([cx, cy], idx) => (
@@ -142,32 +167,36 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                     key={`${cx}-${cy}`}
                     cx={cx}
                     cy={cy}
-                    r="3.2"
-                    fill="#fffaf0"
+                    r="3.4"
+                    fill="#fffdf7"
                     initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: [0, 1, 0.85], scale: [0, 1.35, 1] }}
-                    transition={{ duration: 0.42, delay: 0.24 + idx * 0.08, ease: 'easeOut' }}
+                    animate={{ opacity: [0, 1, 0.92], scale: [0, 1.35, 1] }}
+                    transition={{ duration: 0.45, delay: 0.32 + idx * 0.1, ease: 'easeOut' }}
                   />
                 ))}
               </svg>
             </div>
 
+            {/* Clean, Borderless Typography Positioned Below the Entire Astrolabe Ring (Zero Box!) */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.58, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-2 rounded-2xl border border-pink-300/25 bg-void/45 px-5 py-2.5 backdrop-blur-md"
+              transition={{ duration: 0.6, delay: 0.38, ease: [0.22, 1, 0.36, 1] }}
+              className="relative mt-6 flex flex-col items-center"
             >
               <h2
-                className="font-display text-2xl leading-snug font-semibold tracking-wide text-starlight sm:text-3xl"
+                className="font-display text-2xl leading-snug font-semibold tracking-wide text-[#fdf6ff] sm:text-3xl"
                 style={{
                   textShadow:
-                    '0 0 18px rgba(255, 118, 198, 0.65), 0 0 32px rgba(253, 224, 71, 0.35)',
+                    '0 2px 14px rgba(5, 2, 10, 0.9), 0 0 22px rgba(246, 211, 139, 0.48), 0 0 36px rgba(244, 114, 182, 0.36)',
                 }}
               >
                 {emblem.name}
               </h2>
-              <p className="mt-1 font-sans text-xs tracking-[0.14em] text-pink-100/90 uppercase sm:text-sm">
+              <p
+                className="mt-2 font-sans text-[11px] font-medium tracking-[0.22em] text-pink-100/85 uppercase sm:text-xs"
+                style={{ textShadow: '0 2px 10px rgba(5, 2, 10, 0.92)' }}
+              >
                 {emblem.subtitle}
               </p>
             </motion.div>
@@ -194,6 +223,7 @@ export function ConstellationCard() {
   const entryTimerRef = useRef<number | null>(null);
   const beat2TimerRef = useRef<number | null>(null);
   const beat3TimerRef = useRef<number | null>(null);
+  const beat4TimerRef = useRef<number | null>(null);
   const emblemRevealTimerRef = useRef<number | null>(null);
   const emblemDissolveTimerRef = useRef<number | null>(null);
   const finaleTimerRef = useRef<number | null>(null);
@@ -215,6 +245,11 @@ export function ConstellationCard() {
       window.clearTimeout(beat3TimerRef.current);
       beat3TimerRef.current = null;
     }
+    if (beat4TimerRef.current !== null) {
+      window.clearTimeout(beat4TimerRef.current);
+      beat4TimerRef.current = null;
+    }
+    galaxySignals.beamTracer.active = false;
     isSteppingRef.current = false;
     setIsStepping(false);
   }, []);
@@ -308,24 +343,26 @@ export function ConstellationCard() {
   }, [clearStepTimers, clearFinaleTimers]);
 
   /**
-   * Unhurried 3-Beat Star-to-Star Choreography (~1.45s before Beat 3 card reveal):
-   * - Beat 1 (0.0s -> 0.28s): Clear the sky completely (card & vignette fade out)
-   * - Beat 2 (0.28s -> 1.45s): Glide camera smoothly + draw 0.6s line + flare next star + ~0.45s admiration hold
-   * - Beat 3 (1.45s -> 1.85s): Gracefully reveal centered Milestone Card (400ms ease-out)
+   * Unhurried 4-Beat Travelling Light-Beam Choreography (~2.15s before Card Reveal):
+   * - Beat 1 (0.00s -> 0.35s): Clear the sky completely (card & vignette fade out)
+   * - Beat 2 (0.35s -> 1.55s): Launch 1.2s white-gold light head + crisp straight line draw + rising glide tone + camera follow
+   * - Beat 3 (1.55s -> 2.15s): Exact beam impact triggers Star i+1 flare + expanding halo ring + bell chime + 0.6s hold
+   * - Beat 4 (2.15s -> 2.60s): Gently fade & bloom next centered Milestone Card into view (450ms)
    */
   const runStarStepTransition = useCallback(
-    (targetIdx: number) => {
+    (fromIdx: number, targetIdx: number) => {
       if (isSteppingRef.current) return;
+      const fromStar = milestones[fromIdx];
       const target = milestones[targetIdx];
-      if (!target) return;
+      if (!fromStar || !target) return;
 
       isSteppingRef.current = true;
       setIsStepping(true);
 
-      // Beat 1: Fade out current card & vignette completely so the 3D night sky is 100% clear
+      // Beat 1 (0.00s -> 0.35s): Clear current card & vignette completely so the 3D sky is 100% unobstructed
       setDisplayedId(null);
 
-      // Beat 2 (at 280ms): Glide camera, draw connecting line (~0.6s), ignite star + celestial chime
+      // Beat 2 (at 350ms): Launch slow 1.2s white-gold light beam & extend straight line behind it
       beat2TimerRef.current = window.setTimeout(() => {
         beat2TimerRef.current = null;
         const latest = useAppStore.getState();
@@ -333,24 +370,44 @@ export function ConstellationCard() {
           clearStepTimers();
           return;
         }
-        if (targetIdx > latest.maxUnlockedMilestoneIndex) {
-          sfxEngine.playStarIgnite(targetIdx);
-        } else {
-          sfxEngine.playStarSelect();
-        }
+        const tracer = galaxySignals.beamTracer;
+        tracer.fromIdx = fromIdx;
+        tracer.toIdx = targetIdx;
+        tracer.fromPos.set(fromStar.position[0], fromStar.position[1], fromStar.position[2]);
+        tracer.toPos.set(target.position[0], target.position[1], target.position[2]);
+        tracer.currentHeadPos.copy(tracer.fromPos);
+        tracer.durationMs = BEAM_DRAW_DURATION_MS;
+        tracer.startMs = performance.now();
+        tracer.active = true;
+
+        sfxEngine.playBeamGlideTone(targetIdx);
         latest.setSelectedMilestoneId(target.id);
       }, BEAT1_CLEAR_SKY_MS);
 
-      // Beat 3 (at 1450ms): Gracefully reveal next centered Milestone Card
+      // Beat 3 (at 1550ms): Exact instant light head strikes Star i+1 -> flare + halo ring + bell chime
       beat3TimerRef.current = window.setTimeout(() => {
         beat3TimerRef.current = null;
+        const latest = useAppStore.getState();
+        if (latest.viewMode !== 'constellation' || latest.constellationFinaleActive) {
+          clearStepTimers();
+          return;
+        }
+        galaxySignals.beamTracer.active = false;
+        galaxySignals.starImpactIdx = targetIdx;
+        galaxySignals.starImpactStartMs = performance.now();
+        sfxEngine.playStarIgnite(targetIdx);
+      }, BEAT3_STAR_IGNITE_MS);
+
+      // Beat 4 (at 2150ms): After 0.6s admiration hold, bloom next centered Milestone Card cleanly
+      beat4TimerRef.current = window.setTimeout(() => {
+        beat4TimerRef.current = null;
         const latest = useAppStore.getState();
         isSteppingRef.current = false;
         setIsStepping(false);
         if (latest.viewMode === 'constellation' && !latest.constellationFinaleActive) {
           setDisplayedId(target.id);
         }
-      }, BEAT3_REVEAL_CARD_MS);
+      }, BEAT4_REVEAL_CARD_MS);
     },
     [clearStepTimers, milestones]
   );
@@ -359,7 +416,7 @@ export function ConstellationCard() {
     if (isSteppingRef.current || !milestones.length) return;
     const liveIdx = milestones.findIndex((m) => m.id === useAppStore.getState().selectedMilestoneId);
     if (liveIdx <= 0) return;
-    runStarStepTransition(liveIdx - 1);
+    runStarStepTransition(liveIdx, liveIdx - 1);
   }, [milestones, runStarStepTransition]);
 
   const handleCompleteConstellation = useCallback(() => {
@@ -423,7 +480,7 @@ export function ConstellationCard() {
       handleCompleteConstellation();
       return;
     }
-    runStarStepTransition(liveIdx + 1);
+    runStarStepTransition(liveIdx, liveIdx + 1);
   }, [handleCompleteConstellation, milestones, runStarStepTransition]);
 
   const handleClose = useCallback(() => {
@@ -475,8 +532,14 @@ export function ConstellationCard() {
               aria-label={`Kỷ niệm: ${current.title}`}
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96, pointerEvents: 'none' }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              exit={{
+                opacity: 0,
+                y: 8,
+                scale: 0.96,
+                pointerEvents: 'none',
+                transition: { duration: 0.28, ease: [0.4, 0, 1, 1] },
+              }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
               style={{ willChange: 'transform, opacity' }}
               className="pointer-events-auto glass-modal w-[92vw] max-w-[540px] rounded-[28px] p-5 sm:p-7"
             >

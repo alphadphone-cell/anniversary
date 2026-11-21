@@ -60,6 +60,8 @@ export const galaxySignals = {
   nodeWorldPositions: initialNodePositions,
   /** Active node ID currently undergoing 3D camera fly-to & orb portal ignition (null when idle). */
   focusingNodeId: null as GalaxyNodeId | null,
+  /** True while camera is smoothly pulling back after closing an orb modal (hides hover labels cleanly). */
+  isOrbReturning: false,
   /** Wall-clock timestamp (ms) when the current fly-to sequence began (0 when idle). */
   nodeFocusStartMs: 0,
   /** Normalized [0..1] portal ignition & sparkle burst progress on the focused orb (Beat 2). */
@@ -68,4 +70,18 @@ export const galaxySignals = {
   nodeFocusDim: 0,
   /** Brief [0..1] post-processing bloom pulse during orb portal ignition. */
   orbFlareBloomSpike: 0,
+  /** Travelling Light-Beam Tracer state for Star i -> Star i+1 in Constellation View (zero React re-renders). */
+  beamTracer: {
+    active: false,
+    startMs: 0,
+    durationMs: 1200,
+    fromIdx: 0,
+    toIdx: 0,
+    fromPos: new THREE.Vector3(),
+    toPos: new THREE.Vector3(),
+    currentHeadPos: new THREE.Vector3(),
+  },
+  /** Target star impact ring/flare triggered the exact instant the travelling beam hits Star i+1. */
+  starImpactIdx: -1,
+  starImpactStartMs: 0,
 };

@@ -44,9 +44,12 @@ const NODE_BEACON_FRAGMENT = /* glsl */ `
   }
 `;
 
-/** Beat 2 Portal Flare: expanding rose-white luminous shockwave ring around the focused orb. */
+/** Beat 2 Signature Portal Flare: distinct atmospheric mood per feature orb (rose-gold, violet ring, twin sparkle, nebula ripple). */
 const PORTAL_RING_FRAGMENT = /* glsl */ `
   uniform float uFlare;
+  uniform float uStyle;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
   varying vec2 vUv;
 
   void main() {
@@ -54,20 +57,40 @@ const PORTAL_RING_FRAGMENT = /* glsl */ `
     vec2 p = vUv * 2.0 - 1.0;
     float r = length(p);
     if (r > 1.0) discard;
+    float ang = atan(p.y, p.x);
 
     float eased = 1.0 - pow(1.0 - uFlare, 2.4);
-    float ringRadius = mix(0.16, 0.92, eased);
+    float ringRadius = mix(0.16, 0.9, eased);
     float bandWidth = mix(0.11, 0.045, eased);
-    float ring = exp(-pow((r - ringRadius) / bandWidth, 2.0));
-    float innerFlash = exp(-r * r * 7.5) * (1.0 - uFlare) * 0.85;
+    float primaryRing = exp(-pow((r - ringRadius) / bandWidth, 2.0));
+    float innerFlash = exp(-r * r * 7.2) * (1.0 - uFlare) * 0.78;
+    float accent = 0.0;
+
+    if (uStyle < 0.5) {
+      // Letter: warm rose-gold soft shimmer veil
+      float shimmer = 0.75 + 0.25 * sin(ang * 6.0 + uFlare * 8.0);
+      accent = exp(-pow((r - mix(0.1, 0.72, eased)) / 0.09, 2.0)) * 0.52 * shimmer;
+    } else if (uStyle < 1.5) {
+      // Counter: cool violet celestial double-ring with delicate orbital ticks
+      float tick = 0.6 + 0.4 * pow(max(0.0, cos(ang * 12.0 - uFlare * 5.0)), 4.0);
+      float outerRing = exp(-pow((r - mix(0.24, 0.92, eased)) / 0.032, 2.0)) * tick;
+      accent = outerRing * 0.85;
+    } else if (uStyle < 2.5) {
+      // Cards & Puzzle: playful twin star-wave burst
+      float rays = pow(max(0.0, cos(ang * 4.0 + uFlare * 4.5)), 6.0);
+      accent = rays * exp(-r * r * 3.2) * (1.0 - uFlare * 0.4) * 0.82;
+    } else {
+      // Museum/Gallery: deep concentric nebula portal ripples
+      float wave2 = exp(-pow((r - mix(0.08, 0.68, eased)) / 0.055, 2.0));
+      float swirl = 0.78 + 0.22 * sin(ang * 3.0 - r * 9.0 + uFlare * 7.0);
+      accent = wave2 * 0.78 * swirl;
+    }
 
     float envelope = smoothstep(0.0, 0.14, uFlare) * (1.0 - smoothstep(0.55, 1.0, uFlare));
     float edgeSoft = 1.0 - smoothstep(0.75, 0.98, r);
-    float alpha = clamp((ring * 0.92 + innerFlash) * envelope * edgeSoft, 0.0, 0.95);
+    float alpha = clamp((primaryRing * 0.82 + accent + innerFlash) * envelope * edgeSoft, 0.0, 0.95);
 
-    vec3 cRose = vec3(1.55, 0.58, 1.18);
-    vec3 cWhite = vec3(1.85, 1.72, 1.88);
-    vec3 col = mix(cRose, cWhite, clamp(ring * 0.65 + innerFlash, 0.0, 1.0));
+    vec3 col = mix(uColorA, uColorB, clamp(primaryRing * 0.55 + innerFlash * 0.85, 0.0, 1.0));
     gl_FragColor = vec4(col * alpha, alpha);
   }
 `;
@@ -75,6 +98,7 @@ const PORTAL_RING_FRAGMENT = /* glsl */ `
 /** Beat 2 Pooled 14-Sparkle Stardust Burst: 100% GPU-driven radial burst with zero per-frame allocations. */
 const PORTAL_SPARKLE_VERTEX = /* glsl */ `
   uniform float uFlare;
+  uniform float uStyle;
   uniform float uPixelRatio;
   attribute vec3 aDir;
   attribute float aSpeed;
@@ -84,23 +108,29 @@ const PORTAL_SPARKLE_VERTEX = /* glsl */ `
   varying float vMix;
 
   void main() {
-    float eased = 1.0 - pow(1.0 - uFlare, 2.6);
-    vec3 displaced = aDir * (0.18 + eased * aSpeed);
+    float eased = 1.0 - pow(1.0 - uFlare, 2.5);
+    float spin = (uStyle > 1.5 && uStyle < 2.5) ? uFlare * 0.9 : (uStyle >= 2.5 ? -uFlare * 0.55 : uFlare * 0.25);
+    float cs = cos(spin);
+    float sn = sin(spin);
+    vec3 rotDir = vec3(aDir.x * cs - aDir.y * sn, aDir.x * sn + aDir.y * cs, aDir.z);
+    vec3 displaced = rotDir * (0.2 + eased * aSpeed * 1.15);
     displaced.y += eased * 0.18;
 
-    float twinkle = 0.72 + 0.28 * sin(uFlare * 16.0 + aPhase);
+    float twinkle = 0.68 + 0.32 * sin(uFlare * 18.0 + aPhase);
     float env = smoothstep(0.0, 0.16, uFlare) * (1.0 - smoothstep(0.52, 1.0, uFlare));
     vAlpha = env * twinkle;
     vMix = fract(aPhase * 1.73);
 
     vec4 mvPos = modelViewMatrix * vec4(displaced, 1.0);
     gl_Position = projectionMatrix * mvPos;
-    float sizeFactor = (1.0 - eased * 0.35);
-    gl_PointSize = clamp(aSize * sizeFactor * uPixelRatio * (18.0 / max(1.2, -mvPos.z)), 2.0, 26.0);
+    float sizeFactor = (1.0 - eased * 0.32);
+    gl_PointSize = clamp(aSize * sizeFactor * uPixelRatio * (20.0 / max(1.4, -mvPos.z)), 2.0, 26.0);
   }
 `;
 
 const PORTAL_SPARKLE_FRAGMENT = /* glsl */ `
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
   varying float vAlpha;
   varying float vMix;
 
@@ -116,16 +146,32 @@ const PORTAL_SPARKLE_FRAGMENT = /* glsl */ `
                        exp(-abs(p.y) * 8.0 - abs(p.x) * 2.4) * 0.55;
     float shape = clamp(core + crossSpark * (1.0 - r), 0.0, 1.0);
     float alpha = shape * vAlpha;
-    if (alpha <= 0.005) discard;
 
-    vec3 cPearl = vec3(1.85, 1.72, 1.9);
-    vec3 cRose = vec3(1.65, 0.58, 1.2);
-    vec3 col = mix(cPearl, cRose, vMix * 0.6);
-    gl_FragColor = vec4(col, alpha);
+    vec3 col = mix(uColorB, uColorA, vMix * 0.65);
+    gl_FragColor = vec4(col * alpha, alpha);
   }
 `;
 
-const PORTAL_SPARKLE_COUNT = 14;
+const PORTAL_SPARKLE_COUNT = 16;
+
+interface OrbMoodPalette {
+  style: number;
+  colorA: [number, number, number];
+  colorB: [number, number, number];
+}
+
+const ORB_MOOD_PRESETS: Record<GalaxyNodeConfig['id'], OrbMoodPalette> = {
+  // Warm rose-gold shimmer for Love Letter
+  letter: { style: 0, colorA: [1.75, 1.28, 0.72], colorB: [1.85, 1.48, 1.62] },
+  // Cool violet celestial ring for Day Counter
+  counter: { style: 1, colorA: [0.92, 0.78, 1.92], colorB: [1.68, 1.74, 2.0] },
+  // Playful twin rose-gold sparkle burst for Love Cards
+  cards: { style: 2, colorA: [1.78, 0.56, 1.24], colorB: [1.96, 1.72, 1.08] },
+  // Playful twin lilac-pink sparkle burst for 3x3 Puzzle
+  puzzle: { style: 2, colorA: [1.32, 0.66, 1.92], colorB: [1.92, 1.54, 1.88] },
+  // Deep nebula portal ripple for Museum/Gallery
+  gallery: { style: 3, colorA: [1.46, 0.42, 1.72], colorB: [1.86, 1.24, 1.74] },
+};
 
 interface OrbitingNodesProps {
   interactive?: boolean;
@@ -288,12 +334,19 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       blending: THREE.AdditiveBlending,
     });
 
-    const pRingGeo = new THREE.PlaneGeometry(3.8, 3.8);
+    const mood = ORB_MOOD_PRESETS[node.id];
+    const moodColorA = new THREE.Vector3(...mood.colorA);
+    const moodColorB = new THREE.Vector3(...mood.colorB);
+
+    const pRingGeo = new THREE.PlaneGeometry(4.2, 4.2);
     const pRingMat = new THREE.ShaderMaterial({
       vertexShader: NODE_BEACON_VERTEX,
       fragmentShader: PORTAL_RING_FRAGMENT,
       uniforms: {
         uFlare: { value: 0 },
+        uStyle: { value: mood.style },
+        uColorA: { value: moodColorA },
+        uColorB: { value: moodColorB },
       },
       transparent: true,
       depthWrite: false,
@@ -332,7 +385,10 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       fragmentShader: PORTAL_SPARKLE_FRAGMENT,
       uniforms: {
         uFlare: { value: 0 },
+        uStyle: { value: mood.style },
         uPixelRatio: { value: 1 },
+        uColorA: { value: moodColorA },
+        uColorB: { value: moodColorB },
       },
       transparent: true,
       depthWrite: false,
@@ -352,12 +408,24 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     };
   }, [node]);
 
+  const hoverLabelRef = useRef<{ fillOpacity?: number; outlineOpacity?: number; visible?: boolean } | null>(null);
+
   useEffect(() => {
     if (!interactive && hovered) {
       setHovered(false);
       document.body.style.cursor = 'auto';
     }
   }, [interactive, hovered]);
+
+  // Immediately clear hover state when any camera fly-to or modal begins so giant hover text never flashes across the lens
+  useEffect(() => {
+    return useAppStore.subscribe((state) => {
+      if (state.focusingNodeId !== null || state.activeModal !== null) {
+        setHovered(false);
+        document.body.style.cursor = 'auto';
+      }
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -386,7 +454,16 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
 
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      if (!interactive || useAppStore.getState().focusingNodeId !== null) return;
+      const store = useAppStore.getState();
+      if (
+        !interactive ||
+        store.focusingNodeId !== null ||
+        store.activeModal !== null ||
+        galaxySignals.focusingNodeId !== null ||
+        galaxySignals.isOrbReturning
+      ) {
+        return;
+      }
       event.stopPropagation();
       setHovered(true);
       document.body.style.cursor = 'pointer';
@@ -491,6 +568,24 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     }
     material.color.lerp(colorScratchRef.current, Math.min(1, dt * (flarePulse > 0.01 ? 16 : 6)));
 
+    // Hide hover label immediately during fly-to, open modal, or pull-back return (zero text flashing across lens)
+    if (hoverLabelRef.current) {
+      const hideLabel =
+        isAnyFocusOrModal || galaxySignals.isOrbReturning || !hovered;
+      hoverLabelRef.current.visible = !hideLabel;
+      if (hideLabel) {
+        hoverLabelRef.current.fillOpacity = 0;
+        hoverLabelRef.current.outlineOpacity = 0;
+      } else {
+        hoverLabelRef.current.fillOpacity = THREE.MathUtils.lerp(
+          hoverLabelRef.current.fillOpacity ?? 0,
+          1,
+          Math.min(1, dt * 14)
+        );
+        hoverLabelRef.current.outlineOpacity = hoverLabelRef.current.fillOpacity;
+      }
+    }
+
     if (scaleWrapperRef.current) {
       const baseScale = isFocusedTarget
         ? 1.14 + flarePulse * 0.24
@@ -546,6 +641,13 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
           />
           {hovered && (
             <Text
+              ref={(el) => {
+                hoverLabelRef.current = el as unknown as {
+                  fillOpacity?: number;
+                  outlineOpacity?: number;
+                  visible?: boolean;
+                } | null;
+              }}
               font="/fonts/BeVietnamPro-SemiBold.ttf"
               position={[0, 1.08, 0.02]}
               fontSize={0.28}

@@ -18,23 +18,27 @@ const GALAXY_DEFAULT_POS = new THREE.Vector3(0, 6.4, 16.2);
 const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.75, 0);
 
 const CONSTELLATION_DEFAULT_POS = new THREE.Vector3(0, 14.2, 16.2);
-const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 14.4, 21.6);
+const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 14.4, 21.4);
+const CONSTELLATION_FINALE_RECEDE_POS = new THREE.Vector3(0, 13.0, 27.2);
 const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.2, -7.6);
+const CONSTELLATION_FINALE_RECEDE_TARGET = new THREE.Vector3(0, 15.6, -7.6);
 
 const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.45, 0);
 const BASE_GALAXY_FOV = 46;
-const FOCUS_ORB_FOV = 38;
+const FOCUS_ORB_FOV = 41;
 const DEFAULT_MIN_DISTANCE = 6;
-const FOCUS_MIN_DISTANCE = 2.2;
+const FOCUS_MIN_DISTANCE = 3.2;
 
 const ENTRANCE_DURATION = 1.8;
-const VIEW_GLIDE_DURATION = 1.4;
-const ORB_FLY_DURATION = 0.55;
-const ORB_FLARE_START = 0.5;
-const ORB_FLARE_END = 0.78;
-const ORB_MODAL_OPEN_AT = 0.65;
-const ORB_PULL_BACK_DURATION = 0.75;
-const ORB_STANDOFF_DISTANCE = 3.65;
+const VIEW_GLIDE_DURATION = 1.5;
+const ORB_FLY_DURATION = 1.15;
+const ORB_FLARE_START = 0.92;
+const ORB_FLARE_END = 1.38;
+const ORB_MODAL_OPEN_AT = 1.15;
+const ORB_PULL_BACK_DURATION = 1.0;
+const ORB_STANDOFF_DISTANCE = 5.4;
+const FINALE_RECEDE_START_SEC = 1.4;
+const FINALE_RECEDE_DURATION_SEC = 0.8;
 
 const SKY_MAX_POLAR_ANGLE = Math.PI * 0.78;
 const TILT_UP_TO_CONSTELLATION_POLAR = Math.PI * 0.56;
@@ -43,6 +47,32 @@ const VIEW_SWITCH_COOLDOWN_MS = 1600;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function easeInOutQuart(t: number): number {
+  return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+}
+
+function easeInOutSine(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function evalQuadraticBezier(
+  out: THREE.Vector3,
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+  t: number
+): THREE.Vector3 {
+  const inv = 1 - t;
+  const w0 = inv * inv;
+  const w1 = 2 * inv * t;
+  const w2 = t * t;
+  return out.set(
+    w0 * p0.x + w1 * p1.x + w2 * p2.x,
+    w0 * p0.y + w1 * p1.y + w2 * p2.y,
+    w0 * p0.z + w1 * p1.z + w2 * p2.z
+  );
 }
 
 export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
@@ -77,8 +107,11 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const orbCamScratchRef = useRef(new THREE.Vector3());
   const orbDestPosRef = useRef(new THREE.Vector3());
   const orbDestTargetRef = useRef(new THREE.Vector3());
+  const arcCtrlPosRef = useRef(new THREE.Vector3());
+  const arcTangentRef = useRef(new THREE.Vector3());
   const portalChimePlayedRef = useRef(false);
   const modalOpenedForFocusRef = useRef(false);
+  const finaleRecedeTriggeredRef = useRef(false);
 
   const startCameraGlide = (
     destPos: THREE.Vector3,
@@ -259,7 +292,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         orbDestPosRef.current
           .copy(orbPos)
           .addScaledVector(orbDirScratchRef.current, ORB_STANDOFF_DISTANCE);
-        orbDestPosRef.current.y += 0.14;
+        orbDestPosRef.current.y += 0.24;
 
         fromPosRef.current.copy(camera.position);
         fromTargetRef.current.copy(controlsRef.current?.target ?? GALAXY_DEFAULT_TARGET);
@@ -267,10 +300,26 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           camera instanceof THREE.PerspectiveCamera ? camera.fov : BASE_GALAXY_FOV;
         focusToFovRef.current = FOCUS_ORB_FOV;
 
+        // Compute lateral curved orbital arc control point (so the camera sweeps gracefully around instead of diving straight)
+        arcTangentRef.current.subVectors(orbDestPosRef.current, fromPosRef.current);
+        const chordLen = arcTangentRef.current.length();
+        const lateralX = -arcTangentRef.current.z;
+        const lateralZ = arcTangentRef.current.x;
+        const lateralLen = Math.hypot(lateralX, lateralZ) || 1;
+        const arcSide = orbPos.x >= 0 ? 1 : -1;
+        const arcBend = Math.min(2.6, chordLen * 0.22) * arcSide;
+        arcCtrlPosRef.current
+          .copy(fromPosRef.current)
+          .lerp(orbDestPosRef.current, 0.5);
+        arcCtrlPosRef.current.x += (lateralX / lateralLen) * arcBend;
+        arcCtrlPosRef.current.z += (lateralZ / lateralLen) * arcBend;
+        arcCtrlPosRef.current.y += Math.min(1.1, chordLen * 0.08 + 0.35);
+
         activeFocusNodeRef.current = nodeId;
         portalChimePlayedRef.current = false;
         modalOpenedForFocusRef.current = false;
         tweenActiveRef.current = false;
+        galaxySignals.isOrbReturning = false;
         focusPhaseRef.current = 'flyIn';
 
         if (controlsRef.current) {
@@ -283,7 +332,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         return;
       }
 
-      // Smooth Camera Pull-Back on Modal Close (ĐÓNG ×)
+      // Smooth 1.0s Camera Pull-Back on Modal Close (ĐÓNG ×)
       if (
         state.viewMode === 'galaxy' &&
         prev.activeModal !== null &&
@@ -293,6 +342,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         hasSavedFocusPoseRef.current = false;
         activeFocusNodeRef.current = null;
         galaxySignals.focusingNodeId = null;
+        galaxySignals.isOrbReturning = true;
         galaxySignals.nodeFocusStartMs = 0;
         galaxySignals.nodeFlareProgress = 0;
         galaxySignals.orbFlareBloomSpike = 0;
@@ -304,6 +354,18 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         focusFromFovRef.current =
           camera instanceof THREE.PerspectiveCamera ? camera.fov : FOCUS_ORB_FOV;
         focusToFovRef.current = BASE_GALAXY_FOV;
+
+        // Gentle inverse orbital arc on pull-back
+        arcTangentRef.current.subVectors(toPosRef.current, fromPosRef.current);
+        const backChord = arcTangentRef.current.length();
+        const backLatX = -arcTangentRef.current.z;
+        const backLatZ = arcTangentRef.current.x;
+        const backLatLen = Math.hypot(backLatX, backLatZ) || 1;
+        const backBend = Math.min(1.8, backChord * 0.14);
+        arcCtrlPosRef.current.copy(fromPosRef.current).lerp(toPosRef.current, 0.5);
+        arcCtrlPosRef.current.x += (backLatX / backLatLen) * backBend;
+        arcCtrlPosRef.current.z += (backLatZ / backLatLen) * backBend;
+        arcCtrlPosRef.current.y += Math.min(0.85, backChord * 0.06 + 0.2);
 
         tweenStartMsRef.current = performance.now();
         tweenDurationRef.current = ORB_PULL_BACK_DURATION;
@@ -317,17 +379,18 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         return;
       }
 
-      // Finale showcase (0.0s -> 0.85s): pull camera smoothly back so all 7 stars sit dead-center behind the Emblem
+      // Finale Phase 1 (0.0s -> 1.4s): frame all 7 Capricornus stars cleanly for the Golden Circuit Surge
       if (
         state.viewMode === 'constellation' &&
         state.constellationFinaleActive &&
         !prev.constellationFinaleActive
       ) {
-        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.85);
+        finaleRecedeTriggeredRef.current = false;
+        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.72);
         return;
       }
 
-      // Focus camera gracefully toward active milestone star with easeInOutCubic glide (~0.95s)
+      // Focus camera gracefully toward active milestone star (leads slightly ahead of the 1.2s travelling light-beam)
       if (
         state.viewMode === 'constellation' &&
         !state.constellationFinaleActive &&
@@ -351,7 +414,8 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
             13.2 + (star.position[1] - 16) * 0.25,
             12.2
           );
-          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.95);
+          const glideDuration = galaxySignals.beamTracer.active ? 1.32 : 0.95;
+          startCameraGlide(focusPos.clone(), focusTarget.clone(), glideDuration);
         }
       }
     });
@@ -382,7 +446,27 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       Math.min(1, dt * (shouldDimForOrb ? 7.5 : 4.5))
     );
 
-    // Beat 1 (0.0s -> 0.55s) + Beat 2 (0.50s -> 0.78s) + Beat 3 (0.65s): Orb Camera Fly-To & Unfold
+    // Finale Phase 2 (1.40s -> 2.20s): gracefully glide camera further back/down so dimmed 7 stars become a delicate backdrop
+    if (
+      stage === 'galaxy' &&
+      storeNow.viewMode === 'constellation' &&
+      storeNow.constellationFinaleActive &&
+      galaxySignals.constellationFinaleStartMs > 0 &&
+      !finaleRecedeTriggeredRef.current &&
+      !reducedMotion
+    ) {
+      const fSec = (performance.now() - galaxySignals.constellationFinaleStartMs) / 1000;
+      if (fSec >= FINALE_RECEDE_START_SEC) {
+        finaleRecedeTriggeredRef.current = true;
+        startCameraGlide(
+          CONSTELLATION_FINALE_RECEDE_POS,
+          CONSTELLATION_FINALE_RECEDE_TARGET,
+          FINALE_RECEDE_DURATION_SEC
+        );
+      }
+    }
+
+    // Beat 1 (0.0s -> 1.15s Curved Orbital Arc) + Beat 2 (0.92s -> 1.38s Flair) + Beat 3 (1.15s Unfold)
     if (focusPhaseRef.current === 'flyIn' && stage === 'galaxy') {
       const nodeId = activeFocusNodeRef.current;
       if (!nodeId) {
@@ -390,7 +474,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       } else {
         const elapsedSec = (performance.now() - galaxySignals.nodeFocusStartMs) / 1000;
         const flyT = THREE.MathUtils.clamp(elapsedSec / ORB_FLY_DURATION, 0, 1);
-        const eased = easeInOutCubic(flyT);
+        const eased = easeInOutQuart(flyT);
 
         // Track live world position of the target orb (zero allocation)
         const liveOrbPos = galaxySignals.nodeWorldPositions[nodeId];
@@ -398,9 +482,15 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         orbDestPosRef.current
           .copy(liveOrbPos)
           .addScaledVector(orbDirScratchRef.current, ORB_STANDOFF_DISTANCE);
-        orbDestPosRef.current.y += 0.14;
+        orbDestPosRef.current.y += 0.24;
 
-        camera.position.lerpVectors(fromPosRef.current, orbDestPosRef.current, eased);
+        evalQuadraticBezier(
+          camera.position,
+          fromPosRef.current,
+          arcCtrlPosRef.current,
+          orbDestPosRef.current,
+          eased
+        );
         if (controlsRef.current) {
           controlsRef.current.target.lerpVectors(
             fromTargetRef.current,
@@ -420,7 +510,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           }
         }
 
-        // Beat 2: Orb Ignition & Portal Flare (0.50s -> 0.78s)
+        // Beat 2: Distinct Orb Ignition & Portal Flare (0.92s -> 1.38s)
         if (elapsedSec >= ORB_FLARE_START) {
           if (!portalChimePlayedRef.current) {
             portalChimePlayedRef.current = true;
@@ -435,7 +525,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           galaxySignals.orbFlareBloomSpike = Math.sin(flareT * Math.PI);
         }
 
-        // Beat 3: Unfold Modal right as Portal Flare peaks (0.65s)
+        // Beat 3: Lush Modal Bloom Unfold right as Portal Flare peaks (1.15s)
         if (elapsedSec >= ORB_MODAL_OPEN_AT && !modalOpenedForFocusRef.current) {
           modalOpenedForFocusRef.current = true;
           useAppStore.getState().completeNodeFocus();
@@ -455,6 +545,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
     if (focusPhaseRef.current === 'holding' && stage === 'galaxy') {
       if (storeNow.activeModal === null && storeNow.focusingNodeId === null) {
         focusPhaseRef.current = 'idle';
+        galaxySignals.isOrbReturning = false;
         if (controlsRef.current) {
           controlsRef.current.minDistance = DEFAULT_MIN_DISTANCE;
           controlsRef.current.enabled = true;
@@ -464,13 +555,19 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       }
     }
 
-    // Smooth 0.75s Camera Pull-Back on Modal Close back to resting Galaxy orbit pose
+    // Graceful 1.0s Curved Orbital Pull-Back on Modal Close back to resting Galaxy orbit pose
     if (focusPhaseRef.current === 'pullBack' && stage === 'galaxy') {
       const elapsedSec = (performance.now() - tweenStartMsRef.current) / 1000;
       const t = THREE.MathUtils.clamp(elapsedSec / ORB_PULL_BACK_DURATION, 0, 1);
-      const eased = easeInOutCubic(t);
+      const eased = easeInOutQuart(t);
 
-      camera.position.lerpVectors(fromPosRef.current, toPosRef.current, eased);
+      evalQuadraticBezier(
+        camera.position,
+        fromPosRef.current,
+        arcCtrlPosRef.current,
+        toPosRef.current,
+        eased
+      );
       if (controlsRef.current) {
         controlsRef.current.target.lerpVectors(fromTargetRef.current, toTargetRef.current, eased);
         controlsRef.current.update();
@@ -488,6 +585,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
 
       if (t >= 1) {
         focusPhaseRef.current = 'idle';
+        galaxySignals.isOrbReturning = false;
         hasUserDraggedInModeRef.current = false;
         if (controlsRef.current) {
           controlsRef.current.minDistance = DEFAULT_MIN_DISTANCE;
@@ -508,11 +606,13 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         0,
         1
       );
-      // Graceful easeInOutCubic in Constellation View for silky unhurried pan; snappy easeOutCubic for Galaxy entrance
-      const eased =
-        useAppStore.getState().viewMode === 'constellation'
-          ? easeInOutCubic(t)
-          : 1 - Math.pow(1 - t, 3);
+      // Silky easeInOutSine while following Constellation light-beam; easeInOutCubic for general Constellation pan
+      const isConstellation = useAppStore.getState().viewMode === 'constellation';
+      const eased = isConstellation
+        ? galaxySignals.beamTracer.active
+          ? easeInOutSine(t)
+          : easeInOutCubic(t)
+        : 1 - Math.pow(1 - t, 3);
 
       camera.position.lerpVectors(fromPosRef.current, toPosRef.current, eased);
       if (controlsRef.current) {
@@ -641,6 +741,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         tweenActiveRef.current = false;
         if (focusPhaseRef.current === 'pullBack') {
           focusPhaseRef.current = 'idle';
+          galaxySignals.isOrbReturning = false;
           if (controlsRef.current) {
             const store = useAppStore.getState();
             controlsRef.current.autoRotate =
