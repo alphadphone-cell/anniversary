@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { FastForward } from 'lucide-react';
 import {
+  useAppStore,
   useCurrentTrackIndex,
   useIsMusicPlaying,
   useIsMuted,
@@ -11,12 +13,16 @@ import {
 } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
+import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 import { SetupStage } from './SetupStage';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
 import { ConstellationCard } from './ConstellationCard';
 import { JourneyGuidePill } from './JourneyGuidePill';
+
+// Temporary dev helper toggle — set to `false` (or remove) once content customization is finished
+const SHOW_DEV_SKIP_BUTTON = true;
 
 /** Isolated flash overlay so flashing never re-renders the main HUD or WebGL canvas. */
 function WarpFlashOverlay() {
@@ -159,6 +165,17 @@ function NowPlayingBadge() {
 export function HudOverlay() {
   const stage = useStage();
 
+  const handleDevSkipToGalaxy = useCallback(() => {
+    const store = useAppStore.getState();
+    if (store.stage === 'galaxy') return;
+    sfxEngine.stopChargeHum();
+    sfxEngine.stopWarpWhoosh();
+    sfxEngine.unlock();
+    store.setMuted(false);
+    store.setStage('galaxy');
+    musicEngine.startOnFirstGesture();
+  }, []);
+
   useEffect(() => {
     const cleanupAmbient = installAlwaysOnAmbientAudio();
     const unlockSfx = () => sfxEngine.unlock();
@@ -226,6 +243,19 @@ export function HudOverlay() {
 
       {/* Pure Obsidian-Black Pre-Intro Setup Veil (fades out smoothly over 800ms into IntroStage) */}
       <AnimatePresence>{stage === 'setup' && <SetupStage key="setup" />}</AnimatePresence>
+
+      {/* Temporary Dev Skip Button to bypass Setup, Intro & Warp straight into Galaxy */}
+      {SHOW_DEV_SKIP_BUTTON && stage !== 'galaxy' && (
+        <button
+          type="button"
+          onClick={handleDevSkipToGalaxy}
+          aria-label="Skip vào thẳng Ngân Hà"
+          className="pointer-events-auto fixed top-4 right-4 z-[90] inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/20 bg-void/80 px-4 text-xs font-medium tracking-wide text-lavender backdrop-blur-md transition-colors duration-200 hover:border-neon-pink/60 hover:text-starlight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-pink"
+        >
+          <FastForward className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.85} aria-hidden="true" />
+          <span>Skip</span>
+        </button>
+      )}
     </div>
   );
 }
