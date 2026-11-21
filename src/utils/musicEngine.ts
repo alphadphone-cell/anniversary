@@ -189,6 +189,8 @@ class ContinuousMusicEngine {
   private currentIndex = 0;
   private transitionLockUntil = 0;
   private activeMode: 'none' | 'html-audio' | 'procedural-ost' = 'none';
+  private playbackGeneration = 0;
+  private introStopTimer: number | null = null;
 
   // Procedural K-Drama OST sequencer state (Deck A fallback)
   private seqTimer: number | null = null;
@@ -712,9 +714,154 @@ class ContinuousMusicEngine {
     }
   }
 
-  /** Unlocks Web Audio on the first user gesture and starts Track 1 with a silky 1.5s fade-in. */
+  /**
+   * Starts Track 1 cleanly from 0:00 specifically for holding the Intro crystal heart.
+   * Uses a generation token so releasing early before async play()/resume() settles can never leak audio.
+   */
+  public startIntroHoldPlayback(): void {
+    const gen = ++this.playbackGeneration;
+    if (this.introStopTimer !== null) {
+      window.clearTimeout(this.introStopTimer);
+      this.introStopTimer = null;
+    }
+
+    sfxEngine.unlock();
+    const ctx = this.ensureAudioGraph();
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    const playlist = this.getPlaylist();
+    const track = playlist[0];
+    this.started = true;
+    this.currentIndex = 0;
+    useAppStore.getState().setCurrentTrackIndex(0);
+
+    if (ctx && this.deckAGain) {
+      this.rampGain(this.deckAGain, 1.0, 0.05);
+    }
+    if (ctx && this.masterGain) {
+      const now = ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(0.0001, now);
+      this.rampMasterGain(this.getTargetVolume(), 0.75);
+    }
+
+    if (!track || !this.isLocalFileAvailable(track.src)) {
+      this.pauseHtmlDecks(0.08);
+      this.startProceduralOst(0, 0.65);
+      return;
+    }
+
+    const decks = this.ensureDecks();
+    if (!decks) return;
+
+    this.stopProceduralOst(0.08);
+    this.activeMode = 'html-audio';
+
+    const activeDeck = decks[this.activeDeckIdx];
+    const idleDeck = decks[this.activeDeckIdx === 0 ? 1 : 0];
+
+    if (ctx && idleDeck.gain) {
+      const now = ctx.currentTime;
+      idleDeck.gain.gain.cancelScheduledValues(now);
+      idleDeck.gain.gain.setValueAtTime(0.0001, now);
+    }
+    if (!idleDeck.audio.paused) {
+      idleDeck.audio.pause();
+    }
+
+    const expectedHref = new URL(track.src, window.location.origin).href;
+    activeDeck.audio.preload = 'auto';
+    if (activeDeck.audio.src !== expectedHref) {
+      activeDeck.audio.src = track.src;
+    }
+    try {
+      activeDeck.audio.currentTime = 0;
+    } catch {
+      // Metadata not yet ready; will naturally start at 0
+    }
+
+    if (ctx && activeDeck.gain) {
+      const now = ctx.currentTime;
+      activeDeck.gain.gain.cancelScheduledValues(now);
+      activeDeck.gain.gain.setValueAtTime(1.0, now);
+    } else {
+      activeDeck.audio.volume = this.getTargetVolume();
+    }
+
+    void activeDeck.audio
+      .play()
+      .then(() => {
+        if (this.playbackGeneration !== gen) {
+          activeDeck.audio.pause();
+          try {
+            activeDeck.audio.currentTime = 0;
+          } catch {
+            // Ignore
+          }
+          return;
+        }
+        useAppStore.getState().setIsMusicPlaying(!useAppStore.getState().isMuted);
+      })
+      .catch(() => {
+        if (this.playbackGeneration !== gen) return;
+        useAppStore.getState().setIsMusicPlaying(false);
+      });
+  }
+
+  /**
+   * Stops playback immediately and rewinds to 0:00 when the user releases the Intro heart before 100%,
+   * ensuring the next hold always starts cleanly from the very beginning.
+   */
+  public stopAndResetIntroPlayback(): void {
+    const gen = ++this.playbackGeneration;
+    if (this.introStopTimer !== null) {
+      window.clearTimeout(this.introStopTimer);
+      this.introStopTimer = null;
+    }
+
+    this.started = false;
+    this.activeMode = 'none';
+    useAppStore.getState().setIsMusicPlaying(false);
+
+    const ctx = sfxEngine.getContext();
+    if (ctx && this.masterGain) {
+      this.rampGain(this.masterGain, 0.0001, 0.05);
+    }
+
+    this.stopProceduralOst(0.06);
+
+    const pauseAndRewind = () => {
+      if (this.playbackGeneration !== gen) return;
+      if (this.decks) {
+        for (const deck of this.decks) {
+          if (!deck.audio.paused) {
+            deck.audio.pause();
+          }
+          try {
+            deck.audio.currentTime = 0;
+          } catch {
+            // Ignore if media metadata not loaded
+          }
+        }
+      }
+    };
+
+    if (ctx && this.masterGain) {
+      this.introStopTimer = window.setTimeout(() => {
+        this.introStopTimer = null;
+        pauseAndRewind();
+      }, 60);
+    } else {
+      pauseAndRewind();
+    }
+  }
+
+  /** Unlocks Web Audio on the first user gesture (post-Intro) and starts Track 1 with a silky 1.5s fade-in. */
   public startOnFirstGesture(): void {
-    if (useAppStore.getState().stage === 'setup') return;
+    const stage = useAppStore.getState().stage;
+    if (stage === 'setup' || stage === 'intro') return;
     sfxEngine.unlock();
     const ctx = this.ensureAudioGraph();
 
@@ -755,14 +902,15 @@ class ContinuousMusicEngine {
     }
   }
 
-  /** Installs global gesture listeners outside stage components so music unlocks reliably on iOS/Chrome & persists everywhere. */
+  /** Installs global gesture listeners outside stage components so music persists reliably post-Intro. */
   public installPersistence(): () => void {
     if (typeof window === 'undefined' || this.gestureListenersInstalled) return () => {};
     this.gestureListenersInstalled = true;
 
     const onGesture = () => {
-      // Keep the main soundtrack silent while in the Pre-Intro Setup screen
-      if (useAppStore.getState().stage === 'setup') return;
+      // Keep soundtrack silent during Pre-Intro Setup and strictly heart-hold-controlled during Intro
+      const stage = useAppStore.getState().stage;
+      if (stage === 'setup' || stage === 'intro') return;
       this.startOnFirstGesture();
       const ctx = sfxEngine.getContext();
       if (this.started && ctx && ctx.state === 'running') {

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { galaxySignals } from '../../canvas/galaxySignals';
 import { useAppStore } from '../../store/useAppStore';
-import { startAmbientAudio } from '../../audio/audioEngine';
+import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 
 const HEART_PATH =
@@ -35,8 +35,7 @@ export function IntroStage() {
 
   const progressRef = useRef(0);
   const isHoldingRef = useRef(false);
-  const autoChargingRef = useRef(false);
-  const pressStartRef = useRef(0);
+  const activePointerIdRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const hasCompletedRef = useRef(false);
@@ -44,11 +43,6 @@ export function IntroStage() {
   const warpTimerRef = useRef<number | null>(null);
 
   const setStage = useAppStore((s) => s.setStage);
-
-  const triggerAudioOnGesture = useCallback(() => {
-    sfxEngine.unlock();
-    startAmbientAudio();
-  }, []);
 
   const stopLoop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -62,7 +56,7 @@ export function IntroStage() {
     if (hasCompletedRef.current) return;
     hasCompletedRef.current = true;
     isHoldingRef.current = false;
-    autoChargingRef.current = false;
+    activePointerIdRef.current = null;
     stopLoop();
     progressRef.current = 100;
     galaxySignals.introCharge = 1;
@@ -70,7 +64,7 @@ export function IntroStage() {
     setIsCharging(false);
     setIsComplete(true);
 
-    // Chime + sub-bass impact as progress ring locks at 360°
+    // Chime + sub-bass impact as progress ring locks at 360° (music keeps playing continuously!)
     sfxEngine.playChargeComplete();
 
     // Crisp 250ms peak glow hold -> smoothly dissolve glass & text outward -> ignite Warp portal
@@ -101,7 +95,7 @@ export function IntroStage() {
       const u = next / 100;
       const currentRate = BASE_CHARGE_PER_SEC + ACCEL_CHARGE_BONUS * u;
 
-      if (isHoldingRef.current || autoChargingRef.current) {
+      if (isHoldingRef.current) {
         next = Math.min(100, next + currentRate * dt);
       } else if (next > 0) {
         next = Math.max(0, next - DECAY_RATE * dt);
@@ -111,7 +105,7 @@ export function IntroStage() {
       galaxySignals.introCharge = next / 100;
       setProgress(next);
 
-      if (isHoldingRef.current || autoChargingRef.current) {
+      if (isHoldingRef.current) {
         sfxEngine.updateChargeHum(next / 100);
       }
 
@@ -120,7 +114,7 @@ export function IntroStage() {
         return;
       }
 
-      if (!isHoldingRef.current && !autoChargingRef.current && next <= 0) {
+      if (!isHoldingRef.current && next <= 0) {
         galaxySignals.introCharge = 0;
         setIsCharging(false);
         sfxEngine.stopChargeHum();
@@ -134,33 +128,34 @@ export function IntroStage() {
     rafRef.current = requestAnimationFrame(tick);
   }, [completeCharge, stopLoop]);
 
-  const handlePressStart = useCallback(() => {
-    if (hasCompletedRef.current) return;
-    triggerAudioOnGesture();
-    pressStartRef.current = performance.now();
-    isHoldingRef.current = true;
-    setIsCharging(true);
-    sfxEngine.startChargeHum();
-    ensureLoopRunning();
-  }, [ensureLoopRunning, triggerAudioOnGesture]);
+  const handlePressStart = useCallback(
+    (pointerId: number | null = null) => {
+      if (hasCompletedRef.current || isHoldingRef.current) return;
+      activePointerIdRef.current = pointerId;
+      isHoldingRef.current = true;
+      setIsCharging(true);
+      sfxEngine.unlock();
+      musicEngine.startIntroHoldPlayback();
+      sfxEngine.startChargeHum();
+      ensureLoopRunning();
+    },
+    [ensureLoopRunning]
+  );
 
   const handlePressEnd = useCallback(
-    (canceled = false) => {
+    (pointerId: number | null = null) => {
       if (hasCompletedRef.current) return;
       if (!isHoldingRef.current) return;
-
-      const heldMs = performance.now() - pressStartRef.current;
-      isHoldingRef.current = false;
-
-      // Support both holding AND single tap: a quick tap latches the same smooth ~3.4s musical build-up
-      if (!canceled && heldMs < 420) {
-        autoChargingRef.current = true;
-        setIsCharging(true);
-      } else if (!autoChargingRef.current) {
-        setIsCharging(false);
-        sfxEngine.stopChargeHum();
+      if (pointerId !== null && activePointerIdRef.current !== null && pointerId !== activePointerIdRef.current) {
+        return;
       }
 
+      activePointerIdRef.current = null;
+      isHoldingRef.current = false;
+      setIsCharging(false);
+      sfxEngine.stopChargeHum();
+      // Released before completing heart unlock -> stop music & reset to 0:00 so next hold restarts from beginning
+      musicEngine.stopAndResetIntroPlayback();
       ensureLoopRunning();
     },
     [ensureLoopRunning]
@@ -171,7 +166,7 @@ export function IntroStage() {
       if (event.repeat) return;
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
-        handlePressStart();
+        handlePressStart(null);
       }
     },
     [handlePressStart]
@@ -181,21 +176,43 @@ export function IntroStage() {
     (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
-        handlePressEnd(false);
+        handlePressEnd(null);
       }
     },
     [handlePressEnd]
   );
 
+  // Global release/blur safety net so releasing outside the viewport or switching tabs always stops the hold & music
   useEffect(() => {
+    const onWindowPointerUp = (e: PointerEvent) => {
+      if (isHoldingRef.current) {
+        handlePressEnd(e.pointerId);
+      }
+    };
+    const onWindowBlur = () => {
+      if (isHoldingRef.current) {
+        handlePressEnd(null);
+      }
+    };
+
+    window.addEventListener('pointerup', onWindowPointerUp);
+    window.addEventListener('pointercancel', onWindowPointerUp);
+    window.addEventListener('blur', onWindowBlur);
+
     return () => {
+      window.removeEventListener('pointerup', onWindowPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerUp);
+      window.removeEventListener('blur', onWindowBlur);
       stopLoop();
       sfxEngine.stopChargeHum();
+      if (!hasCompletedRef.current) {
+        musicEngine.stopAndResetIntroPlayback();
+      }
       galaxySignals.introCharge = 0;
       if (dissolveTimerRef.current !== null) window.clearTimeout(dissolveTimerRef.current);
       if (warpTimerRef.current !== null) window.clearTimeout(warpTimerRef.current);
     };
-  }, [stopLoop]);
+  }, [handlePressEnd, stopLoop]);
 
   const roundedPercent = Math.round(progress);
   const chargeRatio = progress / 100;
@@ -271,26 +288,7 @@ export function IntroStage() {
 
           {/* Interactive Luminous Crystal Heart + SVG Circular Progress Ring */}
           <div className="relative my-8 flex items-center justify-center">
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                handlePressStart();
-              }}
-              onPointerUp={() => handlePressEnd(false)}
-              onPointerLeave={() => {
-                if (isHoldingRef.current) handlePressEnd(true);
-              }}
-              onPointerCancel={() => handlePressEnd(true)}
-              onKeyDown={handleKeyDown}
-              onKeyUp={handleKeyUp}
-              aria-label="Em chạm và giữ tay vào trái tim để mở cổng ngân hà nhé"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={roundedPercent}
-              role="slider"
-              className="group relative flex h-44 w-44 cursor-pointer items-center justify-center rounded-full select-none touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0b0416]"
-            >
+            <div className="relative flex h-44 w-44 items-center justify-center select-none">
               {/* Concentric Breathing Ripple Rings (expanding gently outward) */}
               <motion.span
                 aria-hidden="true"
@@ -392,103 +390,138 @@ export function IntroStage() {
                 )}
               </svg>
 
-              {/* Multi-Layered Luminous Crystal Heart Centerpiece */}
-              <motion.div
-                animate={
-                  isDissolving
-                    ? { scale: 0.18, opacity: 0 }
-                    : isComplete
-                      ? { scale: 1.16, opacity: 1 }
-                      : isActive
-                        ? { scale: 1 + chargeRatio * 0.1 + Math.sin(chargeRatio * 24) * 0.015 }
-                        : { scale: [1, 1.045, 1] }
-                }
-                transition={
-                  isDissolving
-                    ? { duration: 0.28, ease: [0.4, 0, 1, 1] }
-                    : isComplete
-                      ? { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
-                      : isActive
-                        ? { duration: 0.08 }
-                        : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
-                }
-                style={{ willChange: 'transform, opacity' }}
-                className="relative flex h-24 w-24 items-center justify-center"
+              {/* Strict Heart-Shaped Interactive Trigger (left-click / touch inside heart silhouette only) */}
+              <button
+                type="button"
+                onPointerDown={(e) => {
+                  // Only primary left mouse button or touch/pen contact inside the heart shape
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  handlePressStart(e.pointerId);
+                }}
+                onPointerUp={(e) => {
+                  if (e.button !== 0) return;
+                  handlePressEnd(e.pointerId);
+                }}
+                onPointerLeave={(e) => {
+                  if (isHoldingRef.current) handlePressEnd(e.pointerId);
+                }}
+                onPointerCancel={(e) => handlePressEnd(e.pointerId)}
+                onContextMenu={(e) => e.preventDefault()}
+                onKeyDown={handleKeyDown}
+                onKeyUp={handleKeyUp}
+                aria-label="Em chạm và giữ tay vào trái tim để mở cổng ngân hà nhé"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={roundedPercent}
+                role="slider"
+                className="pointer-events-none relative flex h-24 w-24 items-center justify-center rounded-full select-none touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0b0416]"
               >
-                <svg
-                  viewBox="0 0 120 112"
-                  aria-hidden="true"
-                  className="h-20 w-20 overflow-visible sm:h-[86px] sm:w-[86px]"
-                  style={{
-                    filter: `drop-shadow(0 0 ${14 + chargeRatio * 24}px rgba(255, 62, 165, ${0.55 + chargeRatio * 0.4}))`,
-                  }}
+                {/* Multi-Layered Luminous Crystal Heart Centerpiece */}
+                <motion.div
+                  animate={
+                    isDissolving
+                      ? { scale: 0.18, opacity: 0 }
+                      : isComplete
+                        ? { scale: 1.16, opacity: 1 }
+                        : isActive
+                          ? { scale: 1 + chargeRatio * 0.1 + Math.sin(chargeRatio * 24) * 0.015 }
+                          : { scale: [1, 1.045, 1] }
+                  }
+                  transition={
+                    isDissolving
+                      ? { duration: 0.28, ease: [0.4, 0, 1, 1] }
+                      : isComplete
+                        ? { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                        : isActive
+                          ? { duration: 0.08 }
+                          : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
+                  }
+                  style={{ willChange: 'transform, opacity' }}
+                  className="pointer-events-none relative flex h-24 w-24 items-center justify-center"
                 >
-                  <defs>
-                    {/* Rich inner crystal heart radial gradient */}
-                    <radialGradient id="crystal-heart-core" cx="38%" cy="30%" r="72%">
-                      <stop offset="0%" stopColor="#fff5fc" />
-                      <stop offset="32%" stopColor="#ff7ac8" />
-                      <stop offset="72%" stopColor="#ec4899" />
-                      <stop offset="100%" stopColor="#86198f" />
-                    </radialGradient>
+                  <svg
+                    viewBox="0 0 120 112"
+                    aria-hidden="true"
+                    className="pointer-events-none h-20 w-20 overflow-visible sm:h-[86px] sm:w-[86px]"
+                    style={{
+                      filter: `drop-shadow(0 0 ${14 + chargeRatio * 24}px rgba(255, 62, 165, ${0.55 + chargeRatio * 0.4}))`,
+                    }}
+                  >
+                    <defs>
+                      {/* Rich inner crystal heart radial gradient */}
+                      <radialGradient id="crystal-heart-core" cx="38%" cy="30%" r="72%">
+                        <stop offset="0%" stopColor="#fff5fc" />
+                        <stop offset="32%" stopColor="#ff7ac8" />
+                        <stop offset="72%" stopColor="#ec4899" />
+                        <stop offset="100%" stopColor="#86198f" />
+                      </radialGradient>
 
-                    {/* Frosted glass specular top-left highlight */}
-                    <linearGradient id="crystal-heart-sheen" x1="15%" y1="5%" x2="75%" y2="85%">
-                      <stop offset="0%" stopColor="rgba(255, 255, 255, 0.72)" />
-                      <stop offset="38%" stopColor="rgba(255, 228, 245, 0.22)" />
-                      <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
-                    </linearGradient>
+                      {/* Frosted glass specular top-left highlight */}
+                      <linearGradient id="crystal-heart-sheen" x1="15%" y1="5%" x2="75%" y2="85%">
+                        <stop offset="0%" stopColor="rgba(255, 255, 255, 0.72)" />
+                        <stop offset="38%" stopColor="rgba(255, 228, 245, 0.22)" />
+                        <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
+                      </linearGradient>
 
-                    {/* Soft seamless radial inner bloom inside crystal heart */}
-                    <radialGradient id="crystal-inner-bloom" cx="50%" cy="46%" r="50%">
-                      <stop offset="0%" stopColor="#fff9fe" stopOpacity="0.85" />
-                      <stop offset="55%" stopColor="#ffb6e3" stopOpacity="0.28" />
-                      <stop offset="100%" stopColor="#ff3ea5" stopOpacity="0" />
-                    </radialGradient>
+                      {/* Soft seamless radial inner bloom inside crystal heart */}
+                      <radialGradient id="crystal-inner-bloom" cx="50%" cy="46%" r="50%">
+                        <stop offset="0%" stopColor="#fff9fe" stopOpacity="0.85" />
+                        <stop offset="55%" stopColor="#ffb6e3" stopOpacity="0.28" />
+                        <stop offset="100%" stopColor="#ff3ea5" stopOpacity="0" />
+                      </radialGradient>
 
-                    <clipPath id="crystal-heart-clip">
-                      <path d={HEART_PATH} />
-                    </clipPath>
-                  </defs>
+                      <clipPath id="crystal-heart-clip">
+                        <path d={HEART_PATH} />
+                      </clipPath>
+                    </defs>
 
-                  {/* Base Translucent Crystal Shell */}
-                  <path
-                    d={HEART_PATH}
-                    fill="rgba(255, 62, 165, 0.16)"
-                    stroke="rgba(255, 198, 232, 0.58)"
-                    strokeWidth="1.8"
-                  />
-
-                  {/* Liquid Starlight Fill Rising Smoothly Inside the Crystal Heart */}
-                  <g clipPath="url(#crystal-heart-clip)">
-                    <rect
-                      x="0"
-                      y={104 - (18 + chargeRatio * 94)}
-                      width="120"
-                      height="112"
-                      fill="url(#crystal-heart-core)"
-                      opacity={0.42 + chargeRatio * 0.58}
+                    {/* Base Translucent Crystal Shell */}
+                    <path
+                      d={HEART_PATH}
+                      fill="rgba(255, 62, 165, 0.16)"
+                      stroke="rgba(255, 198, 232, 0.58)"
+                      strokeWidth="1.8"
                     />
-                    {/* Seamless Luminous Inner Core Bloom */}
-                    <circle
-                      cx="60"
-                      cy="48"
-                      r={28 + chargeRatio * 34}
-                      fill="url(#crystal-inner-bloom)"
-                      opacity={0.42 + chargeRatio * 0.55}
-                    />
-                  </g>
 
-                  {/* Frosted Specular Crescent Highlight */}
-                  <path
-                    d={HEART_PATH}
-                    fill="url(#crystal-heart-sheen)"
-                    stroke="rgba(255, 244, 252, 0.72)"
-                    strokeWidth="1.15"
-                  />
-                </svg>
-              </motion.div>
-            </button>
+                    {/* Liquid Starlight Fill Rising Smoothly Inside the Crystal Heart */}
+                    <g clipPath="url(#crystal-heart-clip)">
+                      <rect
+                        x="0"
+                        y={104 - (18 + chargeRatio * 94)}
+                        width="120"
+                        height="112"
+                        fill="url(#crystal-heart-core)"
+                        opacity={0.42 + chargeRatio * 0.58}
+                      />
+                      {/* Seamless Luminous Inner Core Bloom */}
+                      <circle
+                        cx="60"
+                        cy="48"
+                        r={28 + chargeRatio * 34}
+                        fill="url(#crystal-inner-bloom)"
+                        opacity={0.42 + chargeRatio * 0.55}
+                      />
+                    </g>
+
+                    {/* Frosted Specular Crescent Highlight */}
+                    <path
+                      d={HEART_PATH}
+                      fill="url(#crystal-heart-sheen)"
+                      stroke="rgba(255, 244, 252, 0.72)"
+                      strokeWidth="1.15"
+                    />
+
+                    {/* Exact Vector Heart Hit-Target Surface */}
+                    <path
+                      d={HEART_PATH}
+                      fill="transparent"
+                      className="pointer-events-auto cursor-pointer touch-none"
+                    />
+                  </svg>
+                </motion.div>
+              </button>
+            </div>
           </div>
 
           {/* Crisp Status Text & Subtle Percentage Readout Underneath */}
