@@ -22,6 +22,14 @@ const SUPERNOVA_CANCEL_RECOVER_SEC = 0.8;
 const SUPERNOVA_ATTACK_SEC = 0.12;
 const SUPERNOVA_EXIT_CROSSFADE_SEC = 2.0;
 
+// Scientifically calibrated BGM gain staging (commercial mastered MP3s vs procedural SFX tiers)
+const BGM_DECK_A_GAIN = 0.3; // Nominal romantic bed (0.28 - 0.34)
+const BGM_DECK_B_GAIN = 0.55; // Supernova finale chorus drop (0.52 - 0.58)
+const BGM_WARP_BLOOM_MULTIPLIER = 1.26; // ~0.38 brief bloom swell as Galaxy opens after Warp
+const BGM_MODAL_DUCK_MULTIPLIER = 0.8; // ~0.24 while reading letter / playing mini-games
+const BGM_CONSTELLATION_BROWSE_MULTIPLIER = 0.84; // ~0.25 airy room for star clicks & glides
+const BGM_CONSTELLATION_FINALE_MULTIPLIER = 0.65; // ~0.195 during beam tracer & Capricorn emblem finale
+
 /**
  * Soaring romantic K-Drama climax chorus progression used seamlessly on Deck B whenever
  * `public/music/supernova-finale.mp3` has not been dropped in yet (zero 404 console errors).
@@ -179,11 +187,17 @@ class ContinuousMusicEngine {
   private finaleSeqBusGain: GainNode | null = null;
   private finaleSeqNodes = new Set<OscillatorNode>();
 
-  // Shared master output & AnalyserNode (both Deck A & Deck B feed this so 3D heart stays audio-reactive)
-  private masterGain: GainNode | null = null;
+  // Shared mastering bus routing & PRE-FADER AnalyserNode (keeps 3D Heart vivid at 0.30 BGM level)
+  private deckATrimGain: GainNode | null = null;
+  private deckBTrimGain: GainNode | null = null;
+  private bgmDuckGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
+  private analyserSilentSink: GainNode | null = null;
   private frequencyData: Uint8Array<ArrayBuffer> | null = null;
   private graphReady = false;
+  private currentDuckMultiplier = 1.0;
+  private warpBloomTimer: number | null = null;
+  private unsubDuckingStore: (() => void) | null = null;
 
   private started = false;
   private currentIndex = 0;
@@ -223,8 +237,12 @@ class ContinuousMusicEngine {
         ];
   }
 
-  private getTargetVolume(): number {
-    return useAppStore.getState().isMuted ? 0 : ANNIVERSARY_DATA.audio.defaultVolume;
+  private getDeckATargetVolume(): number {
+    return useAppStore.getState().isMuted ? 0 : BGM_DECK_A_GAIN * this.currentDuckMultiplier;
+  }
+
+  private getDeckBTargetVolume(): number {
+    return useAppStore.getState().isMuted ? 0 : BGM_DECK_B_GAIN;
   }
 
   private isLocalFileAvailable(src: string): boolean {
@@ -289,36 +307,74 @@ class ContinuousMusicEngine {
     return this.deckB;
   }
 
-  /** Lazily wires Deck A + Deck B into (deckAGain | deckBGain) -> masterGain -> analyser -> destination. */
+  /**
+   * Lazily wires Deck A + Deck B on the shared AudioContext:
+   * - PRE-FADER tap: (deckAGain | deckBGain) -> preFaderAnalyser -> silentSink(0) -> destination
+   *   (keeps Audio-Reactive 3D Heart at full unity sensitivity regardless of 0.30 BGM trim or ducking)
+   * - Mix path: deckAGain -> deckATrimGain(0.30) -> bgmDuckGain -> shared bgmBus -> masterCompressor -> masterOutputGain
+   *             deckBGain -> deckBTrimGain(0.55) -> shared bgmBus -> masterCompressor -> masterOutputGain
+   */
   private ensureAudioGraph(): AudioContext | null {
     const ctx = sfxEngine.getContext();
-    if (!ctx) return null;
+    const bgmBus = sfxEngine.getBgmBus();
+    if (!ctx || !bgmBus) return null;
 
     if (!this.graphReady) {
+      const now = ctx.currentTime;
+
       const deckA = ctx.createGain();
-      deckA.gain.setValueAtTime(1.0, ctx.currentTime);
+      deckA.gain.setValueAtTime(1.0, now);
 
       const deckB = ctx.createGain();
-      deckB.gain.setValueAtTime(0.0001, ctx.currentTime);
+      deckB.gain.setValueAtTime(0.0001, now);
 
-      const master = ctx.createGain();
-      master.gain.setValueAtTime(0.0001, ctx.currentTime);
+      const deckATrim = ctx.createGain();
+      deckATrim.gain.setValueAtTime(BGM_DECK_A_GAIN, now);
 
+      const deckBTrim = ctx.createGain();
+      deckBTrim.gain.setValueAtTime(BGM_DECK_B_GAIN, now);
+
+      const duckGain = ctx.createGain();
+      duckGain.gain.setValueAtTime(this.currentDuckMultiplier, now);
+
+      // PRE-FADER AnalyserNode tapped directly from unity Deck A / Deck B outputs
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.82;
 
-      deckA.connect(master);
-      deckB.connect(master);
-      master.connect(analyser);
-      analyser.connect(ctx.destination);
+      // Silent 0-gain sink guarantees WebKit / iOS Safari always pulls the pre-fader analyser graph
+      const silentSink = ctx.createGain();
+      silentSink.gain.setValueAtTime(0, now);
+
+      deckA.connect(analyser);
+      deckB.connect(analyser);
+      analyser.connect(silentSink);
+      silentSink.connect(ctx.destination);
+
+      // Gain-staged mix path into the shared BGM bus -> master glue compressor
+      deckA.connect(deckATrim);
+      deckATrim.connect(duckGain);
+      duckGain.connect(bgmBus);
+
+      deckB.connect(deckBTrim);
+      deckBTrim.connect(bgmBus);
 
       this.deckAGain = deckA;
       this.deckBGain = deckB;
-      this.masterGain = master;
+      this.deckATrimGain = deckATrim;
+      this.deckBTrimGain = deckBTrim;
+      this.bgmDuckGain = duckGain;
       this.analyser = analyser;
+      this.analyserSilentSink = silentSink;
       this.frequencyData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
       this.graphReady = true;
+
+      this.installDuckingSync();
+
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __anniAudioState?: () => ReturnType<ContinuousMusicEngine['getAudioRoutingState']> })
+          .__anniAudioState = () => this.getAudioRoutingState();
+      }
     }
 
     const decks = this.ensureDecks();
@@ -367,9 +423,118 @@ class ContinuousMusicEngine {
     gainNode.gain.linearRampToValueAtTime(clampedTarget, now + Math.max(0.02, durationSec));
   }
 
-  /** Smoothly schedules master gain so AudioContext never stalls at 0.0001 after resume(). */
-  private rampMasterGain(targetVol: number, fadeSec: number): void {
-    this.rampGain(this.masterGain, targetVol, Math.max(0.08, fadeSec));
+  /**
+   * Smoothly ducks or swells Deck A BGM relative to its nominal 0.30 level (zero clicks).
+   * Example: `duckBGM(0.8, 0.55)` dips Deck A to 0.24 while reading a letter; `duckBGM(1.0, 0.75)` restores 0.30.
+   */
+  public duckBGM(targetMultiplier: number, rampSeconds = 0.6): void {
+    const clamped = Math.max(0.0001, Math.min(1.5, targetMultiplier));
+    this.currentDuckMultiplier = clamped;
+
+    const ctx = sfxEngine.getContext();
+    if (ctx && this.bgmDuckGain) {
+      const now = ctx.currentTime;
+      const dur = Math.max(0.02, rampSeconds);
+      this.bgmDuckGain.gain.cancelScheduledValues(now);
+      if (dur <= 0.06) {
+        this.bgmDuckGain.gain.setTargetAtTime(clamped, now, dur * 0.4);
+      } else {
+        this.bgmDuckGain.gain.setValueAtTime(Math.max(0.0001, this.bgmDuckGain.gain.value), now);
+        this.bgmDuckGain.gain.linearRampToValueAtTime(clamped, now + dur);
+      }
+    }
+
+    // Keep native fallback HTMLAudioElement volume synchronized if MediaElementSource was unavailable
+    if (this.decks && !useAppStore.getState().isMuted) {
+      const active = this.decks[this.activeDeckIdx];
+      if (active && !active.source) {
+        active.audio.volume = Math.min(1, BGM_DECK_A_GAIN * clamped);
+      }
+    }
+  }
+
+  private clearWarpBloomTimer(): void {
+    if (this.warpBloomTimer !== null) {
+      window.clearTimeout(this.warpBloomTimer);
+      this.warpBloomTimer = null;
+    }
+  }
+
+  /** Computes the canonical duck multiplier for the current app state (prevents stuck-ducked states). */
+  public getCanonicalDuckMultiplier(): number {
+    const state = useAppStore.getState();
+    if (state.activeModal === 'secret') return 1.0;
+    if (state.activeModal !== null) return BGM_MODAL_DUCK_MULTIPLIER;
+    if (state.viewMode === 'constellation') {
+      return state.constellationFinaleActive
+        ? BGM_CONSTELLATION_FINALE_MULTIPLIER
+        : BGM_CONSTELLATION_BROWSE_MULTIPLIER;
+    }
+    return 1.0;
+  }
+
+  /** Subscribes once to app state transitions so dynamic ducking stays 100% deterministic across all flows. */
+  private installDuckingSync(): void {
+    if (this.unsubDuckingStore) return;
+    this.unsubDuckingStore = useAppStore.subscribe((state, prev) => {
+      // 1. Warp -> Galaxy bloom swell (~0.38) then gentle settle back to nominal 0.30
+      if (prev.stage === 'warp' && state.stage === 'galaxy') {
+        this.clearWarpBloomTimer();
+        this.duckBGM(BGM_WARP_BLOOM_MULTIPLIER, 0.9);
+        this.warpBloomTimer = window.setTimeout(() => {
+          this.warpBloomTimer = null;
+          const latest = useAppStore.getState();
+          if (latest.stage === 'galaxy' && latest.activeModal === null && latest.viewMode === 'galaxy') {
+            this.duckBGM(1.0, 2.2);
+          }
+        }, 2600);
+        return;
+      }
+
+      const modalChanged = state.activeModal !== prev.activeModal;
+      const viewChanged = state.viewMode !== prev.viewMode;
+      const finaleChanged = state.constellationFinaleActive !== prev.constellationFinaleActive;
+      if (!modalChanged && !viewChanged && !finaleChanged) return;
+
+      this.clearWarpBloomTimer();
+
+      if (state.activeModal === 'secret') {
+        this.duckBGM(1.0, 0.4);
+      } else if (state.activeModal !== null) {
+        this.duckBGM(BGM_MODAL_DUCK_MULTIPLIER, 0.55);
+      } else if (state.viewMode === 'constellation') {
+        if (state.constellationFinaleActive) {
+          this.duckBGM(BGM_CONSTELLATION_FINALE_MULTIPLIER, 0.55);
+        } else {
+          this.duckBGM(BGM_CONSTELLATION_BROWSE_MULTIPLIER, 0.65);
+        }
+      } else {
+        this.duckBGM(1.0, prev.viewMode === 'constellation' ? 0.9 : 0.75);
+      }
+    });
+  }
+
+  /** Read-only audio routing & gain-staging diagnostics for E2E verification. */
+  public getAudioRoutingState() {
+    const sfx = sfxEngine.getMixerState();
+    return {
+      graphReady: this.graphReady,
+      started: this.started,
+      activeMode: this.activeMode,
+      sharedContext: Boolean(this.graphReady && sfxEngine.getContext() !== null),
+      analyserPreFader: Boolean(this.analyser && this.analyserSilentSink),
+      deckAGain: this.deckAGain?.gain.value ?? 0,
+      deckBGain: this.deckBGain?.gain.value ?? 0,
+      deckATrimGain: this.deckATrimGain?.gain.value ?? BGM_DECK_A_GAIN,
+      deckBTrimGain: this.deckBTrimGain?.gain.value ?? BGM_DECK_B_GAIN,
+      duckMultiplier: this.currentDuckMultiplier,
+      bgmDuckNodeValue: this.bgmDuckGain?.gain.value ?? this.currentDuckMultiplier,
+      effectiveDeckALevel: Number((BGM_DECK_A_GAIN * this.currentDuckMultiplier).toFixed(4)),
+      effectiveDeckBLevel: BGM_DECK_B_GAIN,
+      supernovaFinalePlaying: this.supernovaFinalePlaying,
+      isMuted: useAppStore.getState().isMuted,
+      mixer: sfx,
+    };
   }
 
   private stopProceduralOst(fadeSec = 0.4): void {
@@ -617,8 +782,8 @@ class ContinuousMusicEngine {
 
     const track = playlist[safeIdx];
     const ctx = this.ensureAudioGraph();
-    if (ctx && this.masterGain) {
-      this.rampMasterGain(this.getTargetVolume(), fadeSec);
+    if (ctx && this.deckAGain && !this.supernovaFinalePlaying && !this.deckBHoldActive) {
+      this.rampGain(this.deckAGain, 1.0, fadeSec);
     }
 
     // If local .mp3 has not been dropped into public/music/ yet, play built-in K-Drama piano + strings OST
@@ -662,7 +827,7 @@ class ContinuousMusicEngine {
       nextDeck.gain.gain.setValueAtTime(0.0001, now);
       nextDeck.gain.gain.linearRampToValueAtTime(1.0, now + fadeSec);
     } else {
-      nextDeck.audio.volume = this.getTargetVolume();
+      nextDeck.audio.volume = this.getDeckATargetVolume();
     }
 
     void nextDeck.audio
@@ -738,14 +903,12 @@ class ContinuousMusicEngine {
     useAppStore.getState().setCurrentTrackIndex(0);
 
     if (ctx && this.deckAGain) {
-      this.rampGain(this.deckAGain, 1.0, 0.05);
-    }
-    if (ctx && this.masterGain) {
       const now = ctx.currentTime;
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(0.0001, now);
-      this.rampMasterGain(this.getTargetVolume(), 0.75);
+      this.deckAGain.gain.cancelScheduledValues(now);
+      this.deckAGain.gain.setValueAtTime(0.0001, now);
+      this.rampGain(this.deckAGain, 1.0, 0.75);
     }
+    this.duckBGM(1.0, 0.05);
 
     if (!track || !this.isLocalFileAvailable(track.src)) {
       this.pauseHtmlDecks(0.08);
@@ -787,7 +950,7 @@ class ContinuousMusicEngine {
       activeDeck.gain.gain.cancelScheduledValues(now);
       activeDeck.gain.gain.setValueAtTime(1.0, now);
     } else {
-      activeDeck.audio.volume = this.getTargetVolume();
+      activeDeck.audio.volume = this.getDeckATargetVolume();
     }
 
     void activeDeck.audio
@@ -826,8 +989,8 @@ class ContinuousMusicEngine {
     useAppStore.getState().setIsMusicPlaying(false);
 
     const ctx = sfxEngine.getContext();
-    if (ctx && this.masterGain) {
-      this.rampGain(this.masterGain, 0.0001, 0.05);
+    if (ctx && this.deckAGain) {
+      this.rampGain(this.deckAGain, 0.0001, 0.05);
     }
 
     this.stopProceduralOst(0.06);
@@ -848,7 +1011,7 @@ class ContinuousMusicEngine {
       }
     };
 
-    if (ctx && this.masterGain) {
+    if (ctx && this.deckAGain) {
       this.introStopTimer = window.setTimeout(() => {
         this.introStopTimer = null;
         pauseAndRewind();
@@ -867,7 +1030,9 @@ class ContinuousMusicEngine {
 
     const beginOrResume = () => {
       if (this.started) {
-        this.rampMasterGain(this.getTargetVolume(), 0.45);
+        if (!this.supernovaFinalePlaying && !this.deckBHoldActive) {
+          this.rampGain(this.deckAGain, 1.0, 0.45);
+        }
         if (this.activeMode === 'html-audio' && this.decks) {
           const active = this.decks[this.activeDeckIdx];
           if (active.audio.paused && !useAppStore.getState().isMuted) {
@@ -950,7 +1115,7 @@ class ContinuousMusicEngine {
     this.playTrackAt(this.currentIndex + 1, CROSSFADE_SEC);
   }
 
-  /** Smoothly mutes or unmutes playback via Web Audio GainNode (iOS Safari + Desktop safe). */
+  /** Smoothly mutes or unmutes BOTH BGM and SFX via the unified masterOutputGain (iOS Safari + Desktop safe). */
   public setMuted(muted: boolean): void {
     useAppStore.getState().setMuted(muted);
 
@@ -960,14 +1125,19 @@ class ContinuousMusicEngine {
     }
 
     const ctx = sfxEngine.getContext();
-    if (ctx && this.masterGain) {
-      if (!muted && ctx.state === 'suspended') {
-        void ctx.resume().catch(() => {});
-      }
-      this.rampMasterGain(muted ? 0 : ANNIVERSARY_DATA.audio.defaultVolume, muted ? 0.18 : 0.35);
-    } else if (this.decks) {
+    if (ctx && !muted && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    // Native HTMLAudioElement fallback sync when MediaElementAudioSourceNode was unavailable
+    if (this.decks) {
       const active = this.decks[this.activeDeckIdx];
-      active.audio.volume = muted ? 0 : ANNIVERSARY_DATA.audio.defaultVolume;
+      if (active && !active.source) {
+        active.audio.volume = this.getDeckATargetVolume();
+      }
+    }
+    if (this.deckB && !this.deckB.source) {
+      this.deckB.audio.volume = this.supernovaFinalePlaying ? this.getDeckBTargetVolume() : 0;
     }
 
     useAppStore.getState().setIsMusicPlaying(!muted && this.started);
@@ -1242,10 +1412,7 @@ class ContinuousMusicEngine {
       this.started = true;
     }
 
-    // Respect global isMuted on masterGain at all times
-    this.rampMasterGain(this.getTargetVolume(), 0.08);
-
-    // 1. Freeze Deck A at exact currentTime
+    // 1. Freeze Deck A at exact currentTime (masterOutputGain handles global isMuted cleanly)
     this.rampGain(this.deckAGain, 0.0001, 0.03);
     if (this.activeMode === 'html-audio' && this.decks) {
       const activeA = this.decks[this.activeDeckIdx];
@@ -1290,7 +1457,7 @@ class ContinuousMusicEngine {
         if (deckB.source) {
           this.rampGain(this.deckBGain, 1.0, SUPERNOVA_ATTACK_SEC);
         } else {
-          el.volume = this.getTargetVolume();
+          el.volume = this.getDeckBTargetVolume();
         }
 
         void el.play().catch(() => {

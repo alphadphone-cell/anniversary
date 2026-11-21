@@ -9,6 +9,7 @@ import {
   useStage,
   useViewMode,
 } from '../../store/useAppStore';
+import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 
 const ENTRY_AUTO_OPEN_MS = 850;
@@ -394,6 +395,11 @@ export function ConstellationCard() {
         tracer.startMs = performance.now();
         tracer.cameraGlideRequested = true;
         tracer.onImpact = () => {
+          // Ease BGM back to constellation browse level once the beam tracer & star ignition land
+          const currentNow = useAppStore.getState();
+          if (currentNow.viewMode === 'constellation' && !currentNow.constellationFinaleActive) {
+            musicEngine.duckBGM(musicEngine.getCanonicalDuckMultiplier(), 0.6);
+          }
           // Step 4: Exactly +550ms AFTER WebGL collision & star ignition, smoothly reveal next Milestone Card
           beat4TimerRef.current = window.setTimeout(() => {
             beat4TimerRef.current = null;
@@ -407,6 +413,7 @@ export function ConstellationCard() {
         };
         tracer.active = true;
 
+        musicEngine.duckBGM(0.65, 0.35);
         sfxEngine.playBeamGlideTone(targetIdx);
       }, BEAT1_CLEAR_SKY_MS);
     },

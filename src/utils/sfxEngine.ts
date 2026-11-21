@@ -1,8 +1,61 @@
 import { useAppStore } from '../store/useAppStore';
 
+// Unified 3-Bus Mastering & 3-Tier SFX Calibration Constants
+const MASTER_COMP_THRESHOLD_DB = -6;
+const MASTER_COMP_KNEE_DB = 12;
+const MASTER_COMP_RATIO = 4;
+const MASTER_COMP_ATTACK_SEC = 0.005;
+const MASTER_COMP_RELEASE_SEC = 0.15;
+
+const SFX_SMOOTH_LOWPASS_HZ = 7500;
+const SFX_DRY_LEVEL = 0.86;
+const SFX_COSMIC_WET_LEVEL = 0.24;
+
+// 3-Tier SFX Bus Levels (relative to 0.30 BGM nominal bed)
+const SFX_TIER1_MICRO_GAIN = 0.24; // Tier 1 (0.18 - 0.28): Subtle UI Micro-SFX
+const SFX_TIER2_SPATIAL_GAIN = 0.54; // Tier 2 (0.45 - 0.60): Spatial Transitions & Celesta Cues
+const SFX_TIER3_CLIMAX_GAIN = 0.85; // Tier 3 (0.75 - 0.90): Cinematic Climaxes & Sub-Bass Impacts
+
+export interface AudioMixerSnapshot {
+  contextState: AudioContextState | 'uninitialized';
+  compressor: {
+    threshold: number;
+    knee: number;
+    ratio: number;
+    attack: number;
+    release: number;
+  };
+  buses: {
+    bgm: number;
+    sfx: number;
+    masterOutput: number;
+    sfxLowpassHz: number;
+    sfxDry: number;
+    sfxCosmicWet: number;
+    tier1Micro: number;
+    tier2Spatial: number;
+    tier3Climax: number;
+  };
+}
+
 class ProceduralSfxEngine {
   private ctx: AudioContext | null = null;
+  // Shared 3-bus mastering chain: (bgmBusGain + sfxBusGain) -> masterCompressor -> masterOutputGain -> destination
+  private bgmBusGain: GainNode | null = null;
+  private sfxBusGain: GainNode | null = null;
+  private sfxToneLowpass: BiquadFilterNode | null = null;
+  private sfxDryGain: GainNode | null = null;
+  private sfxWetGain: GainNode | null = null;
+  private masterCompressor: DynamicsCompressorNode | null = null;
+  private masterOutputGain: GainNode | null = null;
+
+  // 3-Tier SFX sub-buses feeding sfxToneLowpass
+  private tier1Bus: GainNode | null = null;
+  private tier2Bus: GainNode | null = null;
+  private tier3Bus: GainNode | null = null;
+  /** Default SFX bus reference (Tier 3 unity-calibrated climax bus). */
   private masterGain: GainNode | null = null;
+
   private noiseBuffer: AudioBuffer | null = null;
   private unsubStore: (() => void) | null = null;
   private lastHoverAt = 0;
@@ -43,13 +96,121 @@ class ProceduralSfxEngine {
       if (!AudioCtx) return null;
 
       try {
-        this.ctx = new AudioCtx();
-        this.masterGain = this.ctx.createGain();
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
         const isMuted = useAppStore.getState().isMuted;
-        this.masterGain.gain.setValueAtTime(isMuted ? 0 : 1, this.ctx.currentTime);
-        this.masterGain.connect(this.ctx.destination);
 
-        // Stay synced with Zustand isMuted state and fade gracefully when muted
+        // 1. Master Glue Soft-Limiter -> Unified Mute Output Gate -> Destination
+        const compressor = ctx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(MASTER_COMP_THRESHOLD_DB, now);
+        compressor.knee.setValueAtTime(MASTER_COMP_KNEE_DB, now);
+        compressor.ratio.setValueAtTime(MASTER_COMP_RATIO, now);
+        compressor.attack.setValueAtTime(MASTER_COMP_ATTACK_SEC, now);
+        compressor.release.setValueAtTime(MASTER_COMP_RELEASE_SEC, now);
+
+        const masterOut = ctx.createGain();
+        masterOut.gain.setValueAtTime(isMuted ? 0 : 1, now);
+
+        compressor.connect(masterOut);
+        masterOut.connect(ctx.destination);
+
+        // 2. BGM Bus (shared with musicEngine Deck A & Deck B)
+        const bgmBus = ctx.createGain();
+        bgmBus.gain.setValueAtTime(1.0, now);
+        bgmBus.connect(compressor);
+
+        // 3. SFX Bus with 7.5kHz warm smoothing lowpass + lightweight cosmic stereo delay tail
+        const sfxBus = ctx.createGain();
+        sfxBus.gain.setValueAtTime(1.0, now);
+        sfxBus.connect(compressor);
+
+        const toneLP = ctx.createBiquadFilter();
+        toneLP.type = 'lowpass';
+        toneLP.frequency.setValueAtTime(SFX_SMOOTH_LOWPASS_HZ, now);
+        toneLP.Q.setValueAtTime(0.65, now);
+
+        const dryGain = ctx.createGain();
+        dryGain.gain.setValueAtTime(SFX_DRY_LEVEL, now);
+        toneLP.connect(dryGain);
+        dryGain.connect(sfxBus);
+
+        // Cosmic stereo delay / soft reverb tail (HPF 320Hz keeps sub-bass mono & tight; LPF 3.2kHz keeps tails dreamy)
+        const wetHP = ctx.createBiquadFilter();
+        wetHP.type = 'highpass';
+        wetHP.frequency.setValueAtTime(320, now);
+        wetHP.Q.setValueAtTime(0.5, now);
+
+        const wetLP = ctx.createBiquadFilter();
+        wetLP.type = 'lowpass';
+        wetLP.frequency.setValueAtTime(3200, now);
+        wetLP.Q.setValueAtTime(0.55, now);
+
+        const delayL = ctx.createDelay(0.5);
+        delayL.delayTime.setValueAtTime(0.145, now);
+        const delayR = ctx.createDelay(0.5);
+        delayR.delayTime.setValueAtTime(0.225, now);
+
+        const fbL = ctx.createGain();
+        fbL.gain.setValueAtTime(0.24, now);
+        const fbR = ctx.createGain();
+        fbR.gain.setValueAtTime(0.22, now);
+
+        const wetGain = ctx.createGain();
+        wetGain.gain.setValueAtTime(SFX_COSMIC_WET_LEVEL, now);
+
+        toneLP.connect(wetHP);
+        wetHP.connect(wetLP);
+        wetLP.connect(delayL);
+        wetLP.connect(delayR);
+
+        // Cross-feedback ping-pong with strict sub-unity gain (cannot self-oscillate)
+        delayL.connect(fbL);
+        fbL.connect(delayR);
+        delayR.connect(fbR);
+        fbR.connect(delayL);
+
+        if (typeof ctx.createStereoPanner === 'function') {
+          const panL = ctx.createStereoPanner();
+          panL.pan.setValueAtTime(-0.52, now);
+          const panR = ctx.createStereoPanner();
+          panR.pan.setValueAtTime(0.52, now);
+          delayL.connect(panL);
+          delayR.connect(panR);
+          panL.connect(wetGain);
+          panR.connect(wetGain);
+        } else {
+          delayL.connect(wetGain);
+          delayR.connect(wetGain);
+        }
+        wetGain.connect(sfxBus);
+
+        // 4. 3-Tier SFX Sub-Buses
+        const tier1 = ctx.createGain();
+        tier1.gain.setValueAtTime(SFX_TIER1_MICRO_GAIN, now);
+        tier1.connect(toneLP);
+
+        const tier2 = ctx.createGain();
+        tier2.gain.setValueAtTime(SFX_TIER2_SPATIAL_GAIN, now);
+        tier2.connect(toneLP);
+
+        const tier3 = ctx.createGain();
+        tier3.gain.setValueAtTime(SFX_TIER3_CLIMAX_GAIN, now);
+        tier3.connect(toneLP);
+
+        this.ctx = ctx;
+        this.masterCompressor = compressor;
+        this.masterOutputGain = masterOut;
+        this.bgmBusGain = bgmBus;
+        this.sfxBusGain = sfxBus;
+        this.sfxToneLowpass = toneLP;
+        this.sfxDryGain = dryGain;
+        this.sfxWetGain = wetGain;
+        this.tier1Bus = tier1;
+        this.tier2Bus = tier2;
+        this.tier3Bus = tier3;
+        this.masterGain = tier3;
+
+        // Stay synced with Zustand isMuted state and fade BOTH buses gracefully together
         this.unsubStore = useAppStore.subscribe((state, prev) => {
           if (state.isMuted !== prev.isMuted) {
             this.applyMuteState(state.isMuted);
@@ -70,10 +231,10 @@ class ProceduralSfxEngine {
   }
 
   private applyMuteState(isMuted: boolean): void {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.masterOutputGain) return;
     const now = this.ctx.currentTime;
-    this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setTargetAtTime(isMuted ? 0 : 1, now, 0.045);
+    this.masterOutputGain.gain.cancelScheduledValues(now);
+    this.masterOutputGain.gain.setTargetAtTime(isMuted ? 0 : 1, now, 0.045);
 
     if (isMuted) {
       this.stopChargeHum();
@@ -126,11 +287,42 @@ class ProceduralSfxEngine {
     return this.ensureContext();
   }
 
-  /** Beat 1: Rising resonant energy suction hum that sweeps sharply upward during heart implosion. */
+  /** Shared BGM bus input feeding the master glue compressor & unified mute gate. */
+  public getBgmBus(): GainNode | null {
+    this.ensureContext();
+    return this.bgmBusGain;
+  }
+
+  /** Read-only mixer diagnostics for verification and telemetry. */
+  public getMixerState(): AudioMixerSnapshot {
+    return {
+      contextState: this.ctx ? this.ctx.state : 'uninitialized',
+      compressor: {
+        threshold: this.masterCompressor?.threshold.value ?? MASTER_COMP_THRESHOLD_DB,
+        knee: this.masterCompressor?.knee.value ?? MASTER_COMP_KNEE_DB,
+        ratio: this.masterCompressor?.ratio.value ?? MASTER_COMP_RATIO,
+        attack: this.masterCompressor?.attack.value ?? MASTER_COMP_ATTACK_SEC,
+        release: this.masterCompressor?.release.value ?? MASTER_COMP_RELEASE_SEC,
+      },
+      buses: {
+        bgm: this.bgmBusGain?.gain.value ?? 0,
+        sfx: this.sfxBusGain?.gain.value ?? 0,
+        masterOutput: this.masterOutputGain?.gain.value ?? 0,
+        sfxLowpassHz: this.sfxToneLowpass?.frequency.value ?? SFX_SMOOTH_LOWPASS_HZ,
+        sfxDry: this.sfxDryGain?.gain.value ?? SFX_DRY_LEVEL,
+        sfxCosmicWet: this.sfxWetGain?.gain.value ?? SFX_COSMIC_WET_LEVEL,
+        tier1Micro: this.tier1Bus?.gain.value ?? SFX_TIER1_MICRO_GAIN,
+        tier2Spatial: this.tier2Bus?.gain.value ?? SFX_TIER2_SPATIAL_GAIN,
+        tier3Climax: this.tier3Bus?.gain.value ?? SFX_TIER3_CLIMAX_GAIN,
+      },
+    };
+  }
+
+  /** Beat 1 (Tier 3): Rising warm resonant energy suction hum during heart implosion (filtered triangle + detuned sine). */
   public startSupernovaImplosion(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain || this.implosionNodes) return;
+    if (!ctx || !this.tier3Bus || this.implosionNodes) return;
 
     const now = ctx.currentTime;
     const osc1 = ctx.createOscillator();
@@ -139,26 +331,27 @@ class ProceduralSfxEngine {
     const filter = ctx.createBiquadFilter();
     const gain = ctx.createGain();
 
-    osc1.type = 'sawtooth';
+    osc1.type = 'triangle';
     osc2.type = 'sine';
     osc1.frequency.setValueAtTime(84, now);
     osc2.frequency.setValueAtTime(126, now);
+    osc2.detune.setValueAtTime(5, now);
 
     noise.buffer = this.getNoiseBuffer(ctx);
     noise.loop = true;
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(220, now);
-    filter.Q.setValueAtTime(2.5, now);
+    filter.frequency.setValueAtTime(240, now);
+    filter.Q.setValueAtTime(2.2, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.045, now + 0.14);
+    gain.gain.linearRampToValueAtTime(0.085, now + 0.14);
 
     osc1.connect(filter);
     osc2.connect(filter);
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.tier3Bus);
 
     osc1.start(now);
     osc2.start(now);
@@ -177,9 +370,9 @@ class ProceduralSfxEngine {
     const freq = 84 + Math.pow(p, 1.75) * 390;
     osc1.frequency.setTargetAtTime(freq, now, 0.035);
     osc2.frequency.setTargetAtTime(freq * 1.5, now, 0.035);
-    filter.frequency.setTargetAtTime(220 + Math.pow(p, 2.0) * 3200, now, 0.04);
-    filter.Q.setTargetAtTime(2.5 + p * 7.5, now, 0.04);
-    gain.gain.setTargetAtTime(0.045 + p * 0.115, now, 0.04);
+    filter.frequency.setTargetAtTime(240 + Math.pow(p, 2.0) * 2800, now, 0.04);
+    filter.Q.setTargetAtTime(2.2 + p * 5.8, now, 0.04);
+    gain.gain.setTargetAtTime(0.085 + p * 0.21, now, 0.04);
   }
 
   /** Hard-cuts the rising suction hum cleanly in ~12ms to create the 150ms vacuum silence beat. */
@@ -311,33 +504,34 @@ class ProceduralSfxEngine {
 
     const cGain = ctx.createGain();
     cGain.gain.setValueAtTime(0.0001, now);
-    cGain.gain.linearRampToValueAtTime(0.28, now + 0.005);
-    cGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    cGain.gain.linearRampToValueAtTime(0.28, now + 0.01);
+    cGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
 
     crackle.connect(hp);
     hp.connect(cGain);
     cGain.connect(this.masterGain);
     crackle.start(now);
-    crackle.stop(now + 0.25);
+    crackle.stop(now + 0.26);
     crackle.onended = () => {
       crackle.disconnect();
       hp.disconnect();
       cGain.disconnect();
     };
 
-    // Sparkling glass-crystal shatter micro-partials (2.6kHz - 5.2kHz)
-    const shards = [2637.02, 3135.96, 3951.07, 4698.63, 5274.04];
+    // Sparkling glass-crystal shatter micro-partials in D Lydian celesta register
+    const shards = [2349.32, 2959.96, 3520.0, 4698.63, 5274.04];
     shards.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
-      const t0 = now + 0.006 + i * 0.022;
+      const t0 = now + 0.008 + i * 0.022;
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.04, t0 + 0.28);
+      osc.detune.setValueAtTime((i - 2) * 3.5, t0);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.03, t0 + 0.28);
 
       g.gain.setValueAtTime(0.0001, t0);
-      g.gain.linearRampToValueAtTime(0.042, t0 + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.36);
+      g.gain.linearRampToValueAtTime(0.068, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38);
 
       osc.connect(g);
       g.connect(this.masterGain!);
@@ -650,7 +844,7 @@ class ProceduralSfxEngine {
     }
   }
 
-  /** Ultra-subtle high-frequency starlight glass tick on 3D node / UI hover. */
+  /** Tier 1 (Micro-UI): Warm starlight glass tick on 3D node / UI hover (D6 -> A6 celesta register). */
   public playHoverTick(): void {
     if (useAppStore.getState().isMuted) return;
     const perfNow = performance.now();
@@ -658,35 +852,41 @@ class ProceduralSfxEngine {
     this.lastHoverAt = perfNow;
 
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain || ctx.state !== 'running') return;
+    if (!ctx || !this.tier1Bus || ctx.state !== 'running') return;
 
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
+    const lpf = ctx.createBiquadFilter();
     const gain = ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(2480, now);
-    osc.frequency.exponentialRampToValueAtTime(3280, now + 0.032);
+    osc.frequency.setValueAtTime(1174.66, now); // D6
+    osc.frequency.exponentialRampToValueAtTime(1760.0, now + 0.045); // A6
+
+    lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(3200, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.022, now + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.048);
+    gain.gain.linearRampToValueAtTime(0.28, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
 
-    osc.connect(gain);
-    gain.connect(this.masterGain);
+    osc.connect(lpf);
+    lpf.connect(gain);
+    gain.connect(this.tier1Bus);
     osc.start(now);
-    osc.stop(now + 0.055);
+    osc.stop(now + 0.085);
     osc.onended = () => {
       osc.disconnect();
+      lpf.disconnect();
       gain.disconnect();
     };
   }
 
-  /** Soft airy whoosh + gentle crystalline bell chime on node click / modal open. */
+  /** Tier 2 (Spatial): Soft airy whoosh + gentle D-major crystalline bell chime on node click / modal open. */
   public playModalOpen(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
 
@@ -695,84 +895,91 @@ class ProceduralSfxEngine {
     noise.buffer = this.getNoiseBuffer(ctx);
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(600, now);
-    filter.frequency.exponentialRampToValueAtTime(1900, now + 0.14);
-    filter.Q.setValueAtTime(1.4, now);
+    filter.frequency.setValueAtTime(560, now);
+    filter.frequency.exponentialRampToValueAtTime(1750, now + 0.16);
+    filter.Q.setValueAtTime(1.3, now);
 
     const nGain = ctx.createGain();
     nGain.gain.setValueAtTime(0.0001, now);
-    nGain.gain.linearRampToValueAtTime(0.04, now + 0.03);
-    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    nGain.gain.linearRampToValueAtTime(0.22, now + 0.03);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.19);
 
     noise.connect(filter);
     filter.connect(nGain);
-    nGain.connect(this.masterGain);
+    nGain.connect(this.tier2Bus);
     noise.start(now);
-    noise.stop(now + 0.18);
+    noise.stop(now + 0.22);
     noise.onended = () => {
       noise.disconnect();
       filter.disconnect();
       nGain.disconnect();
     };
 
-    // Gentle bell pair
-    [783.99, 1174.66].forEach((freq, idx) => {
+    // Gentle D-major celesta bell pair (F#5 -> D6)
+    [739.99, 1174.66].forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
-      const t0 = now + idx * 0.035;
-      osc.type = 'sine';
+      const t0 = now + idx * 0.04;
+      osc.type = idx === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime(idx === 0 ? -2.5 : 3.0, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(2800, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.048 - idx * 0.012, t0 + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.42);
+      gain.gain.linearRampToValueAtTime(0.26 - idx * 0.05, t0 + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.48);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
-      osc.stop(t0 + 0.45);
+      osc.stop(t0 + 0.52);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Sleek, airy spatial whoosh as the 3D camera glides smoothly toward a memory orb (Beat 1). */
+  /** Tier 2 (Spatial): Sleek, airy spatial whoosh as the 3D camera glides smoothly toward a memory orb (Beat 1). */
   public playOrbFlyWhoosh(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
 
-    // Silky sweeping bandpass noise whoosh (~0.52s)
+    // Silky sweeping bandpass noise whoosh (~0.56s)
     const noise = ctx.createBufferSource();
     noise.buffer = this.getNoiseBuffer(ctx);
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.setValueAtTime(340, now);
     filter.frequency.exponentialRampToValueAtTime(1650, now + 0.36);
-    filter.frequency.exponentialRampToValueAtTime(780, now + 0.56);
-    filter.Q.setValueAtTime(1.8, now);
+    filter.frequency.exponentialRampToValueAtTime(760, now + 0.56);
+    filter.Q.setValueAtTime(1.6, now);
 
     const nGain = ctx.createGain();
     nGain.gain.setValueAtTime(0.0001, now);
-    nGain.gain.linearRampToValueAtTime(0.052, now + 0.16);
+    nGain.gain.linearRampToValueAtTime(0.28, now + 0.16);
     nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
 
     noise.connect(filter);
     filter.connect(nGain);
-    nGain.connect(this.masterGain);
+    nGain.connect(this.tier2Bus);
     noise.start(now);
-    noise.stop(now + 0.6);
+    noise.stop(now + 0.62);
     noise.onended = () => {
       noise.disconnect();
       filter.disconnect();
       nGain.disconnect();
     };
 
-    // Subtle rising airy harmonic swell underneath the glide
+    // Warm rising D4 -> A4 harmonic swell underneath the camera glide
     const osc = ctx.createOscillator();
     const oGain = ctx.createGain();
     osc.type = 'sine';
@@ -780,55 +987,62 @@ class ProceduralSfxEngine {
     osc.frequency.exponentialRampToValueAtTime(440.0, now + 0.48);
 
     oGain.gain.setValueAtTime(0.0001, now);
-    oGain.gain.linearRampToValueAtTime(0.024, now + 0.22);
-    oGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
+    oGain.gain.linearRampToValueAtTime(0.14, now + 0.22);
+    oGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.54);
 
     osc.connect(oGain);
-    oGain.connect(this.masterGain);
+    oGain.connect(this.tier2Bus);
     osc.start(now);
-    osc.stop(now + 0.54);
+    osc.stop(now + 0.58);
     osc.onended = () => {
       osc.disconnect();
       oGain.disconnect();
     };
   }
 
-  /** Crystalline unlock chime synced with Beat 2 orb portal flare & sparkle burst. */
+  /** Tier 2 (Spatial): Crystalline D-major pentatonic portal chime synced with Beat 2 orb flare. */
   public playOrbPortalChime(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
-    // Sparkling luminous triad (G5 -> B5 -> D6 -> G6)
-    const freqs = [783.99, 987.77, 1174.66, 1567.98];
+    // Luminous D Major pentatonic celesta arpeggio (D5 -> F#5 -> A5 -> D6 -> F#6)
+    const freqs = [587.33, 739.99, 880.0, 1174.66, 1479.98];
     freqs.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
-      const t0 = now + idx * 0.032;
-      osc.type = idx === 3 ? 'triangle' : 'sine';
+      const t0 = now + idx * 0.036;
+      osc.type = idx >= 3 ? 'triangle' : 'sine';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 2) * 3.0, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3400, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.044 - idx * 0.007, t0 + 0.014);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+      gain.gain.linearRampToValueAtTime(0.24 - idx * 0.028, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.62);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
-      osc.stop(t0 + 0.56);
+      osc.stop(t0 + 0.68);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Warm, gentle celesta / music-box chime sequence for Pre-Intro Setup Step 2 volume & headphones test. */
+  /** Tier 2 (Spatial): Warm, gentle celesta / music-box chime sequence for Pre-Intro Setup Step 2 volume test. */
   public playSetupTestChime(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     // Soft, unhurried romantic music-box arpeggio (D5 -> F#5 -> A5 -> D6 -> E6)
@@ -843,31 +1057,32 @@ class ProceduralSfxEngine {
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 2) * 2.5, t0);
       overtone.type = 'triangle';
       overtone.frequency.setValueAtTime(freq * 2, t0);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(1950, t0);
-      lpf.frequency.exponentialRampToValueAtTime(1150, t0 + 1.35);
+      lpf.frequency.setValueAtTime(2100, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1180, t0 + 1.35);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.056 - idx * 0.004, t0 + 0.045);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.45);
+      gain.gain.linearRampToValueAtTime(0.28 - idx * 0.02, t0 + 0.045);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.5);
 
       oGain.gain.setValueAtTime(0.0001, t0);
-      oGain.gain.linearRampToValueAtTime(0.011, t0 + 0.035);
+      oGain.gain.linearRampToValueAtTime(0.055, t0 + 0.035);
       oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
 
       osc.connect(lpf);
       overtone.connect(oGain);
       oGain.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier2Bus!);
 
       osc.start(t0);
       overtone.start(t0);
-      osc.stop(t0 + 1.5);
-      overtone.stop(t0 + 0.7);
+      osc.stop(t0 + 1.55);
+      overtone.stop(t0 + 0.72);
       osc.onended = () => {
         osc.disconnect();
         overtone.disconnect();
@@ -878,11 +1093,11 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Delicate ascending crystalline drop chime for each line in the Setup checklist. */
+  /** Tier 1 (Micro-UI): Delicate ascending crystalline drop chime for each line in the Setup checklist. */
   public playSetupCheckTick(stepIdx: number): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier1Bus) return;
 
     const now = ctx.currentTime;
     const scale = [587.33, 739.99, 880.0, 1174.66];
@@ -894,17 +1109,17 @@ class ProceduralSfxEngine {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, now);
     lpf.type = 'lowpass';
-    lpf.frequency.setValueAtTime(2100, now);
+    lpf.frequency.setValueAtTime(2200, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.038, now + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+    gain.gain.linearRampToValueAtTime(0.32, now + 0.022);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
 
     osc.connect(lpf);
     lpf.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.tier1Bus);
     osc.start(now);
-    osc.stop(now + 0.62);
+    osc.stop(now + 0.65);
     osc.onended = () => {
       osc.disconnect();
       lpf.disconnect();
@@ -912,11 +1127,11 @@ class ProceduralSfxEngine {
     };
   }
 
-  /** Warm, sustained ethereal pad + gentle starlight bell chime for the "Đi cùng anh nhé..." solo interlude. */
+  /** Tier 2 (Spatial): Warm, sustained ethereal pad + starlight bell chime for the "Đi cùng anh nhé..." solo interlude. */
   public playWhisperBloom(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     const totalDur = 3.4;
@@ -937,7 +1152,7 @@ class ProceduralSfxEngine {
       lpf.frequency.linearRampToValueAtTime(1450, now + 1.25);
       lpf.frequency.exponentialRampToValueAtTime(620, now + totalDur);
 
-      const peak = idx === 0 ? 0.024 : 0.014;
+      const peak = idx === 0 ? 0.14 : 0.085;
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.linearRampToValueAtTime(peak, now + 1.15);
       gain.gain.setValueAtTime(peak * 0.92, now + 2.25);
@@ -945,7 +1160,7 @@ class ProceduralSfxEngine {
 
       osc.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier2Bus!);
       osc.start(now);
       osc.stop(now + totalDur + 0.08);
       osc.onended = () => {
@@ -964,11 +1179,11 @@ class ProceduralSfxEngine {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.028 : 0.018, t0 + 0.06);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.16 : 0.105, t0 + 0.06);
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.1);
 
       osc.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
       osc.stop(t0 + 2.18);
       osc.onended = () => {
@@ -978,11 +1193,11 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Soft rising crystalline gliding tone synced with the 1.2s Constellation Light-Beam Tracer. */
+  /** Tier 2 (Spatial): Soft rising crystalline gliding tone synced with the 1.2s Constellation Light-Beam Tracer. */
   public playBeamGlideTone(stepIndex: number): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     const duration = 1.18;
@@ -999,19 +1214,20 @@ class ProceduralSfxEngine {
       osc.type = idx === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(startFreq * mult, now);
       osc.frequency.exponentialRampToValueAtTime(Math.max(120, endFreq * mult), now + duration);
+      osc.detune.setValueAtTime(idx === 0 ? -2.0 : 3.5, now);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(900, now);
-      lpf.frequency.exponentialRampToValueAtTime(2400, now + duration);
+      lpf.frequency.setValueAtTime(950, now);
+      lpf.frequency.exponentialRampToValueAtTime(2600, now + duration);
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.032 : 0.015, now + 0.25);
-      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.028 : 0.013, now + duration - 0.14);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.21 : 0.105, now + 0.25);
+      gain.gain.linearRampToValueAtTime(idx === 0 ? 0.18 : 0.09, now + duration - 0.14);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.08);
 
       osc.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier2Bus!);
       osc.start(now);
       osc.stop(now + duration + 0.12);
       osc.onended = () => {
@@ -1028,16 +1244,16 @@ class ProceduralSfxEngine {
     filter.type = 'bandpass';
     filter.frequency.setValueAtTime(1100, now);
     filter.frequency.exponentialRampToValueAtTime(2800, now + duration);
-    filter.Q.setValueAtTime(2.6, now);
+    filter.Q.setValueAtTime(2.4, now);
 
     const nGain = ctx.createGain();
     nGain.gain.setValueAtTime(0.0001, now);
-    nGain.gain.linearRampToValueAtTime(0.022, now + 0.28);
+    nGain.gain.linearRampToValueAtTime(0.14, now + 0.28);
     nGain.gain.exponentialRampToValueAtTime(0.0001, now + duration + 0.04);
 
     noise.connect(filter);
     filter.connect(nGain);
-    nGain.connect(this.masterGain);
+    nGain.connect(this.tier2Bus);
     noise.start(now);
     noise.stop(now + duration + 0.08);
     noise.onended = () => {
@@ -1047,36 +1263,36 @@ class ProceduralSfxEngine {
     };
   }
 
-  /** Soft downward chime + gentle airy recede on modal close. */
+  /** Tier 1 (Micro-UI): Soft downward D-major pentatonic celesta resolution on modal close (A5 -> F#5 -> D5). */
   public playModalClose(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier1Bus) return;
 
     const now = ctx.currentTime;
-    const notes = [659.25, 493.88, 392.0]; // E5 -> B4 -> G4 soft downward chime
+    const notes = [880.0, 739.99, 587.33]; // A5 -> F#5 -> D5 soft downward celesta resolution
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
-      const t0 = now + idx * 0.045;
+      const t0 = now + idx * 0.048;
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.96, t0 + 0.22);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.985, t0 + 0.24);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(1150, t0);
+      lpf.frequency.setValueAtTime(1450, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.038 - idx * 0.006, t0 + 0.014);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      gain.gain.linearRampToValueAtTime(0.3 - idx * 0.045, t0 + 0.016);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
 
       osc.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier1Bus!);
       osc.start(t0);
-      osc.stop(t0 + 0.3);
+      osc.stop(t0 + 0.38);
       osc.onended = () => {
         osc.disconnect();
         lpf.disconnect();
@@ -1085,11 +1301,11 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Subtle celestial harp chime when gliding between Galaxy View and Constellation View. */
+  /** Tier 2 (Spatial): Subtle celestial harp chime when gliding between Galaxy View and Constellation View. */
   public playCelestialChime(direction: 'up' | 'down' = 'up'): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     const notes =
@@ -1099,60 +1315,73 @@ class ProceduralSfxEngine {
 
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
       const t0 = now + idx * 0.075;
-      osc.type = 'sine';
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 1.5) * 2.5, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3200, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.048 - idx * 0.006, t0 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+      gain.gain.linearRampToValueAtTime(0.24 - idx * 0.025, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.18);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
-      osc.stop(t0 + 1.2);
+      osc.stop(t0 + 1.24);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Crisp starlight ping when selecting or stepping through Constellation milestone stars. */
+  /** Tier 1 (Micro-UI): Crisp starlight ping when selecting UI steps or Constellation milestone stars. */
   public playStarSelect(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier1Bus) return;
 
     const now = ctx.currentTime;
     [987.77, 1479.98].forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
-      const t0 = now + idx * 0.03;
+      const t0 = now + idx * 0.032;
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
 
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.044 - idx * 0.014, t0 + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3200, t0);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.32 - idx * 0.08, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.54);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier1Bus!);
       osc.start(t0);
-      osc.stop(t0 + 0.56);
+      osc.stop(t0 + 0.58);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Rising celestial harp ignition chime when lighting up the next milestone star & connecting line. */
+  /** Tier 2 (Spatial): Rising celestial harp ignition chime when lighting up the next milestone star. */
   public playStarIgnite(stepIndex: number): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     // Ascending D major pentatonic scale so each newly lit star feels progressively brighter
     const scale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51, 1479.98];
@@ -1162,10 +1391,10 @@ class ProceduralSfxEngine {
 
     const now = ctx.currentTime;
     [
-      { freq: baseFreq, delay: 0, peak: 0.056, dur: 0.95, type: 'sine' as OscillatorType },
-      { freq: shimmerFreq, delay: 0.055, peak: 0.042, dur: 0.85, type: 'triangle' as OscillatorType },
-      { freq: octFreq, delay: 0.11, peak: 0.028, dur: 0.78, type: 'sine' as OscillatorType },
-    ].forEach(({ freq, delay, peak, dur, type }) => {
+      { freq: baseFreq, delay: 0, peak: 0.27, dur: 0.98, type: 'sine' as OscillatorType, detune: -2 },
+      { freq: shimmerFreq, delay: 0.055, peak: 0.19, dur: 0.88, type: 'triangle' as OscillatorType, detune: 3 },
+      { freq: octFreq, delay: 0.11, peak: 0.13, dur: 0.8, type: 'sine' as OscillatorType, detune: 5 },
+    ].forEach(({ freq, delay, peak, dur, type, detune }) => {
       const osc = ctx.createOscillator();
       const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
@@ -1173,6 +1402,7 @@ class ProceduralSfxEngine {
 
       osc.type = type;
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime(detune, t0);
 
       lpf.type = 'lowpass';
       lpf.frequency.setValueAtTime(3400, t0);
@@ -1183,7 +1413,7 @@ class ProceduralSfxEngine {
 
       osc.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
       osc.stop(t0 + dur + 0.06);
       osc.onended = () => {
@@ -1224,10 +1454,10 @@ class ProceduralSfxEngine {
       overtone.frequency.setValueAtTime(freq * 2, t0);
       overGain.gain.setValueAtTime(0.28, t0);
 
-      const peak = 0.036 + i * 0.0055;
+      const peak = 0.088 + i * 0.011;
       gain.gain.setValueAtTime(0.0001, t0);
       gain.gain.linearRampToValueAtTime(peak, t0 + 0.018);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.72);
 
       osc.connect(gain);
       overtone.connect(overGain);
@@ -1263,7 +1493,7 @@ class ProceduralSfxEngine {
       lpf.frequency.setValueAtTime(2150 + idx * 210, t0);
       lpf.frequency.exponentialRampToValueAtTime(1020, t0 + 2.3);
 
-      const peak = 0.044 - idx * 0.0032;
+      const peak = 0.095 - idx * 0.007;
       env.gain.setValueAtTime(0.0001, t0);
       env.gain.linearRampToValueAtTime(peak, t0 + 0.16);
       env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.45);
@@ -1317,7 +1547,7 @@ class ProceduralSfxEngine {
       lpf.frequency.setValueAtTime(3000 + idx * 240, t0);
       lpf.frequency.exponentialRampToValueAtTime(1150, t0 + 1.6);
 
-      const peak = 0.044 - idx * 0.0034;
+      const peak = 0.095 - idx * 0.007;
       env.gain.setValueAtTime(0.0001, t0);
       env.gain.linearRampToValueAtTime(peak, t0 + 0.04);
       env.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.75);
@@ -1335,72 +1565,86 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Brief, magical ascending rose-gold sparkle chime when 6/6 core memories unlock the Secret Supernova hint. */
+  /** Tier 2 (Spatial): Ascending rose-gold sparkle chime for mini-game wins & Secret Supernova unlock. */
   public playFinaleUnlockChime(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     const notes = [587.33, 739.99, 880.0, 1108.73, 1174.66, 1479.98]; // D5 -> F#5 -> A5 -> C#6 -> D6 -> F#6
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
       const t0 = now + idx * 0.065;
 
       osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 2.5) * 2.5, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3600, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.048 - idx * 0.0035, t0 + 0.018);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.18);
+      gain.gain.linearRampToValueAtTime(0.24 - idx * 0.018, t0 + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
-      osc.stop(t0 + 1.24);
+      osc.stop(t0 + 1.26);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Warm crystalline absorption shimmer when falling starlight merges into the 3D Particle Heart. */
+  /** Tier 2 (Spatial): Warm crystalline absorption shimmer when falling starlight merges into the 3D Particle Heart. */
   public playHeartAbsorptionShimmer(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier2Bus) return;
 
     const now = ctx.currentTime;
     const notes = [587.33, 739.99, 880.0, 1174.66, 1479.98];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
       const gain = ctx.createGain();
       const t0 = now + idx * 0.04;
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 2) * 3.0, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3400, t0);
 
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(0.036 - idx * 0.003, t0 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+      gain.gain.linearRampToValueAtTime(0.2 - idx * 0.016, t0 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.18);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.tier2Bus!);
       osc.start(t0);
-      osc.stop(t0 + 1.22);
+      osc.stop(t0 + 1.24);
       osc.onended = () => {
         osc.disconnect();
+        lpf.disconnect();
         gain.disconnect();
       };
     });
   }
 
-  /** Warm harmonic completion chord (Dmaj9) played during the full-constellation finale showcase. */
+  /** Tier 3 (Climax): Warm harmonic completion chord (Dmaj9) played during the full-constellation finale showcase. */
   public playConstellationFinaleChord(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    if (!ctx || !this.tier3Bus) return;
 
     const now = ctx.currentTime;
     // Lush Dmaj9 voicing: D4, A4, D5, F#5, A5, C#6, E6
@@ -1416,19 +1660,19 @@ class ProceduralSfxEngine {
       osc.detune.setValueAtTime((idx - 3) * 2.8, t0);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(1600 + idx * 240, t0);
-      lpf.frequency.exponentialRampToValueAtTime(900, t0 + 2.0);
+      lpf.frequency.setValueAtTime(1750 + idx * 240, t0);
+      lpf.frequency.exponentialRampToValueAtTime(950, t0 + 2.0);
 
-      const peak = 0.046 - idx * 0.0038;
+      const peak = 0.095 - idx * 0.007;
       gain.gain.setValueAtTime(0.0001, t0);
       gain.gain.linearRampToValueAtTime(peak, t0 + 0.14);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.18);
 
       osc.connect(lpf);
       lpf.connect(gain);
-      gain.connect(this.masterGain!);
+      gain.connect(this.tier3Bus!);
       osc.start(t0);
-      osc.stop(t0 + 2.25);
+      osc.stop(t0 + 2.26);
       osc.onended = () => {
         osc.disconnect();
         lpf.disconnect();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Puzzle, RotateCcw, Sparkles } from 'lucide-react';
 import { ANNIVERSARY_DATA } from '../../../data/anniversaryData';
+import { sfxEngine } from '../../../utils/sfxEngine';
 
 const GRID_SIZE = 3;
 const TOTAL_TILES = GRID_SIZE * GRID_SIZE;
@@ -97,6 +98,7 @@ export function PuzzleModal() {
   useEffect(() => {
     if (isSolved && !celebratedRef.current) {
       celebratedRef.current = true;
+      sfxEngine.playFinaleUnlockChime();
       fireHeartConfetti(timerIdsRef);
     }
   }, [isSolved]);
