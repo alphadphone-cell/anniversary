@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
+import { galaxySignals } from '../../canvas/galaxySignals';
 import { useAppStore } from '../../store/useAppStore';
 import { startAmbientAudio } from '../../audio/audioEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
@@ -8,14 +9,29 @@ import { sfxEngine } from '../../utils/sfxEngine';
 const HEART_PATH =
   'M60 98 C57 95 16 66 16 37 C16 21 28 11 42 11 C50 11 56 15 60 22 C64 15 70 11 78 11 C92 11 104 21 104 37 C104 66 63 95 60 98 Z';
 
-const HOLD_CHARGE_RATE = 74; // % per second while held (~1.35s)
-const AUTO_CHARGE_RATE = 78; // % per second after tap/click (~1.28s)
-const DECAY_RATE = 26;
+// Slower, musical ~3.4s tactile charge with a smooth accelerating curve (lets piano intro breathe)
+const BASE_CHARGE_PER_SEC = 21.5; // Starts calm & tactile
+const ACCEL_CHARGE_BONUS = 17.5; // Accelerates smoothly toward 100% (~3.39s total)
+const DECAY_RATE = 24;
+const PEAK_LOCK_HOLD_MS = 250; // Crisp 250ms 100% peak glow beat before dissolving into Warp
+
+const RING_RADIUS = 66;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/** Minimalist 4-point celestial star accent (pure SVG, zero emoji). */
+function FourPointStar({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M8 0.5 C8.5 5.4 10.6 7.5 15.5 8 C10.6 8.5 8.5 10.6 8 15.5 C7.5 10.6 5.4 8.5 0.5 8 C5.4 7.5 7.5 5.4 8 0.5 Z" />
+    </svg>
+  );
+}
 
 export function IntroStage() {
   const [progress, setProgress] = useState(0);
   const [isCharging, setIsCharging] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [isDissolving, setIsDissolving] = useState(false);
 
   const progressRef = useRef(0);
   const isHoldingRef = useRef(false);
@@ -24,7 +40,8 @@ export function IntroStage() {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const hasCompletedRef = useRef(false);
-  const transitionTimerRef = useRef<number | null>(null);
+  const dissolveTimerRef = useRef<number | null>(null);
+  const warpTimerRef = useRef<number | null>(null);
 
   const setStage = useAppStore((s) => s.setStage);
 
@@ -48,17 +65,22 @@ export function IntroStage() {
     autoChargingRef.current = false;
     stopLoop();
     progressRef.current = 100;
+    galaxySignals.introCharge = 1;
     setProgress(100);
     setIsCharging(false);
     setIsComplete(true);
 
-    // Chime + sub-bass impact as heart pulls inward and radial shockwave fires
+    // Chime + sub-bass impact as progress ring locks at 360°
     sfxEngine.playChargeComplete();
 
-    // Ignite Warp portal right as the heart anticipation peak transitions into shockwave dissolve
-    transitionTimerRef.current = window.setTimeout(() => {
+    // Crisp 250ms peak glow hold -> smoothly dissolve glass & text outward -> ignite Warp portal
+    dissolveTimerRef.current = window.setTimeout(() => {
+      setIsDissolving(true);
+    }, PEAK_LOCK_HOLD_MS);
+
+    warpTimerRef.current = window.setTimeout(() => {
       setStage('warp');
-    }, 240);
+    }, PEAK_LOCK_HOLD_MS + 220);
   }, [setStage, stopLoop]);
 
   const ensureLoopRunning = useCallback(() => {
@@ -71,20 +93,22 @@ export function IntroStage() {
       }
 
       const prev = lastTimeRef.current ?? now;
-      const dt = Math.min((now - prev) / 1000, 0.05);
+      // Allow up to 250ms per tick so charge stays wall-clock synced (~3.4s) to the piano intro even on low-FPS GPUs
+      const dt = Math.min((now - prev) / 1000, 0.25);
       lastTimeRef.current = now;
 
       let next = progressRef.current;
+      const u = next / 100;
+      const currentRate = BASE_CHARGE_PER_SEC + ACCEL_CHARGE_BONUS * u;
 
-      if (isHoldingRef.current) {
-        next = Math.min(100, next + HOLD_CHARGE_RATE * dt);
-      } else if (autoChargingRef.current) {
-        next = Math.min(100, next + AUTO_CHARGE_RATE * dt);
+      if (isHoldingRef.current || autoChargingRef.current) {
+        next = Math.min(100, next + currentRate * dt);
       } else if (next > 0) {
         next = Math.max(0, next - DECAY_RATE * dt);
       }
 
       progressRef.current = next;
+      galaxySignals.introCharge = next / 100;
       setProgress(next);
 
       if (isHoldingRef.current || autoChargingRef.current) {
@@ -97,6 +121,7 @@ export function IntroStage() {
       }
 
       if (!isHoldingRef.current && !autoChargingRef.current && next <= 0) {
+        galaxySignals.introCharge = 0;
         setIsCharging(false);
         sfxEngine.stopChargeHum();
         stopLoop();
@@ -127,8 +152,8 @@ export function IntroStage() {
       const heldMs = performance.now() - pressStartRef.current;
       isHoldingRef.current = false;
 
-      // Support both holding AND clicking: a tap/click latches smooth auto-charge to 100%
-      if (!canceled && heldMs < 450) {
+      // Support both holding AND single tap: a quick tap latches the same smooth ~3.4s musical build-up
+      if (!canceled && heldMs < 420) {
         autoChargingRef.current = true;
         setIsCharging(true);
       } else if (!autoChargingRef.current) {
@@ -166,230 +191,332 @@ export function IntroStage() {
     return () => {
       stopLoop();
       sfxEngine.stopChargeHum();
-      if (transitionTimerRef.current !== null) {
-        window.clearTimeout(transitionTimerRef.current);
-      }
+      galaxySignals.introCharge = 0;
+      if (dissolveTimerRef.current !== null) window.clearTimeout(dissolveTimerRef.current);
+      if (warpTimerRef.current !== null) window.clearTimeout(warpTimerRef.current);
     };
   }, [stopLoop]);
 
   const roundedPercent = Math.round(progress);
   const chargeRatio = progress / 100;
   const isActive = isCharging || isComplete;
+  const dashOffset = RING_CIRCUMFERENCE * (1 - chargeRatio);
+
+  // Exact SVG coordinates of the glowing leading tip dot along the circular progress ring
+  const tipAngleRad = (chargeRatio * 360 - 90) * (Math.PI / 180);
+  const tipX = 80 + Math.cos(tipAngleRad) * RING_RADIUS;
+  const tipY = 80 + Math.sin(tipAngleRad) * RING_RADIUS;
 
   return (
     <motion.div
-      key="intro-stage"
       initial={{ opacity: 0, scale: 0.96, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 1.09, filter: 'blur(14px)' }}
-      transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto relative flex w-full max-w-[560px] flex-col items-center justify-center px-2"
+      animate={{
+        opacity: isDissolving ? 0 : 1,
+        scale: isDissolving ? 1.07 : 1,
+        y: 0,
+      }}
+      exit={{ opacity: 0, scale: 1.08 }}
+      transition={{ duration: isDissolving ? 0.34 : 0.75, ease: [0.22, 1, 0.36, 1] }}
+      style={{ willChange: 'transform, opacity' }}
+      className="pointer-events-auto relative mx-auto w-[min(92vw,484px)]"
     >
-      {/* Ambient nebula radial backing */}
+      {/* Subtle Radial Aurora Backlight Behind the Celestial Invitation */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-8 rounded-[44px] opacity-70 blur-3xl"
+        className="pointer-events-none absolute -inset-10 -z-10 rounded-full blur-3xl transition-opacity duration-500"
         style={{
+          opacity: 0.45 + chargeRatio * 0.55,
           background:
-            'radial-gradient(ellipse at 50% 45%, rgba(217, 70, 239, 0.24), rgba(139, 92, 246, 0.12) 48%, transparent 74%)',
+            'radial-gradient(circle at 50% 48%, rgba(255, 62, 165, 0.28) 0%, rgba(168, 85, 247, 0.2) 45%, rgba(5, 2, 10, 0) 72%)',
         }}
       />
 
-      <section
-        aria-label="Màn hình chào mừng kỷ niệm"
-        className="relative flex w-full flex-col items-center overflow-visible rounded-[28px] px-6 py-10 text-center sm:px-12 sm:py-12"
-        style={{
-          background:
-            'linear-gradient(155deg, rgba(24, 11, 44, 0.78) 0%, rgba(12, 5, 24, 0.84) 55%, rgba(20, 8, 36, 0.78) 100%)',
-          backdropFilter: 'blur(22px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(22px) saturate(150%)',
-          border: `1px solid ${
-            isActive ? 'rgba(255, 62, 165, 0.56)' : 'rgba(217, 70, 239, 0.32)'
-          }`,
-          boxShadow: isActive
-            ? 'inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 28px 72px -20px rgba(3, 1, 10, 0.94), 0 12px 44px -10px rgba(255, 62, 165, 0.34)'
-            : 'inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 28px 64px -20px rgba(3, 1, 10, 0.92), 0 10px 36px -14px rgba(139, 92, 246, 0.28)',
-          transition: 'border-color 260ms ease, box-shadow 300ms ease',
-        }}
-      >
-        <motion.h1
-          animate={isComplete ? { opacity: 0.2, y: -6 } : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="font-display text-3xl leading-snug font-bold tracking-[-0.015em] text-starlight sm:text-5xl"
-          style={{
-            textShadow:
-              '0 0 26px rgba(224, 200, 255, 0.38), 0 2px 12px rgba(217, 70, 239, 0.28)',
-          }}
-        >
-          {ANNIVERSARY_DATA.introHeadline}
-        </motion.h1>
+      {/* Delicate 1px Rose-Pink -> Violet Hairline Gradient Border Wrapper */}
+      <div className="relative rounded-[36px] bg-gradient-to-b from-pink-300/35 via-fuchsia-400/18 to-violet-400/25 p-[1px] shadow-[0_24px_80px_rgba(4,1,12,0.75),0_0_48px_rgba(255,62,165,0.12)]">
+        {/* Top Axis Celestial 4-Point Star Accent */}
+        <FourPointStar className="pointer-events-none absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 text-pink-200 drop-shadow-[0_0_10px_rgba(255,118,198,0.9)]" />
+        {/* Bottom Axis Celestial 4-Point Star Accent */}
+        <FourPointStar className="pointer-events-none absolute -bottom-2 left-1/2 h-3.5 w-3.5 -translate-x-1/2 text-violet-200/80 drop-shadow-[0_0_8px_rgba(192,132,252,0.85)]" />
 
-        {/* Interactive Glowing Heart Charge Button */}
-        <div className="relative mt-8 mb-7 flex items-center justify-center sm:mt-9 sm:mb-8">
-          {/* Dynamic charge aura behind heart */}
+        {/* Ethereal Obsidian-Glass Invitation Surface */}
+        <div className="relative overflow-hidden rounded-[35px] bg-[#0b0416]/68 px-7 py-10 text-center backdrop-blur-2xl sm:px-10 sm:py-12">
+          {/* Soft internal top specular sheen */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute h-36 w-36 rounded-full blur-2xl transition-opacity duration-200"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(255, 62, 165, 0.58) 0%, rgba(217, 70, 239, 0.26) 55%, transparent 75%)',
-              opacity: 0.25 + chargeRatio * 0.75,
-              transform: `scale(${0.92 + chargeRatio * 0.38})`,
-            }}
+            className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-pink-200/60 to-transparent"
           />
 
-          {/* Radial shockwave emitted from the exact center of the heart at 100% */}
-          {isComplete && (
-            <motion.span
-              aria-hidden="true"
-              initial={{ scale: 0.45, opacity: 0.92 }}
-              animate={{ scale: 4.4, opacity: 0 }}
-              transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
-              className="pointer-events-none absolute h-28 w-28 rounded-full border-2 border-neon-pink"
-              style={{
-                boxShadow:
-                  '0 0 28px rgba(255, 62, 165, 0.85), inset 0 0 18px rgba(217, 70, 239, 0.75)',
-              }}
-            />
-          )}
-
-          <motion.button
-            type="button"
-            onPointerDown={handlePressStart}
-            onPointerUp={() => handlePressEnd(false)}
-            onPointerLeave={() => {
-              if (isHoldingRef.current) handlePressEnd(true);
-            }}
-            onPointerCancel={() => handlePressEnd(true)}
-            onKeyDown={handleKeyDown}
-            onKeyUp={handleKeyUp}
-            whileHover={isComplete ? undefined : { scale: 1.04 }}
-            whileTap={isComplete ? undefined : { scale: 0.96 }}
-            animate={
-              isComplete
-                ? { scale: [1, 0.78, 1.24], opacity: [1, 1, 0.75] }
-                : { scale: 1, opacity: 1 }
-            }
-            transition={
-              isComplete
-                ? { duration: 0.42, times: [0, 0.38, 1], ease: [0.22, 1, 0.36, 1] }
-                : { duration: 0.2 }
-            }
-            aria-label={
-              isComplete
-                ? 'Đã nạp đầy yêu thương, đang mở cổng không gian'
-                : 'Chạm và giữ trái tim để nạp yêu thương'
-            }
-            className="group relative flex h-36 w-36 cursor-pointer touch-none select-none items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neon-pink"
+          {/* Wide-Tracked Eyebrow Label */}
+          <motion.div
+            animate={{ opacity: isDissolving ? 0 : 1, y: isDissolving ? -6 : 0 }}
+            transition={{ duration: 0.26 }}
+            className="flex items-center justify-center gap-2 font-sans text-[11px] leading-normal font-medium tracking-[0.28em] text-pink-200/75 uppercase"
           >
-            <svg
-              viewBox="0 0 120 112"
-              className="h-32 w-32 overflow-visible"
-              aria-hidden="true"
-            >
-              <defs>
-                <filter id="anni-heart-glow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="3.2" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                <linearGradient id="anni-heart-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ff3ea5" />
-                  <stop offset="55%" stopColor="#f43f97" />
-                  <stop offset="100%" stopColor="#d946ef" />
-                </linearGradient>
-                <radialGradient id="anni-heart-fill" cx="50%" cy="45%" r="60%">
-                  <stop offset="0%" stopColor="rgba(255, 62, 165, 0.22)" />
-                  <stop offset="100%" stopColor="rgba(139, 92, 246, 0.08)" />
-                </radialGradient>
-              </defs>
+            <FourPointStar className="h-2.5 w-2.5 text-pink-300/80" />
+            <span>Hành Trình Của Tụi Mình</span>
+            <FourPointStar className="h-2.5 w-2.5 text-pink-300/80" />
+          </motion.div>
 
-              <path
-                d={HEART_PATH}
-                fill="url(#anni-heart-fill)"
-                stroke="rgba(168, 85, 247, 0.42)"
-                strokeWidth="4.5"
-                strokeLinejoin="round"
+          {/* Elegant Lighter-Weight Playfair Display Title (Zero Diacritic Clipping) */}
+          <motion.h1
+            animate={{ opacity: isDissolving ? 0 : 1, y: isDissolving ? -8 : 0 }}
+            transition={{ duration: 0.28 }}
+            className="mt-3.5 bg-gradient-to-b from-[#fffbfd] via-[#fce7f3] to-[#f9a8d4] bg-clip-text py-1 font-display text-[34px] leading-[1.28] font-medium tracking-tight text-transparent sm:text-[42px]"
+            style={{
+              filter: 'drop-shadow(0 0 22px rgba(255, 118, 198, 0.32))',
+            }}
+          >
+            {ANNIVERSARY_DATA.introHeadline}
+          </motion.h1>
+
+          {/* Interactive Luminous Crystal Heart + SVG Circular Progress Ring */}
+          <div className="relative my-8 flex items-center justify-center">
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                handlePressStart();
+              }}
+              onPointerUp={() => handlePressEnd(false)}
+              onPointerLeave={() => {
+                if (isHoldingRef.current) handlePressEnd(true);
+              }}
+              onPointerCancel={() => handlePressEnd(true)}
+              onKeyDown={handleKeyDown}
+              onKeyUp={handleKeyUp}
+              aria-label="Chạm và giữ trái tim để nạp yêu thương và mở cổng ngân hà"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={roundedPercent}
+              role="slider"
+              className="group relative flex h-44 w-44 cursor-pointer items-center justify-center rounded-full select-none touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0b0416]"
+            >
+              {/* Concentric Breathing Ripple Rings (expanding gently outward) */}
+              <motion.span
+                aria-hidden="true"
+                animate={{
+                  scale: isComplete ? [1, 1.55] : [0.88, 1.24],
+                  opacity: isComplete ? [0.65, 0] : [0.34 + chargeRatio * 0.28, 0],
+                }}
+                transition={{
+                  duration: isComplete ? 0.55 : isActive ? 1.15 : 2.6,
+                  repeat: isComplete ? 0 : Infinity,
+                  ease: 'easeOut',
+                }}
+                className="pointer-events-none absolute inset-3 rounded-full border border-pink-300/45"
+              />
+              <motion.span
+                aria-hidden="true"
+                animate={{
+                  scale: [0.82, 1.18],
+                  opacity: [0.24 + chargeRatio * 0.22, 0],
+                }}
+                transition={{
+                  duration: isActive ? 1.15 : 2.6,
+                  delay: isActive ? 0.55 : 1.3,
+                  repeat: isComplete ? 0 : Infinity,
+                  ease: 'easeOut',
+                }}
+                className="pointer-events-none absolute inset-5 rounded-full border border-fuchsia-300/35"
               />
 
-              <path
-                d={HEART_PATH}
-                fill="none"
-                stroke="url(#anni-heart-stroke)"
-                strokeWidth="5.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength={100}
-                strokeDasharray={100}
-                strokeDashoffset={100 - progress}
-                filter="url(#anni-heart-glow)"
+              {/* Soft Radial Heart Glow Aura (intensifies smoothly 0% -> 100%) */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-4 rounded-full blur-2xl transition-all duration-150"
                 style={{
-                  opacity: progress > 0.5 ? 1 : 0,
-                  transition: 'opacity 140ms ease',
+                  opacity: 0.3 + chargeRatio * 0.68,
+                  transform: `scale(${0.86 + chargeRatio * 0.34})`,
+                  background:
+                    'radial-gradient(circle, rgba(255, 228, 245, 0.72) 0%, rgba(255, 62, 165, 0.58) 42%, rgba(168, 85, 247, 0.22) 72%, rgba(0, 0, 0, 0) 100%)',
                 }}
               />
-            </svg>
 
-            {/* Pulsing inner core heart (pulls inward then bursts into Warp portal) */}
-            <motion.span
-              aria-hidden="true"
-              className="pointer-events-none absolute flex items-center justify-center"
-              animate={
-                isComplete
-                  ? { scale: [1.05, 0.68, 1.55], opacity: [1, 1, 0.9] }
-                  : isCharging
-                    ? { scale: [1.05, 1.2, 1.08], opacity: 1 }
-                    : { scale: [1, 1.09, 1, 1.05, 1], opacity: 0.92 }
-              }
-              transition={
-                isComplete
-                  ? { duration: 0.42, times: [0, 0.36, 1], ease: [0.22, 1, 0.36, 1] }
-                  : isCharging
-                    ? { duration: 0.52, repeat: Infinity, ease: 'easeInOut' }
-                    : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
-              }
-            >
-              <svg viewBox="0 0 120 112" className="h-9 w-9 overflow-visible">
-                <path
-                  d={HEART_PATH}
-                  fill="#ff3ea5"
+              {/* Sleek SVG Circular Progress Ring (0° -> 360°) + Glowing Tip Dot */}
+              <svg
+                viewBox="0 0 160 160"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+              >
+                <defs>
+                  <linearGradient id="intro-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#fff5fb" />
+                    <stop offset="45%" stopColor="#f472b6" />
+                    <stop offset="100%" stopColor="#d946ef" />
+                  </linearGradient>
+                  <filter id="intro-tip-glow" x="-80%" y="-80%" width="260%" height="260%">
+                    <feGaussianBlur stdDeviation="3.2" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                {/* Hairline subtle orbital track */}
+                <circle
+                  cx="80"
+                  cy="80"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="rgba(255, 240, 250, 0.1)"
+                  strokeWidth="1.5"
+                />
+
+                {/* Active Rose-Pink / Magenta Progress Arc */}
+                <circle
+                  cx="80"
+                  cy="80"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="url(#intro-ring-grad)"
+                  strokeWidth={isComplete ? '3' : '2.4'}
+                  strokeLinecap="round"
+                  strokeDasharray={RING_CIRCUMFERENCE}
+                  strokeDashoffset={dashOffset}
+                  transform="rotate(-90 80 80)"
                   style={{
-                    filter: `drop-shadow(0 0 ${8 + chargeRatio * 16}px rgba(255, 62, 165, 0.92))`,
+                    filter: 'drop-shadow(0 0 8px rgba(255, 62, 165, 0.75))',
                   }}
                 />
-              </svg>
-            </motion.span>
-          </motion.button>
-        </div>
 
-        {/* Status Readout & Accessible Progressbar */}
-        <motion.div
-          animate={isComplete ? { opacity: 0.25, y: 6 } : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.32 }}
-          role="progressbar"
-          aria-label="Tiến độ nạp yêu thương"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={roundedPercent}
-          className="flex flex-col items-center gap-2"
-        >
-          <p className="font-sans text-xs leading-normal font-semibold tracking-[0.18em] text-lavender uppercase sm:text-[13px]">
-            {isComplete ? 'ĐÃ NẠP ĐẦY YÊU THƯƠNG' : ANNIVERSARY_DATA.introStatusLabel}
-            {progress > 0 && !isComplete && (
-              <span className="ml-2 font-mono text-neon-pink tabular-nums">{roundedPercent}%</span>
+                {/* Glowing Leading Tip Sparkle Dot */}
+                {chargeRatio > 0.008 && (
+                  <circle
+                    cx={tipX}
+                    cy={tipY}
+                    r={isComplete ? 4.4 : 3.6}
+                    fill="#fff9fe"
+                    filter="url(#intro-tip-glow)"
+                  />
+                )}
+              </svg>
+
+              {/* Multi-Layered Luminous Crystal Heart Centerpiece */}
+              <motion.div
+                animate={
+                  isDissolving
+                    ? { scale: 0.18, opacity: 0 }
+                    : isComplete
+                      ? { scale: 1.16, opacity: 1 }
+                      : isActive
+                        ? { scale: 1 + chargeRatio * 0.1 + Math.sin(chargeRatio * 24) * 0.015 }
+                        : { scale: [1, 1.045, 1] }
+                }
+                transition={
+                  isDissolving
+                    ? { duration: 0.28, ease: [0.4, 0, 1, 1] }
+                    : isComplete
+                      ? { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                      : isActive
+                        ? { duration: 0.08 }
+                        : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
+                }
+                style={{ willChange: 'transform, opacity' }}
+                className="relative flex h-24 w-24 items-center justify-center"
+              >
+                <svg
+                  viewBox="0 0 120 112"
+                  aria-hidden="true"
+                  className="h-20 w-20 overflow-visible sm:h-[86px] sm:w-[86px]"
+                  style={{
+                    filter: `drop-shadow(0 0 ${14 + chargeRatio * 24}px rgba(255, 62, 165, ${0.55 + chargeRatio * 0.4}))`,
+                  }}
+                >
+                  <defs>
+                    {/* Rich inner crystal heart radial gradient */}
+                    <radialGradient id="crystal-heart-core" cx="38%" cy="30%" r="72%">
+                      <stop offset="0%" stopColor="#fff5fc" />
+                      <stop offset="32%" stopColor="#ff7ac8" />
+                      <stop offset="72%" stopColor="#ec4899" />
+                      <stop offset="100%" stopColor="#86198f" />
+                    </radialGradient>
+
+                    {/* Frosted glass specular top-left highlight */}
+                    <linearGradient id="crystal-heart-sheen" x1="15%" y1="5%" x2="75%" y2="85%">
+                      <stop offset="0%" stopColor="rgba(255, 255, 255, 0.72)" />
+                      <stop offset="38%" stopColor="rgba(255, 228, 245, 0.22)" />
+                      <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
+                    </linearGradient>
+
+                    {/* Soft seamless radial inner bloom inside crystal heart */}
+                    <radialGradient id="crystal-inner-bloom" cx="50%" cy="46%" r="50%">
+                      <stop offset="0%" stopColor="#fff9fe" stopOpacity="0.85" />
+                      <stop offset="55%" stopColor="#ffb6e3" stopOpacity="0.28" />
+                      <stop offset="100%" stopColor="#ff3ea5" stopOpacity="0" />
+                    </radialGradient>
+
+                    <clipPath id="crystal-heart-clip">
+                      <path d={HEART_PATH} />
+                    </clipPath>
+                  </defs>
+
+                  {/* Base Translucent Crystal Shell */}
+                  <path
+                    d={HEART_PATH}
+                    fill="rgba(255, 62, 165, 0.16)"
+                    stroke="rgba(255, 198, 232, 0.58)"
+                    strokeWidth="1.8"
+                  />
+
+                  {/* Liquid Starlight Fill Rising Smoothly Inside the Crystal Heart */}
+                  <g clipPath="url(#crystal-heart-clip)">
+                    <rect
+                      x="0"
+                      y={104 - (18 + chargeRatio * 94)}
+                      width="120"
+                      height="112"
+                      fill="url(#crystal-heart-core)"
+                      opacity={0.42 + chargeRatio * 0.58}
+                    />
+                    {/* Seamless Luminous Inner Core Bloom */}
+                    <circle
+                      cx="60"
+                      cy="48"
+                      r={28 + chargeRatio * 34}
+                      fill="url(#crystal-inner-bloom)"
+                      opacity={0.42 + chargeRatio * 0.55}
+                    />
+                  </g>
+
+                  {/* Frosted Specular Crescent Highlight */}
+                  <path
+                    d={HEART_PATH}
+                    fill="url(#crystal-heart-sheen)"
+                    stroke="rgba(255, 244, 252, 0.72)"
+                    strokeWidth="1.15"
+                  />
+                </svg>
+              </motion.div>
+            </button>
+          </div>
+
+          {/* Crisp Status Text & Subtle Percentage Readout Underneath */}
+          <motion.div
+            animate={{ opacity: isDissolving ? 0 : 1, y: isDissolving ? 6 : 0 }}
+            transition={{ duration: 0.24 }}
+            className="flex min-h-[44px] flex-col items-center justify-center gap-1.5"
+          >
+            {isComplete ? (
+              <p className="inline-flex items-center gap-2 font-sans text-xs leading-normal font-medium tracking-[0.14em] text-pink-100 uppercase sm:text-[13px]">
+                <span>Cổng ngân hà đã mở</span>
+                <FourPointStar className="h-3 w-3 text-pink-200" />
+              </p>
+            ) : isActive || roundedPercent > 0 ? (
+              <div className="flex items-center gap-2 font-sans text-xs leading-normal text-pink-100/90 sm:text-[13px]">
+                <span>Đang đánh thức bầu trời sao...</span>
+                <span className="rounded-full border border-pink-300/35 bg-pink-500/18 px-2 py-0.5 font-mono text-[11px] font-medium text-starlight tabular-nums">
+                  {roundedPercent}%
+                </span>
+              </div>
+            ) : (
+              <p className="font-sans text-xs leading-relaxed text-lavender sm:text-[13px]">
+                Chạm và giữ trái tim để bắt đầu
+              </p>
             )}
-          </p>
-          <p className="text-xs leading-relaxed text-lavender-muted">
-            {isComplete
-              ? 'Đang mở cổng ngân hà...'
-              : isCharging
-                ? 'Tiếp tục giữ để đánh thức bầu trời sao'
-                : 'Chạm & giữ trái tim để bắt đầu'}
-          </p>
-        </motion.div>
-      </section>
+          </motion.div>
+        </div>
+      </div>
     </motion.div>
   );
 }

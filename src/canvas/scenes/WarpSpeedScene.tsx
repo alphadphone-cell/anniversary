@@ -13,8 +13,9 @@ const STREAK_COUNT = 1400;
 const SPARK_COUNT = 900;
 const TUNNEL_DEPTH = 112;
 const TUNNEL_Z_MIN = -98;
-const WARP_DURATION = 2.55;
-const FLASH_LEAD_TIME = 2.08;
+// Unrushed ~3.05s hyperspace tunnel so Intro (~3.4s) + Warp (~3.05s) lands Galaxy right on the musical swell
+const WARP_DURATION = 3.05;
+const FLASH_LEAD_TIME = 2.55;
 const BASE_FOV = 45;
 const PEAK_FOV = 75;
 
@@ -341,7 +342,7 @@ export function WarpSpeedScene({ quality = 1, reducedMotion = false }: WarpSpeed
 
   // Center camera at Warp ignition + launch procedural warp whoosh SFX; dispose cleanly on exit
   useEffect(() => {
-    elapsedRef.current = 0;
+    elapsedRef.current = performance.now();
     travelRef.current = 0;
     flashTriggeredRef.current = false;
     finishedRef.current = false;
@@ -377,13 +378,13 @@ export function WarpSpeedScene({ quality = 1, reducedMotion = false }: WarpSpeed
     if (finishedRef.current) return;
 
     const clampedDelta = Math.min(delta, 0.05);
-    elapsedRef.current += clampedDelta;
-    const t = elapsedRef.current;
+    const t = Math.max(0, (performance.now() - elapsedRef.current) / 1000);
     const progress = THREE.MathUtils.clamp(t / WARP_DURATION, 0, 1);
 
-    const easedSpeed = Math.pow(progress, 1.45);
+    // Gentle start -> surging hyperspace streaks -> luminous pink-white bloom peak
+    const easedSpeed = Math.pow(progress, 1.72);
     const motionScale = reducedMotion ? 0.35 : 1;
-    const velocity = (18 + easedSpeed * 124) * motionScale;
+    const velocity = (14 + easedSpeed * 126) * motionScale;
 
     travelRef.current += velocity * clampedDelta;
 

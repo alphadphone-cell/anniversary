@@ -5,6 +5,8 @@ import * as THREE from 'three';
  * Mutated inside `useFrame` without ever triggering React re-renders.
  */
 export const galaxySignals = {
+  /** Stage 1 Intro charge progress [0..1] driving inward starlight pull in IntroScene (zero Canvas re-renders). */
+  introCharge: 0,
   /** Smoothed low-frequency bass energy [0..1] (falls back to procedural breathing sine). */
   bassEnergy: 0.25,
   /** World-space 3D pointer coordinate projected onto the galaxy interaction plane. */
