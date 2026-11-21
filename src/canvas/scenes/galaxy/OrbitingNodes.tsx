@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { ANNIVERSARY_DATA, type GalaxyNodeConfig } from '../../../data/anniversaryData';
 import { getNextJourneyStep, useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
+import { galaxySignals } from '../../galaxySignals';
 
 const NODE_BEACON_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -30,19 +31,101 @@ const NODE_BEACON_FRAGMENT = /* glsl */ `
     if (r > 1.0) discard;
 
     float breathe = 0.78 + 0.22 * sin(uTime * 2.8);
-    float edgeFade = smoothstep(1.0, 0.28, r);
-    float coreBloom = exp(-r * r * 4.6) * 0.62;
-    float outerVeil = exp(-r * r * 1.9) * 0.28;
+    float edgeFade = pow(1.0 - smoothstep(0.05, 0.92, r), 3.0);
+    float coreBloom = exp(-r * r * 6.2) * 0.62;
+    float outerVeil = exp(-r * r * 3.4) * 0.18;
 
-    float alpha = clamp((coreBloom + outerVeil) * edgeFade * breathe * uStrength, 0.0, 0.72);
-    if (alpha <= 0.004) discard;
+    float alpha = clamp((coreBloom + outerVeil) * edgeFade * breathe * uStrength, 0.0, 0.78);
 
-    vec3 cRosePink = vec3(1.52, 0.54, 1.08);
-    vec3 cPearlWhite = vec3(1.62, 1.46, 1.58);
-    vec3 col = mix(cRosePink, cPearlWhite, exp(-r * r * 6.0) * 0.65);
+    vec3 cRosePink = vec3(1.45, 0.48, 1.02);
+    vec3 cPearlWhite = vec3(1.58, 1.42, 1.54);
+    vec3 col = mix(cRosePink, cPearlWhite, exp(-r * r * 6.5) * 0.62);
+    gl_FragColor = vec4(col * alpha, alpha);
+  }
+`;
+
+/** Beat 2 Portal Flare: expanding rose-white luminous shockwave ring around the focused orb. */
+const PORTAL_RING_FRAGMENT = /* glsl */ `
+  uniform float uFlare;
+  varying vec2 vUv;
+
+  void main() {
+    if (uFlare <= 0.002 || uFlare >= 0.998) discard;
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    float eased = 1.0 - pow(1.0 - uFlare, 2.4);
+    float ringRadius = mix(0.16, 0.92, eased);
+    float bandWidth = mix(0.11, 0.045, eased);
+    float ring = exp(-pow((r - ringRadius) / bandWidth, 2.0));
+    float innerFlash = exp(-r * r * 7.5) * (1.0 - uFlare) * 0.85;
+
+    float envelope = smoothstep(0.0, 0.14, uFlare) * (1.0 - smoothstep(0.55, 1.0, uFlare));
+    float edgeSoft = 1.0 - smoothstep(0.75, 0.98, r);
+    float alpha = clamp((ring * 0.92 + innerFlash) * envelope * edgeSoft, 0.0, 0.95);
+
+    vec3 cRose = vec3(1.55, 0.58, 1.18);
+    vec3 cWhite = vec3(1.85, 1.72, 1.88);
+    vec3 col = mix(cRose, cWhite, clamp(ring * 0.65 + innerFlash, 0.0, 1.0));
+    gl_FragColor = vec4(col * alpha, alpha);
+  }
+`;
+
+/** Beat 2 Pooled 14-Sparkle Stardust Burst: 100% GPU-driven radial burst with zero per-frame allocations. */
+const PORTAL_SPARKLE_VERTEX = /* glsl */ `
+  uniform float uFlare;
+  uniform float uPixelRatio;
+  attribute vec3 aDir;
+  attribute float aSpeed;
+  attribute float aSize;
+  attribute float aPhase;
+  varying float vAlpha;
+  varying float vMix;
+
+  void main() {
+    float eased = 1.0 - pow(1.0 - uFlare, 2.6);
+    vec3 displaced = aDir * (0.18 + eased * aSpeed);
+    displaced.y += eased * 0.18;
+
+    float twinkle = 0.72 + 0.28 * sin(uFlare * 16.0 + aPhase);
+    float env = smoothstep(0.0, 0.16, uFlare) * (1.0 - smoothstep(0.52, 1.0, uFlare));
+    vAlpha = env * twinkle;
+    vMix = fract(aPhase * 1.73);
+
+    vec4 mvPos = modelViewMatrix * vec4(displaced, 1.0);
+    gl_Position = projectionMatrix * mvPos;
+    float sizeFactor = (1.0 - eased * 0.35);
+    gl_PointSize = clamp(aSize * sizeFactor * uPixelRatio * (18.0 / max(1.2, -mvPos.z)), 2.0, 26.0);
+  }
+`;
+
+const PORTAL_SPARKLE_FRAGMENT = /* glsl */ `
+  varying float vAlpha;
+  varying float vMix;
+
+  void main() {
+    if (vAlpha <= 0.01) discard;
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    // Delicate 4-point star core + soft halo
+    float core = exp(-r * r * 7.0);
+    float crossSpark = exp(-abs(p.x) * 8.0 - abs(p.y) * 2.4) * 0.55 +
+                       exp(-abs(p.y) * 8.0 - abs(p.x) * 2.4) * 0.55;
+    float shape = clamp(core + crossSpark * (1.0 - r), 0.0, 1.0);
+    float alpha = shape * vAlpha;
+    if (alpha <= 0.005) discard;
+
+    vec3 cPearl = vec3(1.85, 1.72, 1.9);
+    vec3 cRose = vec3(1.65, 0.58, 1.2);
+    vec3 col = mix(cPearl, cRose, vMix * 0.6);
     gl_FragColor = vec4(col, alpha);
   }
 `;
+
+const PORTAL_SPARKLE_COUNT = 14;
 
 interface OrbitingNodesProps {
   interactive?: boolean;
@@ -166,11 +249,23 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
   const groupRef = useRef<THREE.Group>(null);
   const scaleWrapperRef = useRef<THREE.Group>(null);
   const beaconMeshRef = useRef<THREE.Mesh>(null);
+  const portalRingRef = useRef<THREE.Mesh>(null);
+  const portalSparklesRef = useRef<THREE.Points>(null);
   const angleRef = useRef(node.orbitAngle);
   const colorScratchRef = useRef(new THREE.Color());
   const [hovered, setHovered] = useState(false);
 
-  const { texture, geometry, material, beaconGeo, beaconMat } = useMemo(() => {
+  const {
+    texture,
+    geometry,
+    material,
+    beaconGeo,
+    beaconMat,
+    portalRingGeo,
+    portalRingMat,
+    sparkleGeo,
+    sparkleMat,
+  } = useMemo(() => {
     const tex = createNodeTexture(node);
     const geo = new THREE.PlaneGeometry(1.65, 1.65);
     const mat = new THREE.MeshBasicMaterial({
@@ -180,7 +275,7 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       toneMapped: false,
       color: new THREE.Color(1.22, 1.15, 1.25),
     });
-    const bGeo = new THREE.PlaneGeometry(2.85, 2.85);
+    const bGeo = new THREE.PlaneGeometry(3.2, 3.2);
     const bMat = new THREE.ShaderMaterial({
       vertexShader: NODE_BEACON_VERTEX,
       fragmentShader: NODE_BEACON_FRAGMENT,
@@ -192,7 +287,69 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    return { texture: tex, geometry: geo, material: mat, beaconGeo: bGeo, beaconMat: bMat };
+
+    const pRingGeo = new THREE.PlaneGeometry(3.8, 3.8);
+    const pRingMat = new THREE.ShaderMaterial({
+      vertexShader: NODE_BEACON_VERTEX,
+      fragmentShader: PORTAL_RING_FRAGMENT,
+      uniforms: {
+        uFlare: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Pooled 14-sparkle radial burst geometry (deterministic per-node seed)
+    const sGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(PORTAL_SPARKLE_COUNT * 3);
+    const dirs = new Float32Array(PORTAL_SPARKLE_COUNT * 3);
+    const speeds = new Float32Array(PORTAL_SPARKLE_COUNT);
+    const sizes = new Float32Array(PORTAL_SPARKLE_COUNT);
+    const phases = new Float32Array(PORTAL_SPARKLE_COUNT);
+
+    for (let i = 0; i < PORTAL_SPARKLE_COUNT; i++) {
+      const baseAngle = (i / PORTAL_SPARKLE_COUNT) * Math.PI * 2 + node.orbitAngle * 0.7;
+      const jitter = Math.sin(i * 12.9898 + node.orbitRadius * 78.233) * 0.22;
+      const angle = baseAngle + jitter;
+      const zSpread = Math.cos(i * 4.13 + node.orbitAngle) * 0.25;
+      dirs[i * 3] = Math.cos(angle);
+      dirs[i * 3 + 1] = Math.sin(angle);
+      dirs[i * 3 + 2] = zSpread;
+      speeds[i] = 1.15 + ((i * 37) % 10) * 0.12;
+      sizes[i] = 1.35 + ((i * 19) % 7) * 0.24;
+      phases[i] = i * 1.17 + node.orbitAngle;
+    }
+
+    sGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    sGeo.setAttribute('aDir', new THREE.BufferAttribute(dirs, 3));
+    sGeo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+    sGeo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    sGeo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+    const sMat = new THREE.ShaderMaterial({
+      vertexShader: PORTAL_SPARKLE_VERTEX,
+      fragmentShader: PORTAL_SPARKLE_FRAGMENT,
+      uniforms: {
+        uFlare: { value: 0 },
+        uPixelRatio: { value: 1 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    return {
+      texture: tex,
+      geometry: geo,
+      material: mat,
+      beaconGeo: bGeo,
+      beaconMat: bMat,
+      portalRingGeo: pRingGeo,
+      portalRingMat: pRingMat,
+      sparkleGeo: sGeo,
+      sparkleMat: sMat,
+    };
   }, [node]);
 
   useEffect(() => {
@@ -209,13 +366,27 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
       material.dispose();
       beaconGeo.dispose();
       beaconMat.dispose();
+      portalRingGeo.dispose();
+      portalRingMat.dispose();
+      sparkleGeo.dispose();
+      sparkleMat.dispose();
       document.body.style.cursor = 'auto';
     };
-  }, [texture, geometry, material, beaconGeo, beaconMat]);
+  }, [
+    texture,
+    geometry,
+    material,
+    beaconGeo,
+    beaconMat,
+    portalRingGeo,
+    portalRingMat,
+    sparkleGeo,
+    sparkleMat,
+  ]);
 
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      if (!interactive) return;
+      if (!interactive || useAppStore.getState().focusingNodeId !== null) return;
       event.stopPropagation();
       setHovered(true);
       document.body.style.cursor = 'pointer';
@@ -238,8 +409,9 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
     (event: ThreeEvent<MouseEvent>) => {
       if (!interactive) return;
       event.stopPropagation();
-      sfxEngine.playModalOpen();
-      useAppStore.getState().setActiveModal(node.id);
+      setHovered(false);
+      document.body.style.cursor = 'auto';
+      useAppStore.getState().openFeatureWithCameraFly(node.id);
     },
     [interactive, node.id]
   );
@@ -247,49 +419,88 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
     const elapsed = state.clock.elapsedTime;
+    const { completedSteps, viewMode, activeModal, focusingNodeId } = useAppStore.getState();
 
-    // Pause orbital drift slightly while hovered for effortless click targeting
+    const isFocusedTarget =
+      galaxySignals.focusingNodeId === node.id ||
+      focusingNodeId === node.id ||
+      activeModal === node.id;
+    const isAnyFocusOrModal =
+      galaxySignals.focusingNodeId !== null || focusingNodeId !== null || activeModal !== null;
+
+    // Freeze target node cleanly during camera fly-to & open modal; slow peripheral orbs gently
     if (!reducedMotion) {
-      const speedMul = hovered ? 0.15 : 1;
+      const speedMul = isFocusedTarget ? 0 : isAnyFocusOrModal ? 0.22 : hovered ? 0.15 : 1;
       angleRef.current += dt * node.orbitSpeed * speedMul;
     }
 
     if (groupRef.current) {
       const x = Math.cos(angleRef.current) * node.orbitRadius;
       const z = Math.sin(angleRef.current) * node.orbitRadius;
-      const bob = reducedMotion ? 0 : Math.sin(elapsed * 1.8 + node.orbitAngle * 2) * 0.18;
+      const bobAmp = isFocusedTarget ? 0.04 : 0.18;
+      const bob = reducedMotion ? 0 : Math.sin(elapsed * 1.8 + node.orbitAngle * 2) * bobAmp;
       groupRef.current.position.set(x, node.heightOffset + bob, z);
+      groupRef.current.getWorldPosition(galaxySignals.nodeWorldPositions[node.id]);
+    }
+
+    // Beat 2 Portal Flare & Sparkle Burst (strictly on the focused target orb)
+    const flareT = galaxySignals.focusingNodeId === node.id ? galaxySignals.nodeFlareProgress : 0;
+    const flarePulse = flareT > 0 ? Math.sin(flareT * Math.PI) : 0;
+
+    portalRingMat.uniforms.uFlare.value = flareT;
+    if (portalRingRef.current) {
+      portalRingRef.current.visible = flareT > 0.002 && flareT < 0.998;
+    }
+    sparkleMat.uniforms.uFlare.value = flareT;
+    sparkleMat.uniforms.uPixelRatio.value = state.gl.getPixelRatio();
+    if (portalSparklesRef.current) {
+      portalSparklesRef.current.visible = flareT > 0.002 && flareT < 0.998;
     }
 
     // Imperative zero-re-render target aura lookup (soft rose-pink/pearlescent bloom, zero harsh rings)
-    const { completedSteps, viewMode } = useAppStore.getState();
     const nextStep = getNextJourneyStep(completedSteps);
     const isNextSpotlight = interactive && viewMode === 'galaxy' && nextStep === node.id;
 
     beaconMat.uniforms.uTime.value = elapsed;
+    const desiredStrength = isFocusedTarget ? 1.15 + flarePulse * 0.55 : isNextSpotlight ? 1 : 0;
     const nextStrength = THREE.MathUtils.lerp(
       beaconMat.uniforms.uStrength.value,
-      isNextSpotlight ? 1 : 0,
-      Math.min(1, dt * 6)
+      desiredStrength,
+      Math.min(1, dt * (isFocusedTarget ? 12 : 6))
     );
     beaconMat.uniforms.uStrength.value = nextStrength;
     if (beaconMeshRef.current) {
       beaconMeshRef.current.visible = nextStrength > 0.01;
     }
 
-    // Gentle breathing scale 1.0 -> 1.12 + cohesive rose-pink/pearlescent luminance on the target node
-    const spotlightBreathe = isNextSpotlight && !reducedMotion ? (0.5 + 0.5 * Math.sin(elapsed * 2.8)) * 0.12 : 0;
-    if (isNextSpotlight) {
-      colorScratchRef.current.setRGB(1.42, 1.26, 1.40);
+    // Gentle breathing scale 1.0 -> 1.12, plus bright rose-white ignition glow pulse during Beat 2
+    const spotlightBreathe =
+      isNextSpotlight && !reducedMotion && !isFocusedTarget
+        ? (0.5 + 0.5 * Math.sin(elapsed * 2.8)) * 0.12
+        : 0;
+    if (isFocusedTarget && flarePulse > 0.01) {
+      colorScratchRef.current.setRGB(
+        1.45 + flarePulse * 0.95,
+        1.28 + flarePulse * 0.88,
+        1.44 + flarePulse * 0.92
+      );
+    } else if (isFocusedTarget || isNextSpotlight) {
+      colorScratchRef.current.setRGB(1.42, 1.26, 1.4);
     } else {
       colorScratchRef.current.setRGB(1.22, 1.15, 1.25);
     }
-    material.color.lerp(colorScratchRef.current, Math.min(1, dt * 6));
+    material.color.lerp(colorScratchRef.current, Math.min(1, dt * (flarePulse > 0.01 ? 16 : 6)));
 
     if (scaleWrapperRef.current) {
-      const baseScale = hovered ? 1.26 : isNextSpotlight ? 1.0 + spotlightBreathe : 1.0;
+      const baseScale = isFocusedTarget
+        ? 1.14 + flarePulse * 0.24
+        : hovered
+          ? 1.26
+          : isNextSpotlight
+            ? 1.0 + spotlightBreathe
+            : 1.0;
       const current = scaleWrapperRef.current.scale.x;
-      const next = THREE.MathUtils.lerp(current, baseScale, 0.14);
+      const next = THREE.MathUtils.lerp(current, baseScale, isFocusedTarget ? 0.2 : 0.14);
       scaleWrapperRef.current.scale.setScalar(next);
     }
   });
@@ -310,6 +521,20 @@ function GalaxyNodeItem({ node, interactive, reducedMotion }: GalaxyNodeItemProp
             position={[0, 0, -0.04]}
             geometry={beaconGeo}
             material={beaconMat}
+            visible={false}
+          />
+          <mesh
+            ref={portalRingRef}
+            position={[0, 0, -0.02]}
+            geometry={portalRingGeo}
+            material={portalRingMat}
+            visible={false}
+          />
+          <points
+            ref={portalSparklesRef}
+            position={[0, 0, 0.03]}
+            geometry={sparkleGeo}
+            material={sparkleMat}
             visible={false}
           />
           <mesh

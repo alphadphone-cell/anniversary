@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowRight,
   Check,
   ChevronDown,
   ChevronUp,
@@ -18,6 +17,7 @@ import {
   useActiveModal,
   useAppStore,
   useCompletedSteps,
+  useFocusingNodeId,
   useStage,
   useSupernovaCompleted,
   useViewMode,
@@ -39,43 +39,43 @@ interface StepGuideMeta {
 const STEP_GUIDE_META: Record<JourneyStepId, StepGuideMeta> = {
   letter: {
     title: 'Thư Tình',
-    ctaLabel: 'Mở ngay',
+    ctaLabel: 'Mở',
     beforeBold: 'Mở đầu hành trình bằng lá thư anh viết riêng cho em. Chạm vào biểu tượng ',
     boldText: 'Phong Thư',
     afterBold: ' đang tỏa sáng trên quỹ đạo, hoặc bấm nút bên cạnh để đọc nhé.',
-    ariaAction: 'Mở Thư Tình ngay',
+    ariaAction: 'Mở Thư Tình',
   },
   counter: {
     title: 'Đếm Ngày Yêu',
-    ctaLabel: 'Mở ngay',
+    ctaLabel: 'Mở',
     beforeBold: 'Cùng nhìn lại từng ngày, từng giờ tụi mình đã đi qua cùng nhau. Chạm biểu tượng ',
     boldText: 'Đồng Hồ / Trái Tim',
     afterBold: ' hoặc bấm nút bên cạnh để mở nhé.',
-    ariaAction: 'Mở Đếm Ngày Yêu ngay',
+    ariaAction: 'Mở Đếm Ngày Yêu',
   },
   cards: {
     title: 'Lật Thẻ Nhân Phẩm',
-    ctaLabel: 'Mở ngay',
+    ctaLabel: 'Mở',
     beforeBold: 'Mini-game nhỏ cho em nè! Bấm vào ',
     boldText: 'Lật Thẻ',
     afterBold: ' để tự tay rút những tấm voucher hẹn hò và lời chúc bí mật anh chuẩn bị sẵn.',
-    ariaAction: 'Mở Lật Thẻ Nhân Phẩm ngay',
+    ariaAction: 'Mở Lật Thẻ Nhân Phẩm',
   },
   puzzle: {
     title: 'Ghép Hình 3x3',
-    ctaLabel: 'Mở ngay',
+    ctaLabel: 'Mở',
     beforeBold: 'Thử ghép lại bức ảnh kỷ niệm của hai đứa trong trò chơi ',
     boldText: 'Ghép Hình 3x3',
     afterBold: ' nha — chạm lần lượt 2 mảnh để đổi chỗ cho nhau.',
-    ariaAction: 'Mở Ghép Hình 3x3 ngay',
+    ariaAction: 'Mở Ghép Hình 3x3',
   },
   gallery: {
     title: 'Bảo Tàng Của Chúng Mình',
-    ctaLabel: 'Mở ngay',
+    ctaLabel: 'Mở',
     beforeBold: 'Bước vào ',
     boldText: 'Bảo Tàng Của Chúng Mình',
     afterBold: ' để nhập mật mã ngày kỷ niệm, bấm giữ nút đi dọc hành lang ảnh, vẽ tranh và quay xèng nhận quà nhé.',
-    ariaAction: 'Mở Bảo Tàng Của Chúng Mình ngay',
+    ariaAction: 'Mở Bảo Tàng Của Chúng Mình',
   },
   constellation: {
     title: 'Chòm Sao Kỷ Niệm',
@@ -100,11 +100,11 @@ export function JourneyGuidePill() {
   const stage = useStage();
   const viewMode = useViewMode();
   const activeModal = useActiveModal();
+  const focusingNodeId = useFocusingNodeId();
   const completedSteps = useCompletedSteps();
   const supernovaCompleted = useSupernovaCompleted();
 
-  const openModal = useAppStore((s) => s.openModal);
-  const setViewMode = useAppStore((s) => s.setViewMode);
+  const openFeatureWithCameraFly = useAppStore((s) => s.openFeatureWithCameraFly);
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
@@ -115,7 +115,11 @@ export function JourneyGuidePill() {
   const completedCount = completedSteps.length;
   const progressPct = Math.round((completedCount / JOURNEY_STEPS.length) * 100);
 
-  const isVisible = stage === 'galaxy' && viewMode === 'galaxy' && activeModal === null;
+  const isVisible =
+    stage === 'galaxy' &&
+    viewMode === 'galaxy' &&
+    activeModal === null &&
+    focusingNodeId === null;
 
   // Close checklist popover automatically whenever the bar hides or minimizes
   useEffect(() => {
@@ -154,15 +158,12 @@ export function JourneyGuidePill() {
     (step: JourneyStepId) => {
       setChecklistOpen(false);
       setShowControlsTip(false);
-      if (step === 'constellation') {
+      const started = openFeatureWithCameraFly(step);
+      if (started && step === 'constellation') {
         sfxEngine.playCelestialChime('up');
-        setViewMode('constellation');
-      } else {
-        sfxEngine.playStarSelect();
-        openModal(step);
       }
     },
-    [openModal, setViewMode]
+    [openFeatureWithCameraFly]
   );
 
   const handleToggleChecklist = useCallback(() => {
@@ -475,13 +476,11 @@ export function JourneyGuidePill() {
                         onClick={() => navigateToStep(nextStep)}
                         onMouseEnter={() => sfxEngine.playHoverTick()}
                         aria-label={activeMeta.ariaAction}
-                        className="glass-interactive inline-flex min-h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-pink-300/60 bg-gradient-to-r from-pink-500/30 via-neon-pink/28 to-violet-500/30 px-4 text-xs leading-normal font-semibold text-starlight shadow-[0_0_20px_rgba(255,62,165,0.28)] hover:border-pink-200/85 hover:shadow-[0_0_26px_rgba(255,62,165,0.44)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80 sm:w-auto"
+                        className="glass-interactive inline-flex min-h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-pink-300/60 bg-gradient-to-r from-pink-500/30 via-neon-pink/28 to-violet-500/30 px-5 text-xs leading-normal font-semibold tracking-wide text-starlight shadow-[0_0_20px_rgba(255,62,165,0.28)] hover:border-pink-200/85 hover:shadow-[0_0_26px_rgba(255,62,165,0.44)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80 sm:w-auto"
                       >
                         <span>{activeMeta.ctaLabel}</span>
-                        {activeMeta.ctaIsCelestial ? (
+                        {activeMeta.ctaIsCelestial && (
                           <Sparkles className="h-3.5 w-3.5 text-pink-200" strokeWidth={2} aria-hidden="true" />
-                        ) : (
-                          <ArrowRight className="h-3.5 w-3.5 text-pink-200" strokeWidth={2} aria-hidden="true" />
                         )}
                       </button>
                     </>

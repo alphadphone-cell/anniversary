@@ -66,11 +66,11 @@ export function ModalShell() {
           key="modal-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: isSecret ? 0.48 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          exit={{ opacity: 0, transition: { duration: isSecret ? 0.34 : 0.22, ease: [0.4, 0, 1, 1] } }}
+          transition={{ duration: isSecret ? 0.48 : 0.26, ease: [0.22, 1, 0.36, 1] }}
           onClick={handleClose}
           className={`pointer-events-auto fixed inset-0 z-20 flex items-center justify-center px-3 py-5 sm:px-6 ${
-            isSecret ? 'bg-void/42 backdrop-blur-[5px]' : 'bg-void/72 backdrop-blur-md'
+            isSecret ? 'bg-void/42 backdrop-blur-[5px]' : 'bg-void/68 backdrop-blur-md'
           }`}
         >
           <motion.section
@@ -79,11 +79,21 @@ export function ModalShell() {
             aria-modal="true"
             aria-labelledby="anni-modal-title"
             initial={
-              isSecret ? { opacity: 0, y: 12, scale: 0.92 } : { opacity: 0, y: 16, scale: 0.96 }
+              isSecret
+                ? { opacity: 0, y: 12, scale: 0.92 }
+                : { opacity: 0, scale: 0.86, filter: 'blur(8px)' }
             }
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            transition={{ duration: isSecret ? 0.56 : 0.26, ease: [0.16, 1, 0.3, 1] }}
+            animate={
+              isSecret
+                ? { opacity: 1, y: 0, scale: 1 }
+                : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+            }
+            exit={
+              isSecret
+                ? { opacity: 0, y: 10, scale: 0.92, transition: { duration: 0.28, ease: [0.4, 0, 1, 1] } }
+                : { opacity: 0, scale: 0.9, filter: 'blur(4px)', transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }
+            }
+            transition={{ duration: isSecret ? 0.56 : 0.28, ease: [0.16, 1, 0.3, 1] }}
             onClick={(event) => event.stopPropagation()}
             className={`glass-modal cosmic-scroll relative max-h-[88vh] w-full overflow-y-auto rounded-[28px] px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-7 ${widthClass} ${
               isSecret

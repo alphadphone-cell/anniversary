@@ -1,4 +1,21 @@
 import * as THREE from 'three';
+import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
+
+const initialNodePositions: Record<GalaxyNodeId, THREE.Vector3> = {
+  letter: new THREE.Vector3(),
+  counter: new THREE.Vector3(),
+  cards: new THREE.Vector3(),
+  puzzle: new THREE.Vector3(),
+  gallery: new THREE.Vector3(),
+};
+
+for (const node of ANNIVERSARY_DATA.galaxyNodes) {
+  initialNodePositions[node.id].set(
+    Math.cos(node.orbitAngle) * node.orbitRadius,
+    node.heightOffset,
+    Math.sin(node.orbitAngle) * node.orbitRadius
+  );
+}
 
 /**
  * Shared zero-allocation mutable signal bus for 60 FPS WebGL <-> Audio <-> Pointer coordination.
@@ -39,4 +56,16 @@ export const galaxySignals = {
   constellationBloomSpike: 0,
   /** Warm [0..1] absorption shimmer & pulse on the 3D Particle Heart when falling starlight arrives. */
   heartAbsorptionGlow: 0,
+  /** Live world positions of the 5 orbiting feature nodes, updated zero-alloc inside useFrame. */
+  nodeWorldPositions: initialNodePositions,
+  /** Active node ID currently undergoing 3D camera fly-to & orb portal ignition (null when idle). */
+  focusingNodeId: null as GalaxyNodeId | null,
+  /** Wall-clock timestamp (ms) when the current fly-to sequence began (0 when idle). */
+  nodeFocusStartMs: 0,
+  /** Normalized [0..1] portal ignition & sparkle burst progress on the focused orb (Beat 2). */
+  nodeFlareProgress: 0,
+  /** Smoothed [0..1] dim factor for peripheral 3D text during orb fly-to & modal display. */
+  nodeFocusDim: 0,
+  /** Brief [0..1] post-processing bloom pulse during orb portal ignition. */
+  orbFlareBloomSpike: 0,
 };

@@ -40,8 +40,10 @@ export interface AnniversaryReward {
   expiresLabel: string;
 }
 
+export type GalaxyNodeId = 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery';
+
 export interface GalaxyNodeConfig {
-  id: 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery';
+  id: GalaxyNodeId;
   label: string;
   orbitRadius: number;
   orbitAngle: number;

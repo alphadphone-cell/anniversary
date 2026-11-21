@@ -62,8 +62,12 @@ export function OrbitingTextPhrases({ reducedMotion = false }: OrbitingTextPhras
       orbit.rotation.y -= Math.min(delta, 0.05) * UNIFORM_ORBIT_SPEED;
     }
 
-    // Theatrical dim during Supernova build-up / Constellation View
-    const theatricalDim = Math.max(galaxySignals.supernovaAmbientDim, galaxySignals.galaxyDim * 0.72);
+    // Theatrical dim during Supernova build-up, Constellation View, or Orb Camera Fly-To focus
+    const theatricalDim = Math.max(
+      galaxySignals.supernovaAmbientDim,
+      galaxySignals.galaxyDim * 0.72,
+      galaxySignals.nodeFocusDim * 0.86
+    );
     const globalVisibility = THREE.MathUtils.clamp(1.0 - theatricalDim * 0.94, 0.04, 1.0);
 
     const worldPos = worldPosRef.current;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { ANNIVERSARY_DATA } from '../data/anniversaryData';
+import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
+import { galaxySignals } from '../canvas/galaxySignals';
 
 export type AppStage = 'intro' | 'warp' | 'galaxy';
 export type ViewMode = 'galaxy' | 'constellation';
@@ -57,6 +58,7 @@ interface AppState {
   stage: AppStage;
   viewMode: ViewMode;
   activeModal: ModalId;
+  focusingNodeId: GalaxyNodeId | null;
   selectedMilestoneId: string | null;
   maxUnlockedMilestoneIndex: number;
   constellationFinaleActive: boolean;
@@ -74,6 +76,9 @@ interface AppState {
   toggleViewMode: () => void;
   setActiveModal: (modal: ModalId) => void;
   openModal: (modal: Exclude<ModalId, null>) => void;
+  openFeatureWithCameraFly: (nodeId: JourneyStepId) => boolean;
+  completeNodeFocus: () => void;
+  cancelNodeFocus: () => void;
   closeModal: () => void;
   toggleModal: (modal: Exclude<ModalId, null>) => void;
   setSelectedMilestoneId: (id: string | null) => void;
@@ -91,10 +96,11 @@ interface AppState {
   triggerSupernovaFlash: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   stage: 'intro',
   viewMode: 'galaxy',
   activeModal: null,
+  focusingNodeId: null,
   selectedMilestoneId: null,
   maxUnlockedMilestoneIndex: 0,
   constellationFinaleActive: false,
@@ -108,28 +114,46 @@ export const useAppStore = create<AppState>((set) => ({
   isTransitionFlashing: false,
   supernovaFlashKey: 0,
 
-  setStage: (stage) => set({ stage }),
+  setStage: (stage) => {
+    galaxySignals.focusingNodeId = null;
+    galaxySignals.nodeFocusStartMs = 0;
+    galaxySignals.nodeFlareProgress = 0;
+    galaxySignals.orbFlareBloomSpike = 0;
+    set({ stage, focusingNodeId: null });
+  },
 
-  setViewMode: (viewMode) =>
+  setViewMode: (viewMode) => {
+    galaxySignals.focusingNodeId = null;
+    galaxySignals.nodeFocusStartMs = 0;
+    galaxySignals.nodeFlareProgress = 0;
+    galaxySignals.orbFlareBloomSpike = 0;
     set((state) => ({
       viewMode,
+      focusingNodeId: null,
       activeModal: viewMode === 'constellation' ? null : state.activeModal,
       selectedMilestoneId: null,
       constellationFinaleActive: false,
       maxUnlockedMilestoneIndex: viewMode === 'constellation' ? 0 : state.maxUnlockedMilestoneIndex,
-    })),
+    }));
+  },
 
-  toggleViewMode: () =>
+  toggleViewMode: () => {
+    galaxySignals.focusingNodeId = null;
+    galaxySignals.nodeFocusStartMs = 0;
+    galaxySignals.nodeFlareProgress = 0;
+    galaxySignals.orbFlareBloomSpike = 0;
     set((state) => {
       const next: ViewMode = state.viewMode === 'galaxy' ? 'constellation' : 'galaxy';
       return {
         viewMode: next,
+        focusingNodeId: null,
         activeModal: next === 'constellation' ? null : state.activeModal,
         selectedMilestoneId: null,
         constellationFinaleActive: false,
         maxUnlockedMilestoneIndex: next === 'constellation' ? 0 : state.maxUnlockedMilestoneIndex,
       };
-    }),
+    });
+  },
 
   setActiveModal: (activeModal) =>
     set((state) => {
@@ -159,7 +183,68 @@ export const useAppStore = create<AppState>((set) => ({
       };
     }),
 
-  openModal: (modal) => set({ activeModal: modal, selectedMilestoneId: null }),
+  openModal: (modal) => set({ activeModal: modal, focusingNodeId: null, selectedMilestoneId: null }),
+
+  openFeatureWithCameraFly: (nodeId) => {
+    const state = get();
+    if (
+      state.stage !== 'galaxy' ||
+      state.focusingNodeId !== null ||
+      state.activeModal !== null ||
+      galaxySignals.isHoldingHeart
+    ) {
+      return false;
+    }
+
+    if (nodeId === 'constellation') {
+      if (state.viewMode === 'constellation') return false;
+      set({
+        viewMode: 'constellation',
+        focusingNodeId: null,
+        activeModal: null,
+        selectedMilestoneId: null,
+        constellationFinaleActive: false,
+        maxUnlockedMilestoneIndex: 0,
+      });
+      return true;
+    }
+
+    if (state.viewMode !== 'galaxy') return false;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      set({ activeModal: nodeId, focusingNodeId: null, selectedMilestoneId: null });
+      return true;
+    }
+
+    galaxySignals.focusingNodeId = nodeId;
+    galaxySignals.nodeFocusStartMs = performance.now();
+    galaxySignals.nodeFlareProgress = 0;
+    galaxySignals.orbFlareBloomSpike = 0;
+    set({ focusingNodeId: nodeId, selectedMilestoneId: null });
+    return true;
+  },
+
+  completeNodeFocus: () =>
+    set((state) => {
+      if (!state.focusingNodeId) return state;
+      return {
+        activeModal: state.focusingNodeId,
+        focusingNodeId: null,
+        selectedMilestoneId: null,
+      };
+    }),
+
+  cancelNodeFocus: () => {
+    galaxySignals.focusingNodeId = null;
+    galaxySignals.nodeFocusStartMs = 0;
+    galaxySignals.nodeFlareProgress = 0;
+    galaxySignals.orbFlareBloomSpike = 0;
+    set({ focusingNodeId: null });
+  },
 
   closeModal: () =>
     set((state) => {
@@ -180,6 +265,7 @@ export const useAppStore = create<AppState>((set) => ({
 
       return {
         activeModal: null,
+        focusingNodeId: null,
         completedSteps: nextCompleted,
         supernovaCompleted: nextSupernovaDone,
         guidePillDismissed: nextDismissed,
@@ -290,6 +376,7 @@ export const useAppStore = create<AppState>((set) => ({
 export const useStage = () => useAppStore((s) => s.stage);
 export const useViewMode = () => useAppStore((s) => s.viewMode);
 export const useActiveModal = () => useAppStore((s) => s.activeModal);
+export const useFocusingNodeId = () => useAppStore((s) => s.focusingNodeId);
 export const useSelectedMilestoneId = () => useAppStore((s) => s.selectedMilestoneId);
 export const useMaxUnlockedMilestoneIndex = () => useAppStore((s) => s.maxUnlockedMilestoneIndex);
 export const useConstellationFinaleActive = () => useAppStore((s) => s.constellationFinaleActive);

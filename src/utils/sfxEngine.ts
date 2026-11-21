@@ -738,38 +738,128 @@ class ProceduralSfxEngine {
     });
   }
 
-  /** Soft downward muted plink on modal close. */
+  /** Sleek, airy spatial whoosh as the 3D camera glides smoothly toward a memory orb (Beat 1). */
+  public playOrbFlyWhoosh(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+
+    // Silky sweeping bandpass noise whoosh (~0.52s)
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.getNoiseBuffer(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(340, now);
+    filter.frequency.exponentialRampToValueAtTime(1650, now + 0.36);
+    filter.frequency.exponentialRampToValueAtTime(780, now + 0.56);
+    filter.Q.setValueAtTime(1.8, now);
+
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.0001, now);
+    nGain.gain.linearRampToValueAtTime(0.052, now + 0.16);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.masterGain);
+    noise.start(now);
+    noise.stop(now + 0.6);
+    noise.onended = () => {
+      noise.disconnect();
+      filter.disconnect();
+      nGain.disconnect();
+    };
+
+    // Subtle rising airy harmonic swell underneath the glide
+    const osc = ctx.createOscillator();
+    const oGain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(293.66, now); // D4 -> A4 glide
+    osc.frequency.exponentialRampToValueAtTime(440.0, now + 0.48);
+
+    oGain.gain.setValueAtTime(0.0001, now);
+    oGain.gain.linearRampToValueAtTime(0.024, now + 0.22);
+    oGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
+
+    osc.connect(oGain);
+    oGain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.54);
+    osc.onended = () => {
+      osc.disconnect();
+      oGain.disconnect();
+    };
+  }
+
+  /** Crystalline unlock chime synced with Beat 2 orb portal flare & sparkle burst. */
+  public playOrbPortalChime(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    // Sparkling luminous triad (G5 -> B5 -> D6 -> G6)
+    const freqs = [783.99, 987.77, 1174.66, 1567.98];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.032;
+      osc.type = idx === 3 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.044 - idx * 0.007, t0 + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 0.56);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
+  /** Soft downward chime + gentle airy recede on modal close. */
   public playModalClose(): void {
     if (useAppStore.getState().isMuted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const lpf = ctx.createBiquadFilter();
-    const gain = ctx.createGain();
+    const notes = [659.25, 493.88, 392.0]; // E5 -> B4 -> G4 soft downward chime
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.045;
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(540, now);
-    osc.frequency.exponentialRampToValueAtTime(310, now + 0.15);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.96, t0 + 0.22);
 
-    lpf.type = 'lowpass';
-    lpf.frequency.setValueAtTime(980, now);
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(1150, t0);
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.045, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.038 - idx * 0.006, t0 + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
 
-    osc.connect(lpf);
-    lpf.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 0.2);
-    osc.onended = () => {
-      osc.disconnect();
-      lpf.disconnect();
-      gain.disconnect();
-    };
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 0.3);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
   }
 
   /** Subtle celestial harp chime when gliding between Galaxy View and Constellation View. */
