@@ -1023,8 +1023,11 @@ export function ParticleHeart({
       if (!interactive || !active) return;
       if (morphTimeRef.current < 2.65) return;
       if (snPhaseRef.current !== 'idle') return;
-      if (useAppStore.getState().activeModal) return;
-      if (useAppStore.getState().viewMode !== 'galaxy') return;
+      const store = useAppStore.getState();
+      if (store.activeModal || store.focusingNodeId !== null || galaxySignals.isOrbReturning) return;
+      if (store.viewMode !== 'galaxy') return;
+      // Lock Supernova completely until all 6/6 journey milestones are completed so accidental taps never spoil it early
+      if (!isAllCoreJourneyCompleted(store.completedSteps)) return;
 
       event.stopPropagation();
       sfxEngine.unlock();
