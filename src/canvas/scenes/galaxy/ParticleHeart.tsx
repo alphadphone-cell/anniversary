@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { galaxySignals } from '../../galaxySignals';
+import { galaxySignals, HEART_CENTER_Y } from '../../galaxySignals';
 import { isAllCoreJourneyCompleted, useAppStore } from '../../../store/useAppStore';
 import { sfxEngine } from '../../../utils/sfxEngine';
 import { musicEngine } from '../../../utils/musicEngine';
@@ -17,7 +17,7 @@ interface ParticleHeartProps {
 const HEART_PARTICLES = 5000;
 const ENERGY_RAY_COUNT = 36;
 const FINALE_RAIN_COUNT = 520;
-const HEART_BASE_Y = 5.05;
+const HEART_BASE_Y = HEART_CENTER_Y;
 const HEART_WORLD_SCALE = 2.68;
 const MORPH_DURATION = 2.8;
 

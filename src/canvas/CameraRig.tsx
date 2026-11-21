@@ -6,7 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
 import { useAppStore, type AppStage, type ViewMode } from '../store/useAppStore';
 import { sfxEngine } from '../utils/sfxEngine';
-import { galaxySignals } from './galaxySignals';
+import { galaxySignals, HEART_CENTER_Y } from './galaxySignals';
 
 interface CameraRigProps {
   stage: AppStage;
@@ -14,8 +14,8 @@ interface CameraRigProps {
 }
 
 const GALAXY_START_POS = new THREE.Vector3(0, 2.3, 5.6);
-const GALAXY_DEFAULT_POS = new THREE.Vector3(0, 6.4, 16.2);
-const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.75, 0);
+const GALAXY_DEFAULT_POS = new THREE.Vector3(0, 6.2, 16.4);
+const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.95, 0);
 
 const CONSTELLATION_DEFAULT_POS = new THREE.Vector3(0, 14.2, 16.2);
 const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 14.4, 21.4);
@@ -23,7 +23,7 @@ const CONSTELLATION_FINALE_RECEDE_POS = new THREE.Vector3(0, 13.0, 27.2);
 const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.2, -7.6);
 const CONSTELLATION_FINALE_RECEDE_TARGET = new THREE.Vector3(0, 15.6, -7.6);
 
-const HEART_FOCUS_POINT = new THREE.Vector3(0, 5.05, 0);
+const HEART_FOCUS_POINT = new THREE.Vector3(0, HEART_CENTER_Y, 0);
 const BASE_GALAXY_FOV = 46;
 const FOCUS_ORB_FOV = 41;
 const DEFAULT_MIN_DISTANCE = 6;

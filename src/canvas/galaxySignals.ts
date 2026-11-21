@@ -4,6 +4,8 @@ import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
 export const MASTER_NODE_ORBIT_START_ANGLE = 0.36;
 export const MASTER_NODE_ORBIT_SPEED = 0.085;
 export const NODE_ORBIT_MIN_Y = 1.32;
+/** Single shared world-space Y anchor for the 3D Particle Heart, Supernova core, hit-sphere, camera focus, and Starfall absorption. */
+export const HEART_CENTER_Y = 3.95;
 
 /**
  * Deterministic phase-locked orbital domain per clickable node.
