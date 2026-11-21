@@ -767,6 +767,11 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       enableDamping
       dampingFactor={0.055}
       enablePan={false}
+      mouseButtons={{
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: undefined,
+      }}
       minDistance={6}
       maxDistance={32}
       minPolarAngle={0.18}
