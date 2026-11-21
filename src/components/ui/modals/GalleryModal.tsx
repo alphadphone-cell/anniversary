@@ -116,20 +116,37 @@ export function GalleryModal() {
         </div>
       </div>
 
-      {/* Next / Prev Navigation & Pagination Dots */}
+      {/* Next / Prev Navigation & Pagination */}
       {hasMultiple && (
-        <div className="mt-4 flex w-full items-center justify-between gap-3">
+        <div className="mt-4 flex w-full items-center justify-between gap-2 sm:gap-3">
           <button
             type="button"
             onClick={goPrev}
             aria-label="Xem ảnh trước nha"
-            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
+            className="glass-interactive inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 text-xs leading-normal font-medium text-lavender hover:text-starlight sm:px-3.5"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             <span className="hidden sm:inline">Tấm trước</span>
           </button>
 
-          <div className="flex items-center gap-2" role="tablist" aria-label="Mấy tấm ảnh kỷ niệm của tụi mình">
+          {/* Compact counter + progress bar on mobile so Prev/Next never overflow at 360px */}
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5 sm:hidden" aria-live="polite">
+            <span className="font-mono text-xs tabular-nums text-lavender">
+              {String(safeIndex + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}
+            </span>
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-neon-pink shadow-[0_0_10px_#ff3ea5] transition-all duration-300"
+                style={{ width: `${((safeIndex + 1) / photos.length) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div
+            className="hidden min-w-0 flex-1 flex-wrap items-center justify-center gap-1 sm:flex"
+            role="tablist"
+            aria-label="Mấy tấm ảnh kỷ niệm của tụi mình"
+          >
             {photos.map((photo, idx) => {
               const isCurrent = idx === safeIndex;
               return (
@@ -140,12 +157,12 @@ export function GalleryModal() {
                   aria-selected={isCurrent}
                   aria-label={`Xem tấm số ${idx + 1}: ${photo.title}`}
                   onClick={() => setActiveIndex(idx)}
-                  className="flex h-11 w-7 cursor-pointer items-center justify-center"
+                  className="flex h-11 w-4.5 cursor-pointer items-center justify-center"
                 >
                   <span
                     className={`h-2 rounded-full transition-all duration-200 ${
                       isCurrent
-                        ? 'w-6 bg-neon-pink shadow-[0_0_10px_#ff3ea5]'
+                        ? 'w-5 bg-neon-pink shadow-[0_0_10px_#ff3ea5]'
                         : 'w-2 bg-lavender-muted/45 hover:bg-lavender'
                     }`}
                   />
@@ -158,7 +175,7 @@ export function GalleryModal() {
             type="button"
             onClick={goNext}
             aria-label="Xem ảnh tiếp theo nha"
-            className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
+            className="glass-interactive inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 text-xs leading-normal font-medium text-lavender hover:text-starlight sm:px-3.5"
           >
             <span className="hidden sm:inline">Tấm sau</span>
             <ChevronRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
