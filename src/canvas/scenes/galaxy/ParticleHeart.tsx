@@ -24,7 +24,6 @@ const MORPH_DURATION = 2.8;
 const IMPLOSION_END_SEC = 2.88; // Beat 1: isotropic implosion + converging beams
 const FREEZE_END_SEC = 3.0; // Beat 1b: 120ms razor-sharp pinpoint freeze + ambient contrast dip
 const MODAL_DELAY_MS = 1600; // Beat 3: wait ~1.6s after whiteout peak so full shockwave + stardust rain shine
-const DRAG_CANCEL_PX_SQ = 14 * 14;
 
 const HEART_VERTEX_SHADER = /* glsl */ `
   attribute float aScale;
@@ -554,7 +553,6 @@ export function ParticleHeart({
   // 3-Beat Supernova state machine refs
   // 'idle' | 'imploding' | 'freezing' | 'detonated' | 'reforming'
   const snPhaseRef = useRef<'idle' | 'imploding' | 'freezing' | 'detonated' | 'reforming'>('idle');
-  const holdStartPosRef = useRef({ x: 0, y: 0 });
   const holdStartMsRef = useRef(0);
   const freezeStartMsRef = useRef(0);
   const detonateStartMsRef = useRef(0);
@@ -919,31 +917,22 @@ export function ParticleHeart({
     }
   }, []);
 
-  // Cancel Beat 1 implosion if user drags camera (> 14px) or releases before 2.85s
+  // Only releasing the pointer (or window blur) cancels Beat 1 implosion — moving the mouse/finger never interrupts the hold
   useEffect(() => {
-    const onPointerMove = (e: PointerEvent) => {
-      if (snPhaseRef.current !== 'imploding') return;
-      const dx = e.clientX - holdStartPosRef.current.x;
-      const dy = e.clientY - holdStartPosRef.current.y;
-      if (dx * dx + dy * dy > DRAG_CANCEL_PX_SQ) {
-        cancelImplosion();
-      }
-    };
-
     const onPointerUp = () => {
       if (snPhaseRef.current === 'imploding') {
         cancelImplosion();
       }
     };
 
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
     window.addEventListener('pointerup', onPointerUp, { passive: true });
     window.addEventListener('pointercancel', onPointerUp, { passive: true });
+    window.addEventListener('blur', onPointerUp);
 
     return () => {
-      window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('blur', onPointerUp);
     };
   }, [cancelImplosion]);
 
@@ -1037,14 +1026,13 @@ export function ParticleHeart({
       if (useAppStore.getState().activeModal) return;
       if (useAppStore.getState().viewMode !== 'galaxy') return;
 
+      event.stopPropagation();
       sfxEngine.unlock();
       // Dual-Deck Mobile Zero-Latency Pre-Cue: fade Deck A -> 0 over hold duration & prime Deck B at chorusStartTime
       musicEngine.beginSupernovaHold(IMPLOSION_END_SEC);
 
       snPhaseRef.current = 'imploding';
       galaxySignals.isHoldingHeart = true;
-      holdStartPosRef.current.x = event.nativeEvent.clientX;
-      holdStartPosRef.current.y = event.nativeEvent.clientY;
       holdStartMsRef.current = performance.now();
       heartbeatAccumRef.current = 0;
       modalOpenedForBurstRef.current = false;

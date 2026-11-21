@@ -236,6 +236,14 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       return;
     }
 
+    // Yield OrbitControls while holding the 3D heart so mouse/finger movement never spins the camera or interrupts charging
+    if (controlsRef.current) {
+      const shouldEnableOrbit = !galaxySignals.isHoldingHeart;
+      if (controlsRef.current.enabled !== shouldEnableOrbit) {
+        controlsRef.current.enabled = shouldEnableOrbit;
+      }
+    }
+
     if (stage === 'galaxy' && !reducedMotion && useAppStore.getState().viewMode === 'galaxy') {
       // Beat 1 + Breath-Hold: tighten gently closer to heart core
       if (galaxySignals.isHoldingHeart) {
