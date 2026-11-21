@@ -145,14 +145,14 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
   introHeadline: 'Chúc Mừng Kỷ Niệm',
   introStatusLabel: 'ĐANG NẠP YÊU THƯƠNG...',
   galaxyPhrases: [
-    'MÃI BÊN NHAU',
-    'YÊU EM NHẤT',
-    'KỶ NIỆM CỦA TỤI MÌNH',
-    'CHỈ CÓ EM THÔI',
-    'MÃI MÃI YÊU THƯƠNG',
-    'ĐIỀU ƯỚC CỦA CHÚNG MÌNH',
-    'VÔ CỰC ∞',
-    'CẢM ƠN VÌ ĐÃ ĐẾN',
+    'Mãi bên nhau',
+    'Yêu em nhất',
+    'Kỷ niệm của tụi mình',
+    'Chỉ có em thôi',
+    'Mãi mãi yêu thương',
+    'Điều ước của chúng mình',
+    'Vô cực ∞',
+    'Cảm ơn vì đã đến',
   ],
   galaxyNodes: [
     {
