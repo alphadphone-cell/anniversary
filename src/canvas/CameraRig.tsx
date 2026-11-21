@@ -17,6 +17,7 @@ const GALAXY_DEFAULT_POS = new THREE.Vector3(0, 6.4, 16.2);
 const GALAXY_DEFAULT_TARGET = new THREE.Vector3(0, 1.75, 0);
 
 const CONSTELLATION_DEFAULT_POS = new THREE.Vector3(0, 14.2, 16.2);
+const CONSTELLATION_FINALE_POS = new THREE.Vector3(0, 13.4, 21.8);
 const CONSTELLATION_DEFAULT_TARGET = new THREE.Vector3(0, 16.3, -7.6);
 
 const HEART_FOCUS_POINT = new THREE.Vector3(0, 4.45, 0);
@@ -138,9 +139,20 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         return;
       }
 
+      // Finale showcase: pull camera gently back to frame the entire illuminated constellation
+      if (
+        state.viewMode === 'constellation' &&
+        state.constellationFinaleActive &&
+        !prev.constellationFinaleActive
+      ) {
+        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.85);
+        return;
+      }
+
       // Focus camera subtly toward clicked milestone star in Constellation View
       if (
         state.viewMode === 'constellation' &&
+        !state.constellationFinaleActive &&
         state.selectedMilestoneId !== prev.selectedMilestoneId
       ) {
         if (!state.selectedMilestoneId) {

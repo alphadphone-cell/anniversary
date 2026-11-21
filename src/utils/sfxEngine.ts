@@ -835,6 +835,93 @@ class ProceduralSfxEngine {
     });
   }
 
+  /** Rising celestial harp ignition chime when lighting up the next milestone star & connecting line. */
+  public playStarIgnite(stepIndex: number): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    // Ascending D major pentatonic scale so each newly lit star feels progressively brighter
+    const scale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51, 1479.98];
+    const baseFreq = scale[Math.max(0, Math.min(scale.length - 1, stepIndex))];
+    const shimmerFreq = baseFreq * 1.5; // Perfect fifth sparkle
+    const octFreq = baseFreq * 2.0;
+
+    const now = ctx.currentTime;
+    [
+      { freq: baseFreq, delay: 0, peak: 0.056, dur: 0.95, type: 'sine' as OscillatorType },
+      { freq: shimmerFreq, delay: 0.055, peak: 0.042, dur: 0.85, type: 'triangle' as OscillatorType },
+      { freq: octFreq, delay: 0.11, peak: 0.028, dur: 0.78, type: 'sine' as OscillatorType },
+    ].forEach(({ freq, delay, peak, dur, type }) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const t0 = now + delay;
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(3400, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.06);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
+  /** Warm harmonic completion chord (Dmaj9) played during the 1.2s full-constellation finale showcase. */
+  public playConstellationFinaleChord(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    // Lush Dmaj9 voicing: D4, A4, D5, F#5, A5, C#6, E6
+    const freqs = [293.66, 440.0, 587.33, 739.99, 880.0, 1108.73, 1318.51];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const t0 = now + idx * 0.045;
+
+      osc.type = idx < 3 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.detune.setValueAtTime((idx - 3) * 2.8, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(1600 + idx * 240, t0);
+      lpf.frequency.exponentialRampToValueAtTime(900, t0 + 2.0);
+
+      const peak = 0.046 - idx * 0.0038;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.15);
+
+      osc.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t0);
+      osc.stop(t0 + 2.25);
+      osc.onended = () => {
+        osc.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
   /**
    * Synced 2.8s audio choreography for the Shooting Star Scatter-to-Heart Coalescence:
    * - Phase A (0.0s -> 0.8s): sparkling high-frequency stardust scatter shimmer

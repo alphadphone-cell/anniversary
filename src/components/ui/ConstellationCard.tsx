@@ -1,36 +1,89 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import {
   useAppStore,
+  useMaxUnlockedMilestoneIndex,
   useSelectedMilestoneId,
   useViewMode,
 } from '../../store/useAppStore';
 import { sfxEngine } from '../../utils/sfxEngine';
 
+const FINALE_SHOWCASE_MS = 1200;
+
 export function ConstellationCard() {
   const viewMode = useViewMode();
   const selectedId = useSelectedMilestoneId();
+  const maxUnlockedIndex = useMaxUnlockedMilestoneIndex();
   const setSelectedMilestoneId = useAppStore((s) => s.setSelectedMilestoneId);
+  const startConstellationFinale = useAppStore((s) => s.startConstellationFinale);
+  const endConstellationFinale = useAppStore((s) => s.endConstellationFinale);
+
+  const finaleTimerRef = useRef<number | null>(null);
 
   const milestones = ANNIVERSARY_DATA.constellationMilestones;
   const currentIndex = milestones.findIndex((m) => m.id === selectedId);
   const current = viewMode === 'constellation' && currentIndex >= 0 ? milestones[currentIndex] : null;
+  const isFirst = currentIndex <= 0;
+  const isLast = currentIndex === milestones.length - 1;
+
+  // Cancel any pending finale return timer if user manually switches back to Galaxy View or unmounts
+  useEffect(() => {
+    if (viewMode !== 'constellation' && finaleTimerRef.current !== null) {
+      window.clearTimeout(finaleTimerRef.current);
+      finaleTimerRef.current = null;
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
+    return () => {
+      if (finaleTimerRef.current !== null) {
+        window.clearTimeout(finaleTimerRef.current);
+        finaleTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const goPrev = useCallback(() => {
-    if (!milestones.length || currentIndex < 0) return;
+    if (!milestones.length || currentIndex <= 0) return;
     sfxEngine.playStarSelect();
-    const prevIdx = (currentIndex - 1 + milestones.length) % milestones.length;
-    setSelectedMilestoneId(milestones[prevIdx].id);
+    setSelectedMilestoneId(milestones[currentIndex - 1].id);
   }, [currentIndex, milestones, setSelectedMilestoneId]);
+
+  const handleCompleteConstellation = useCallback(() => {
+    if (finaleTimerRef.current !== null || useAppStore.getState().constellationFinaleActive) return;
+
+    // Step 1: Close Milestone Card & hold ~1.2s full-constellation showcase with warm harmonic chord
+    sfxEngine.playConstellationFinaleChord();
+    startConstellationFinale();
+
+    // Step 2: Automatically glide smoothly back down to the 3D Love Galaxy
+    finaleTimerRef.current = window.setTimeout(() => {
+      finaleTimerRef.current = null;
+      const latest = useAppStore.getState();
+      if (latest.viewMode === 'constellation' && latest.constellationFinaleActive) {
+        sfxEngine.playCelestialChime('down');
+        endConstellationFinale();
+      }
+    }, FINALE_SHOWCASE_MS);
+  }, [endConstellationFinale, startConstellationFinale]);
 
   const goNext = useCallback(() => {
     if (!milestones.length || currentIndex < 0) return;
-    sfxEngine.playStarSelect();
-    const nextIdx = (currentIndex + 1) % milestones.length;
+    if (currentIndex >= milestones.length - 1) {
+      handleCompleteConstellation();
+      return;
+    }
+
+    const nextIdx = currentIndex + 1;
+    if (nextIdx > maxUnlockedIndex) {
+      sfxEngine.playStarIgnite(nextIdx);
+    } else {
+      sfxEngine.playStarSelect();
+    }
     setSelectedMilestoneId(milestones[nextIdx].id);
-  }, [currentIndex, milestones, setSelectedMilestoneId]);
+  }, [currentIndex, handleCompleteConstellation, maxUnlockedIndex, milestones, setSelectedMilestoneId]);
 
   const handleClose = useCallback(() => {
     sfxEngine.playModalClose();
@@ -59,7 +112,7 @@ export function ConstellationCard() {
             aria-label={`Kỷ niệm: ${current.title}`}
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96, pointerEvents: 'none' }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="pointer-events-auto glass-modal w-full max-w-[356px] rounded-[24px] p-4 sm:p-5"
           >
@@ -78,7 +131,7 @@ export function ConstellationCard() {
                   type="button"
                   onClick={handleClose}
                   aria-label="Đóng thẻ kỷ niệm"
-                  className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight"
+                  className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70"
                 >
                   <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 </button>
@@ -102,27 +155,40 @@ export function ConstellationCard() {
               {current.caption}
             </p>
 
-            {/* Chronological Prev / Next Controls */}
+            {/* Chronological Prev / Next or Finale Return Controls */}
             <div className="mt-4 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
               <button
                 type="button"
                 onClick={goPrev}
+                disabled={isFirst}
                 aria-label="Kỷ niệm trước"
-                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
+                className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 <span>Trước</span>
               </button>
 
-              <button
-                type="button"
-                onClick={goNext}
-                aria-label="Kỷ niệm tiếp theo"
-                className="glass-interactive inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-3.5 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65"
-              >
-                <span>Tiếp theo</span>
-                <ChevronRight className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-              </button>
+              {isLast ? (
+                <button
+                  type="button"
+                  onClick={handleCompleteConstellation}
+                  aria-label="Hoàn thành hành trình chòm sao và về Ngân Hà"
+                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/60 bg-gradient-to-r from-neon-pink/28 via-neon-magenta/24 to-neon-violet/28 px-4 text-xs leading-normal font-semibold text-starlight shadow-[0_0_20px_rgba(255,62,165,0.28)] hover:border-neon-pink/85 hover:shadow-[0_0_26px_rgba(255,62,165,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80"
+                >
+                  <span>Về Ngân Hà</span>
+                  <Sparkles className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  aria-label="Kỷ niệm tiếp theo"
+                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-3.5 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70"
+                >
+                  <span>Tiếp theo</span>
+                  <ChevronRight className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              )}
             </div>
           </motion.aside>
         )}
