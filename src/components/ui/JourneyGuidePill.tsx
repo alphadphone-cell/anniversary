@@ -37,53 +37,53 @@ interface StepGuideMeta {
 
 const STEP_GUIDE_META: Record<JourneyStepId, StepGuideMeta> = {
   letter: {
-    title: 'Thư Tình',
-    ctaLabel: 'Mở',
-    beforeBold: 'Mở lá thư anh viết riêng cho em — chạm ',
+    title: 'Thư Gửi Em',
+    ctaLabel: 'Mở nha',
+    beforeBold: 'Đầu tiên, em bấm vào ',
     boldText: 'Phong Thư',
-    afterBold: ' trên quỹ đạo hoặc bấm Mở nhé.',
-    ariaAction: 'Mở Thư Tình',
+    afterBold: ' đang sáng hoặc bấm nút bên cạnh để đọc lá thư anh viết cho em nha.',
+    ariaAction: 'Mở Thư Gửi Em',
   },
   counter: {
     title: 'Đếm Ngày Yêu',
-    ctaLabel: 'Mở',
-    beforeBold: 'Nhìn lại từng ngày tụi mình bên nhau — chạm ',
-    boldText: 'Đồng Hồ',
-    afterBold: ' trên quỹ đạo hoặc bấm Mở nhé.',
-    ariaAction: 'Mở Đếm Ngày Yêu',
+    ctaLabel: 'Xem nè',
+    beforeBold: 'Tiếp theo, cùng anh xem ',
+    boldText: 'tụi mình đã nắm tay nhau',
+    afterBold: ' đi qua bao nhiêu ngày rồi nè.',
+    ariaAction: 'Xem Đếm Ngày Yêu',
   },
   cards: {
-    title: 'Lật Thẻ Nhân Phẩm',
-    ctaLabel: 'Mở',
-    beforeBold: 'Rút thử voucher hẹn hò và lời chúc bí mật trong ',
+    title: 'Lật Thẻ Quà',
+    ctaLabel: 'Mở nha',
+    beforeBold: 'Tới phần vui nè! Em vào ',
     boldText: 'Lật Thẻ',
-    afterBold: ' nha.',
-    ariaAction: 'Mở Lật Thẻ Nhân Phẩm',
+    afterBold: ' tự tay rút mấy món quà với voucher hẹn hò anh giấu sẵn nha.',
+    ariaAction: 'Mở Lật Thẻ Quà',
   },
   puzzle: {
-    title: 'Ghép Hình 3x3',
-    ctaLabel: 'Mở',
-    beforeBold: 'Ghép lại bức ảnh kỷ niệm trong ',
-    boldText: 'Ghép Hình 3x3',
-    afterBold: ' — chạm 2 mảnh để đổi chỗ cho nhau.',
-    ariaAction: 'Mở Ghép Hình 3x3',
+    title: 'Ghép Ảnh Đôi',
+    ctaLabel: 'Mở nha',
+    beforeBold: 'Thử ghép lại tấm ảnh của hai đứa xem em nhớ mặt anh rõ không nè — ',
+    boldText: 'chạm 2 mảnh',
+    afterBold: ' để đổi chỗ nha.',
+    ariaAction: 'Mở Ghép Ảnh Đôi',
   },
   gallery: {
-    title: 'Bảo Tàng Của Chúng Mình',
-    ctaLabel: 'Mở',
-    beforeBold: 'Ghé ',
-    boldText: 'Bảo Tàng Của Chúng Mình',
-    afterBold: ' để đi dọc hành lang ảnh, vẽ tranh và quay xèng nhận quà.',
-    ariaAction: 'Mở Bảo Tàng Của Chúng Mình',
+    title: 'Bảo Tàng Kỷ Niệm',
+    ctaLabel: 'Xem nè',
+    beforeBold: 'Giờ anh dẫn em đi dạo ',
+    boldText: 'Bảo Tàng Kỷ Niệm',
+    afterBold: ' của tụi mình, cùng lướt ngắm lại mấy tấm ảnh thương nhất của hai đứa nhé.',
+    ariaAction: 'Mở Bảo Tàng Kỷ Niệm',
   },
   constellation: {
-    title: 'Chòm Sao Kỷ Niệm',
-    ctaLabel: 'Lên Chòm Sao',
+    title: 'Chòm Sao',
+    ctaLabel: 'Xem nè',
     ctaIsCelestial: true,
-    beforeBold: 'Kéo ngước góc nhìn ',
-    boldText: 'lên bầu trời sao',
-    afterBold: ' phía trên Ngân Hà để thắp sáng chòm sao Ma Kết nhé.',
-    ariaAction: 'Chuyển lên góc nhìn Chòm Sao Kỷ Niệm',
+    beforeBold: 'Chạm vào ',
+    boldText: 'Chòm Sao',
+    afterBold: ' ở góc trên (hoặc bấm nút bên cạnh) để lên bầu trời tự tay thắp sáng từng vì sao kỷ niệm nha em.',
+    ariaAction: 'Lên bầu trời Chòm Sao Kỷ Niệm',
   },
 };
 
@@ -107,6 +107,7 @@ export function JourneyGuidePill() {
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
+  const [arrivalTipDismissed, setArrivalTipDismissed] = useState(false);
 
   const nextStep = getNextJourneyStep(completedSteps);
   const allCoreCompleted = isAllCoreJourneyCompleted(completedSteps);
@@ -118,6 +119,24 @@ export function JourneyGuidePill() {
     viewMode === 'galaxy' &&
     activeModal === null &&
     focusingNodeId === null;
+
+  // Auto-dismiss first-arrival micro-tip as soon as em starts exploring or completes any step
+  useEffect(() => {
+    if (completedCount > 0 && !arrivalTipDismissed) {
+      setArrivalTipDismissed(true);
+    }
+  }, [completedCount, arrivalTipDismissed]);
+
+  useEffect(() => {
+    if (!isVisible || arrivalTipDismissed || completedCount > 0) return;
+    const onExplore = (e: PointerEvent) => {
+      if ((e.target as HTMLElement | null)?.tagName === 'CANVAS') {
+        setArrivalTipDismissed(true);
+      }
+    };
+    window.addEventListener('pointerdown', onExplore, { passive: true });
+    return () => window.removeEventListener('pointerdown', onExplore);
+  }, [isVisible, arrivalTipDismissed, completedCount]);
 
   // Close checklist popover automatically whenever the bar hides or minimizes
   useEffect(() => {
@@ -203,13 +222,32 @@ export function JourneyGuidePill() {
               isMinimized ? 'w-auto' : 'w-[92vw] max-w-[500px]'
             }`}
           >
-            {/* Expandable "Lộ Trình" Checklist Popover (opens upward cleanly above the HUD) */}
+            {/* Gentle First-Arrival Micro-Tip (auto-dismisses on tap or canvas orbit) */}
+            <AnimatePresence>
+              {!arrivalTipDismissed && completedCount === 0 && !checklistOpen && !isMinimized && (
+                <motion.button
+                  key="first-arrival-tip"
+                  type="button"
+                  onClick={() => setArrivalTipDismissed(true)}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  transition={{ duration: 0.25 }}
+                  aria-label="Đóng gợi ý nhỏ"
+                  className="mb-1.5 block w-full cursor-pointer px-3 py-1 text-center font-sans text-[11px] leading-relaxed text-pink-100/75 drop-shadow-[0_1px_6px_rgba(3,1,10,0.95)] transition-colors hover:text-white"
+                >
+                  Em xoay nhẹ màn hình ngắm xung quanh, hoặc cứ bấm nút bên dưới để anh dẫn đi từng chỗ nha.
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Expandable "Hành Trình" Checklist Popover (opens upward cleanly above the HUD) */}
             <AnimatePresence>
               {checklistOpen && !isMinimized && (
                 <motion.div
                   key="journey-checklist-popover"
                   role="dialog"
-                  aria-label="Danh sách lộ trình kỷ niệm"
+                  aria-label="Danh sách hành trình kỷ niệm"
                   initial={{ opacity: 0, y: 8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98, pointerEvents: 'none' }}
@@ -220,11 +258,11 @@ export function JourneyGuidePill() {
                     <div className="flex items-center gap-2">
                       <Compass className="h-3.5 w-3.5 text-pink-400" strokeWidth={1.8} aria-hidden="true" />
                       <span className="font-sans text-xs font-semibold tracking-wide text-starlight">
-                        Lộ Trình Của Tụi Mình
+                        Hành Trình Của Tụi Mình
                       </span>
                     </div>
                     <span className="font-mono text-[11px] text-pink-300/90 tabular-nums">
-                      {completedCount}/{JOURNEY_STEPS.length} chặng
+                      {completedCount}/{JOURNEY_STEPS.length} trạm
                     </span>
                   </div>
 
@@ -270,11 +308,11 @@ export function JourneyGuidePill() {
 
                             <span className="shrink-0 text-[11px] font-medium">
                               {isCurrent ? (
-                                <span className="text-pink-300">Tiếp theo</span>
+                                <span className="text-pink-300">Đang chờ em</span>
                               ) : done ? (
                                 <span className="text-pink-300/75">Xem lại</span>
                               ) : (
-                                <span className="text-white/55">Mở</span>
+                                <span className="text-white/55">Mở nha</span>
                               )}
                             </span>
                           </button>
@@ -310,14 +348,14 @@ export function JourneyGuidePill() {
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate text-xs font-semibold">
-                            Món Quà Cuối Cùng
+                            Điều Bất Ngờ Cuối Cùng
                           </span>
                           <span className="block text-[11px] leading-snug text-white/55">
                             {supernovaCompleted
-                              ? 'Đã khám phá Siêu Tân Tinh Bí Mật'
+                              ? 'Em đã mở trọn điều bất ngờ cuối rồi nè'
                               : allCoreCompleted
-                                ? 'Chạm & giữ giữa Trái Tim 3D trong 3 giây'
-                                : 'Mở khóa sau khi hoàn thành đủ 6/6 chặng'}
+                                ? 'Chạm giữ giữa Trái Tim lớn 3 giây nha'
+                                : 'Mở khóa sau khi em đi hết 6/6 trạm nha'}
                           </span>
                         </span>
                       </span>
@@ -334,7 +372,7 @@ export function JourneyGuidePill() {
                 layout="position"
                 type="button"
                 onClick={handleToggleMinimize}
-                aria-label="Mở rộng thanh hướng dẫn hành trình"
+                aria-label="Mở lại thanh hướng dẫn của tụi mình"
                 className="group relative inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-[#0c0516]/55 px-3.5 py-1.5 font-sans text-[11px] font-medium tracking-wide text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_28px_rgba(3,1,10,0.5)] backdrop-blur-md transition-colors hover:border-pink-300/35 hover:bg-[#130824]/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 before:absolute before:-inset-y-2 before:-inset-x-1"
               >
                 <span
@@ -343,10 +381,10 @@ export function JourneyGuidePill() {
                 />
                 <span className="tabular-nums">
                   {isFinaleBanner
-                    ? '6/6 · Món Quà Cuối'
+                    ? '6/6 · Bất Ngờ Cuối'
                     : isClosingNote
                       ? 'Hành Trình · 6/6'
-                      : `Chặng ${activeStepNumber}/${JOURNEY_STEPS.length}`}
+                      : `Trạm ${activeStepNumber}/${JOURNEY_STEPS.length}`}
                 </span>
                 <ChevronUp
                   className="h-3.5 w-3.5 text-pink-300/85 transition-transform duration-200 group-hover:-translate-y-0.5"
@@ -373,12 +411,12 @@ export function JourneyGuidePill() {
                     />
                     <span className="truncate">
                       {isFinaleBanner ? (
-                        'Hoàn thành 6/6 · Món Quà Cuối Cùng'
+                        'Đủ 6/6 trạm · Điều Bất Ngờ Cuối'
                       ) : isClosingNote ? (
-                        'Hoàn Trọn Hành Trình · 6/6'
+                        'Trọn Vẹn Hành Trình · 6/6'
                       ) : (
                         <>
-                          Chặng <span className="font-mono tabular-nums">{activeStepNumber}/{JOURNEY_STEPS.length}</span> · {activeMeta?.title}
+                          Trạm <span className="font-mono tabular-nums">{activeStepNumber}/{JOURNEY_STEPS.length}</span> · {activeMeta?.title}
                         </>
                       )}
                     </span>
@@ -389,7 +427,7 @@ export function JourneyGuidePill() {
                       type="button"
                       onClick={handleToggleChecklist}
                       aria-expanded={checklistOpen}
-                      aria-label={`Xem lộ trình (${completedCount}/${JOURNEY_STEPS.length})`}
+                      aria-label={`Xem hành trình (${completedCount}/${JOURNEY_STEPS.length})`}
                       className={`relative inline-flex cursor-pointer items-center gap-1 font-sans text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 before:absolute before:-inset-y-2.5 before:-inset-x-1.5 ${
                         checklistOpen
                           ? 'text-pink-200'
@@ -397,7 +435,7 @@ export function JourneyGuidePill() {
                       }`}
                     >
                       <span>
-                        Lộ trình{' '}
+                        Hành trình{' '}
                         <span className="font-mono text-pink-300/90 tabular-nums">
                           ({completedCount}/{JOURNEY_STEPS.length})
                         </span>
@@ -407,8 +445,8 @@ export function JourneyGuidePill() {
                     <button
                       type="button"
                       onClick={handleToggleMinimize}
-                      aria-label="Thu gọn thanh hướng dẫn"
-                      title="Thu gọn"
+                      aria-label="Thu gọn xíu"
+                      title="Thu gọn xíu"
                       className="relative flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-pink-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 before:absolute before:-inset-2"
                     >
                       <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
@@ -451,8 +489,13 @@ export function JourneyGuidePill() {
                         />
                       </span>
                       <p className="min-w-0 flex-1 font-sans text-[12.5px] leading-relaxed text-white/85">
-                        Đủ <strong className="font-mono font-semibold text-pink-200 tabular-nums">6/6</strong> kỷ niệm rồi — chạm và{' '}
-                        <strong className="font-semibold text-white">giữ giữa Trái Tim 3D 3 giây</strong> để mở món quà cuối nhé.
+                        Em đi hết{' '}
+                        <strong className="font-mono font-semibold text-pink-200 tabular-nums">6/6</strong>{' '}
+                        trạm rồi nè! Giờ em{' '}
+                        <strong className="font-semibold text-white">
+                          chạm và giữ chặt vào giữa Trái Tim lớn 3 giây
+                        </strong>{' '}
+                        (đừng thả sớm nha) để mở điều bất ngờ cuối cùng anh dành cho em...
                       </p>
                     </div>
                   )}
@@ -465,7 +508,7 @@ export function JourneyGuidePill() {
                         aria-hidden="true"
                       />
                       <p className="min-w-0 flex-1 font-sans text-[12.5px] leading-relaxed text-white/85">
-                        Cảm ơn em đã đi trọn hành trình cùng anh — Em có thể tự do ngắm lại mọi kỷ niệm bất cứ lúc nào nhé.
+                        Cảm ơn em đã đi hết hành trình này cùng anh — lúc nào nhớ anh thì cứ mở lại ngắm tiếp nha em ♥
                       </p>
                     </div>
                   )}

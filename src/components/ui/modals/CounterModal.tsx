@@ -96,15 +96,15 @@ export function CounterModal() {
         </div>
       </div>
 
-      <p className="text-xs leading-normal font-medium tracking-[0.14em] text-lavender uppercase">
-        Bên nhau từ <span className="font-mono tabular-nums">{startDateDisplay}</span>
+      <p className="text-xs leading-normal font-medium tracking-[0.12em] text-lavender uppercase">
+        Tụi mình bên nhau từ <span className="font-mono tabular-nums">{startDateDisplay}</span>
       </p>
 
       {/* 4 glowing glass timer cards */}
       <div
         className="mt-5 grid w-full grid-cols-2 gap-3 sm:grid-cols-4"
         aria-live="off"
-        aria-label="Đồng hồ đếm thời gian yêu nhau"
+        aria-label="Thời gian tụi mình bên nhau"
       >
         {units.map((unit) => (
           <div

@@ -559,7 +559,8 @@ export function ConstellationCard() {
                     type="button"
                     onClick={handleClose}
                     disabled={isStepping}
-                    aria-label="Đóng thẻ kỷ niệm"
+                    title="Quay lại ngân hà"
+                    aria-label="Quay lại ngân hà"
                     className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:opacity-40"
                   >
                     <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -585,16 +586,16 @@ export function ConstellationCard() {
               </p>
 
               {/* Symmetrical Prev / Next or Finale Return Controls (locked cleanly during 3-beat transition) */}
-              <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+              <div className="mt-6 flex items-center justify-between gap-2.5 border-t border-white/10 pt-4">
                 <button
                   type="button"
                   onClick={goPrev}
                   disabled={isFirst || isStepping}
-                  aria-label="Kỷ niệm trước"
-                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4.5 text-xs leading-normal font-medium text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                  aria-label="Xem kỷ niệm trước"
+                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium whitespace-nowrap text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-1.5 sm:px-4.5 sm:text-sm"
                 >
-                  <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-                  <span>Trước</span>
+                  <ChevronLeft className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span>Kỷ niệm trước</span>
                 </button>
 
                 {isLast ? (
@@ -602,22 +603,22 @@ export function ConstellationCard() {
                     type="button"
                     onClick={handleCompleteConstellation}
                     disabled={isStepping}
-                    aria-label="Hoàn thành hành trình chòm sao và về Ngân Hà"
-                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-pink-300/60 bg-gradient-to-r from-neon-pink/30 via-neon-magenta/26 to-neon-violet/30 px-5 text-xs leading-normal font-semibold text-starlight shadow-[0_0_22px_rgba(255,62,165,0.32)] hover:border-pink-200/85 hover:shadow-[0_0_28px_rgba(255,62,165,0.46)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                    aria-label="Thắp sáng trọn vẹn chòm sao và về ngân hà"
+                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-pink-300/60 bg-gradient-to-r from-neon-pink/30 via-neon-magenta/26 to-neon-violet/30 px-4 text-xs leading-normal font-semibold whitespace-nowrap text-starlight shadow-[0_0_22px_rgba(255,62,165,0.32)] hover:border-pink-200/85 hover:shadow-[0_0_28px_rgba(255,62,165,0.46)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-2 sm:px-5 sm:text-sm"
                   >
-                    <span>Về Ngân Hà</span>
-                    <Sparkles className="h-4 w-4 text-pink-200" strokeWidth={1.75} aria-hidden="true" />
+                    <span>Thắp sáng trọn vẹn</span>
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-pink-200 sm:h-4 sm:w-4" strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={goNext}
                     disabled={isStepping}
-                    aria-label="Kỷ niệm tiếp theo"
-                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-pink-300/45 bg-pink-500/16 px-5 text-xs leading-normal font-medium text-starlight hover:border-pink-200/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                    aria-label="Thắp sáng ngôi sao tiếp theo"
+                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full border border-pink-300/45 bg-pink-500/16 px-4 text-xs leading-normal font-medium whitespace-nowrap text-starlight hover:border-pink-200/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-1.5 sm:px-5 sm:text-sm"
                   >
-                    <span>Tiếp theo</span>
-                    <ChevronRight className="h-4 w-4 text-pink-300" strokeWidth={1.75} aria-hidden="true" />
+                    <span>Sao tiếp theo</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-pink-300" strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 )}
               </div>

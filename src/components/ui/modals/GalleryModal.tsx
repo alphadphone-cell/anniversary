@@ -38,9 +38,11 @@ export function GalleryModal() {
           id="anni-modal-title"
           className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
-          Thư Viện Kỷ Niệm
+          Bảo Tàng Kỷ Niệm
         </h2>
-        <p className="mt-2 text-sm text-lavender">Chưa có hình ảnh kỷ niệm nào.</p>
+        <p className="mt-2 text-sm text-lavender">
+          Chỗ này đang chờ thêm thật nhiều tấm ảnh của tụi mình nè.
+        </p>
       </div>
     );
   }
@@ -55,7 +57,7 @@ export function GalleryModal() {
           id="anni-modal-title"
           className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
-          Thư Viện Kỷ Niệm
+          Bảo Tàng Kỷ Niệm
         </h2>
       </div>
 
@@ -108,14 +110,14 @@ export function GalleryModal() {
           <button
             type="button"
             onClick={goPrev}
-            aria-label="Ảnh kỷ niệm trước"
+            aria-label="Xem ảnh trước nha"
             className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            <span className="hidden sm:inline">Trước</span>
+            <span className="hidden sm:inline">Tấm trước</span>
           </button>
 
-          <div className="flex items-center gap-2" role="tablist" aria-label="Danh sách ảnh kỷ niệm">
+          <div className="flex items-center gap-2" role="tablist" aria-label="Mấy tấm ảnh kỷ niệm của tụi mình">
             {photos.map((photo, idx) => {
               const isCurrent = idx === safeIndex;
               return (
@@ -124,7 +126,7 @@ export function GalleryModal() {
                   type="button"
                   role="tab"
                   aria-selected={isCurrent}
-                  aria-label={`Xem kỷ niệm ${idx + 1}: ${photo.title}`}
+                  aria-label={`Xem tấm số ${idx + 1}: ${photo.title}`}
                   onClick={() => setActiveIndex(idx)}
                   className="flex h-11 w-7 cursor-pointer items-center justify-center"
                 >
@@ -143,10 +145,10 @@ export function GalleryModal() {
           <button
             type="button"
             onClick={goNext}
-            aria-label="Ảnh kỷ niệm tiếp theo"
+            aria-label="Xem ảnh tiếp theo nha"
             className="glass-interactive inline-flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 text-xs leading-normal font-medium text-lavender hover:text-starlight"
           >
-            <span className="hidden sm:inline">Sau</span>
+            <span className="hidden sm:inline">Tấm sau</span>
             <ChevronRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>

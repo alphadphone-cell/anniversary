@@ -29,11 +29,11 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundar
         >
           <div className="glass-surface max-w-md rounded-2xl p-6">
             <p className="font-display text-2xl leading-snug font-medium text-starlight">
-              Không Thể Khởi Tạo Đồ Họa 3D
+              Ơ, trình duyệt chưa mở được bầu trời 3D rồi
             </p>
             <p className="mt-2 text-sm leading-relaxed text-lavender">
-              Trình duyệt hiện chưa bật tăng tốc phần cứng WebGL. Hãy bật WebGL để khám phá dải ngân
-              hà 3D của tụi mình.
+              Em thử bật tăng tốc phần cứng (WebGL) hoặc mở lại bằng Chrome/Safari để ngắm dải ngân
+              hà của tụi mình nha.
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
     <WebGLErrorBoundary>
       <div
         className="fixed inset-0 z-0 bg-void"
-        aria-label="Không gian ngân hà 3D tương tác"
+        aria-label="Bầu trời ngân hà của tụi mình"
       >
         <Canvas
           dpr={dpr}
@@ -183,7 +183,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
             role="status"
           >
             <p className="glass-surface rounded-full px-5 py-2.5 text-sm text-starlight">
-              Đang khôi phục đồ họa WebGL…
+              Đợi anh một xíu, bầu trời sao đang sáng lại liền nè…
             </p>
           </div>
         )}

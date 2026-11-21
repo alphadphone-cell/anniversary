@@ -152,7 +152,9 @@ export function PuzzleModal() {
           {ANNIVERSARY_DATA.puzzle.headline}
         </h2>
       </div>
-      <p className="mt-1.5 text-sm leading-relaxed text-lavender">{ANNIVERSARY_DATA.puzzle.intro}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-lavender">
+        Em chạm hai mảnh bất kỳ để đổi chỗ cho nhau, ghép lại tấm ảnh của hai đứa nha.
+      </p>
 
       {/* 3x3 Clickable Tile-Swap Jigsaw Grid */}
       <div
@@ -162,7 +164,7 @@ export function PuzzleModal() {
             : 'gap-1.5 border-neon-magenta/35 bg-void/80 shadow-[0_14px_38px_-14px_rgba(217,70,239,0.45)]'
         }`}
         role="grid"
-        aria-label="Trò chơi ghép hình kỷ niệm 3 nhân 3"
+        aria-label="Ghép lại tấm ảnh của hai đứa"
       >
         {board.map((pieceId, slotIndex) => {
           const pieceRow = Math.floor(pieceId / GRID_SIZE);
@@ -177,7 +179,7 @@ export function PuzzleModal() {
               data-puzzle-slot={slotIndex}
               data-puzzle-piece={pieceId}
               onClick={() => handleTileClick(slotIndex)}
-              aria-label={`Ô ghép số ${slotIndex + 1}, mảnh ${pieceId + 1}${isCorrect ? ', đã đúng vị trí' : ''}`}
+              aria-label={`Ô số ${slotIndex + 1}, mảnh ${pieceId + 1}${isCorrect ? ', đúng chỗ rồi nè' : ''}`}
               aria-pressed={isSelected}
               className={`relative aspect-square min-h-11 min-w-11 cursor-pointer overflow-hidden transition-transform duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-neon-pink ${
                 isSolved ? 'rounded-none' : 'rounded-lg'
@@ -205,20 +207,20 @@ export function PuzzleModal() {
       <div className="mt-4 flex flex-col items-center gap-2">
         {isSolved ? (
           <div className="space-y-1">
-            <p className="inline-flex items-center gap-1.5 font-sans text-xs leading-normal font-semibold tracking-[0.14em] text-neon-pink uppercase">
+            <p className="inline-flex items-center gap-1.5 font-sans text-xs leading-normal font-semibold tracking-[0.12em] text-neon-pink uppercase">
               <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-              <span>9 / 9 Hoàn Thành</span>
+              <span>9/9 Chuẩn Rồi Nè</span>
             </p>
             <p className="font-display text-2xl leading-snug font-semibold text-starlight">
-              {ANNIVERSARY_DATA.puzzle.completedHeadline}
+              Giỏi quá trời luôn! Em ghép xong rồi nè ♥
             </p>
             <p className="text-xs leading-relaxed text-lavender">
               {ANNIVERSARY_DATA.puzzle.unlockMessage}
             </p>
           </div>
         ) : (
-          <p className="font-mono text-xs font-medium tracking-[0.12em] text-lavender tabular-nums">
-            Tiến độ: <span className="text-starlight">{solvedCount}</span> / {TOTAL_TILES} mảnh
+          <p className="font-mono text-xs font-medium tracking-[0.08em] text-lavender tabular-nums">
+            Em ghép đúng <span className="text-starlight">{solvedCount}</span>/{TOTAL_TILES} mảnh rồi nè
           </p>
         )}
 
@@ -228,7 +230,7 @@ export function PuzzleModal() {
           className="glass-interactive mt-1 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs leading-normal font-medium text-lavender hover:text-starlight"
         >
           <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-          <span>{isSolved ? 'Chơi Lại' : 'Trộn Mảnh Ghép'}</span>
+          <span>{isSolved ? 'Ghép lại lần nữa nha' : 'Xáo lại mảnh ghép'}</span>
         </button>
       </div>
     </div>

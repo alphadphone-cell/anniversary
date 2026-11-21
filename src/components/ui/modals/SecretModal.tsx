@@ -56,7 +56,7 @@ export function SecretModal() {
           className="glass-interactive inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-neon-pink/40 bg-neon-pink/15 px-4 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/75"
         >
           <Volume2 className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-          <span>Nghe Lại Chuông Sao</span>
+          <span>Nghe lại tiếng sao vỡ nha</span>
         </button>
       </div>
     </div>

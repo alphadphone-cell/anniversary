@@ -104,17 +104,24 @@ export function ModalShell() {
           >
             <ModalContent modal={activeModal} />
 
-            {/* Signature Centered ĐÓNG x Pill */}
+            {/* Warm Centered Close Pill */}
             <div className="mt-6 flex justify-center">
               <button
                 ref={closeButtonRef}
                 type="button"
                 onClick={handleClose}
-                aria-label="Đóng hộp thoại"
-                className="glass-interactive inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/25 bg-white/[0.04] px-6 font-sans text-xs leading-normal font-semibold tracking-[0.16em] text-starlight uppercase hover:border-neon-pink/65"
+                title="Quay lại ngân hà"
+                aria-label={isSecret ? 'Giữ mãi trong tim và quay lại ngân hà' : 'Đóng lại và quay lại ngân hà'}
+                className="glass-interactive inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/25 bg-white/[0.04] px-6 font-sans text-xs leading-normal font-medium tracking-wide text-starlight hover:border-neon-pink/65"
               >
-                <span>ĐÓNG</span>
-                <X className="h-3.5 w-3.5 text-neon-pink" strokeWidth={2} aria-hidden="true" />
+                {isSecret ? (
+                  <span>Giữ mãi trong tim ♥</span>
+                ) : (
+                  <>
+                    <span>Đóng lại</span>
+                    <X className="h-3.5 w-3.5 text-neon-pink" strokeWidth={2} aria-hidden="true" />
+                  </>
+                )}
               </button>
             </div>
           </motion.section>

@@ -76,7 +76,6 @@ export function SetupStage() {
 
   const [phase, setPhase] = useState<SetupPhase>(1);
   const [checkedCount, setCheckedCount] = useState(0);
-  const [isFullscreenActive, setIsFullscreenActive] = useState(false);
   const [isChimePlaying, setIsChimePlaying] = useState(false);
 
   const timersRef = useRef<number[]>([]);
@@ -140,8 +139,7 @@ export function SetupStage() {
     musicEngine.unlockAndPreload();
     sfxEngine.unlock();
 
-    const [fsOk] = await Promise.all([tryEnterFullscreen(), acquireScreenWakeLock()]);
-    setIsFullscreenActive(fsOk || Boolean(document.fullscreenElement));
+    await Promise.all([tryEnterFullscreen(), acquireScreenWakeLock()]);
     sfxEngine.playStarSelect();
 
     setPhase(2);
@@ -222,12 +220,10 @@ export function SetupStage() {
   }, [clearAllTimers, setMuted, setStage]);
 
   const checkItems = [
-    isFullscreenActive
-      ? 'Chế độ hiển thị toàn màn hình'
-      : 'Chế độ hiển thị tối ưu',
-    'Âm thanh & hiệu ứng không gian đã sẵn sàng',
-    'Khóa chống tắt màn hình tự động',
-    'Không gian 3D & kỷ niệm đã nạp hoàn tất',
+    'Không gian đã mở rộng trọn vẹn cho em',
+    'Nhạc nền của tụi mình đã lên sẵn rồi nè',
+    'Màn hình sáng rõ, chỉ chờ mỗi em thôi',
+    'Mọi kỷ niệm đã xếp ngay ngắn chờ em mở',
   ];
 
   const isFinishing = phase === 'verifying' || phase === 'whisper';
@@ -237,10 +233,10 @@ export function SetupStage() {
       key="pre-intro-setup-veil"
       role="dialog"
       aria-modal="true"
-      aria-label="Chuẩn bị trải nghiệm"
+      aria-label="Nhắn nhỏ em trước khi bắt đầu"
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } }}
+      exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } }}
       style={{ willChange: 'opacity' }}
       className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-between bg-[#000000] px-6 py-8 text-center sm:py-10"
     >
@@ -260,12 +256,13 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ CHUẨN BỊ TRẢI NGHIỆM · 1/3
+                ✦ NHẮN NHỎ EM XÍU · 1/3
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
-                Để không gian vũ trụ hiện lên trọn vẹn nhất, cho phép mở chế độ{' '}
-                <span className="font-medium text-pink-200">Toàn Màn Hình</span> nhé?
+                Trước khi bắt đầu, em bấm vào đây để{' '}
+                <span className="font-medium text-pink-200">mở rộng hết màn hình</span> cho ngắm
+                bầu trời của tụi mình thật đã mắt nha?
               </h2>
 
               <button
@@ -273,7 +270,7 @@ export function SetupStage() {
                 onClick={handleStep1Confirm}
                 className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/40 bg-white/[0.04] px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_24px_rgba(244,114,182,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-300/75 hover:bg-pink-500/15 hover:shadow-[0_0_28px_rgba(244,114,182,0.34)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
               >
-                OK · Bật Toàn Màn Hình
+                Ừa, mở rộng ra nè
               </button>
             </motion.div>
           )}
@@ -288,14 +285,14 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ ÂM THANH · 2/3
+                ✦ CHỈNH NHẠC CHÚT NHA · 2/3
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
-                Em nhớ <span className="font-medium text-pink-200">đeo tai nghe</span> (nếu có) và
-                chỉnh âm lượng thiết bị lên khoảng{' '}
-                <span className="font-sans font-medium text-pink-200 tabular-nums">65% – 80%</span>{' '}
-                để cảm nhận rõ tiếng nhạc nha.
+                Em <span className="font-medium text-pink-200">đeo tai nghe</span> (nếu có) rồi
+                vặn âm lượng lên khoảng{' '}
+                <span className="font-sans font-medium text-pink-200 tabular-nums">70%</span> nha,
+                anh chọn toàn mấy bài hợp với hai đứa lắm đó.
               </h2>
 
               {/* Delicate Animated Mini Soundwave Indicator + Replay Button */}
@@ -320,7 +317,7 @@ export function SetupStage() {
                   onClick={triggerChimeTest}
                   className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-4 py-1.5 font-sans text-xs font-medium text-pink-200/90 transition-colors hover:border-pink-300/45 hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/75"
                 >
-                  <span>Nghe thử lại</span>
+                  <span>Nghe thử lại xíu</span>
                   <Music2 className="h-3.5 w-3.5 text-pink-300" strokeWidth={1.8} aria-hidden="true" />
                 </button>
               </div>
@@ -330,7 +327,7 @@ export function SetupStage() {
                 onClick={handleStep2Confirm}
                 className="mt-6 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/40 bg-white/[0.04] px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_24px_rgba(244,114,182,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-300/75 hover:bg-pink-500/15 hover:shadow-[0_0_28px_rgba(244,114,182,0.34)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
               >
-                OK · Đã nghe rõ
+                Em nghe rõ rồi nè
               </button>
             </motion.div>
           )}
@@ -345,13 +342,12 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ SẴN SÀNG · 3/3
+                ✦ EM SẴN SÀNG CHƯA? · 3/3
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
-                Tăng <span className="font-medium text-pink-200">độ sáng màn hình (~70–85%)</span>{' '}
-                và chọn một góc thật thoải mái nhé. Nếu đang dùng điện thoại, em có thể cầm dọc
-                hoặc ngang đều đẹp.
+                Em <span className="font-medium text-pink-200">tăng sáng màn hình</span> lên một
+                chút rồi ngồi thật thoải mái nha. Em sẵn sàng bước vào thế giới của tụi mình chưa?
               </h2>
 
               <button
@@ -359,7 +355,7 @@ export function SetupStage() {
                 onClick={handleStep3Confirm}
                 className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/50 bg-gradient-to-r from-pink-500/20 via-fuchsia-500/16 to-pink-500/20 px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_26px_rgba(244,114,182,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-200/80 hover:shadow-[0_0_32px_rgba(244,114,182,0.42)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
               >
-                OK · Kiểm tra &amp; Bắt đầu
+                Em sẵn sàng rồi ♥
               </button>
             </motion.div>
           )}
@@ -376,7 +372,7 @@ export function SetupStage() {
               aria-live="polite"
             >
               <p className="mb-5 text-center font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/75 uppercase">
-                ✦ ĐANG KIỂM TRA HỆ THỐNG
+                ✦ CHỜ ANH XÍU NHA
               </p>
 
               <ul className="space-y-3">
@@ -422,14 +418,14 @@ export function SetupStage() {
                 className="font-display text-2xl font-normal italic tracking-wide text-pink-100/95 sm:text-3xl"
                 style={{ textShadow: '0 0 26px rgba(244, 114, 182, 0.42)' }}
               >
-                Mọi thứ đã sẵn sàng cho em...
+                Đi cùng anh nhé...
               </p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Subtle Low-Opacity "Bỏ qua" Link at Very Bottom */}
+      {/* Subtle Low-Opacity Skip Link at Very Bottom */}
       <div className="flex h-11 items-center justify-center">
         {!isFinishing && (
           <button
@@ -437,7 +433,7 @@ export function SetupStage() {
             onClick={handleSkip}
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full px-5 font-sans text-xs font-normal tracking-wide text-white/35 transition-colors duration-200 hover:text-white/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
           >
-            Bỏ qua
+            Vào thẳng luôn nha
           </button>
         )}
       </div>

@@ -1494,7 +1494,7 @@ export function ParticleHeart({
               outlineOpacity={0}
               material-toneMapped={false}
             >
-              CHẠM &amp; GIỮ TRÁI TIM 3 GIÂY
+              CHẠM &amp; GIỮ TRÁI TIM 3 GIÂY NHA EM
             </Text>
           </group>
         </Billboard>

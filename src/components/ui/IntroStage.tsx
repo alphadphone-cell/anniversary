@@ -253,7 +253,7 @@ export function IntroStage() {
             className="flex items-center justify-center gap-2 font-sans text-[11px] leading-normal font-medium tracking-[0.28em] text-pink-200/75 uppercase"
           >
             <FourPointStar className="h-2.5 w-2.5 text-pink-300/80" />
-            <span>Hành Trình Của Tụi Mình</span>
+            <span>Dành Riêng Cho Em</span>
             <FourPointStar className="h-2.5 w-2.5 text-pink-300/80" />
           </motion.div>
 
@@ -284,7 +284,7 @@ export function IntroStage() {
               onPointerCancel={() => handlePressEnd(true)}
               onKeyDown={handleKeyDown}
               onKeyUp={handleKeyUp}
-              aria-label="Chạm và giữ trái tim để nạp yêu thương và mở cổng ngân hà"
+              aria-label="Em chạm và giữ tay vào trái tim để mở cổng ngân hà nhé"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={roundedPercent}
@@ -498,20 +498,24 @@ export function IntroStage() {
             className="flex min-h-[44px] flex-col items-center justify-center gap-1.5"
           >
             {isComplete ? (
-              <p className="inline-flex items-center gap-2 font-sans text-xs leading-normal font-medium tracking-[0.14em] text-pink-100 uppercase sm:text-[13px]">
-                <span>Cổng ngân hà đã mở</span>
+              <p className="inline-flex items-center gap-2 font-sans text-xs leading-normal font-medium tracking-wide text-pink-100 sm:text-[13px]">
+                <span>Cổng ngân hà mở rồi, đi thôi em</span>
                 <FourPointStar className="h-3 w-3 text-pink-200" />
               </p>
             ) : isActive || roundedPercent > 0 ? (
-              <div className="flex items-center gap-2 font-sans text-xs leading-normal text-pink-100/90 sm:text-[13px]">
-                <span>Đang đánh thức bầu trời sao...</span>
+              <div className="flex flex-wrap items-center justify-center gap-2 font-sans text-xs leading-normal text-pink-100/90 sm:text-[13px]">
+                <span>
+                  {roundedPercent <= 45
+                    ? 'Giữ thêm chút nữa nha em...'
+                    : 'Sắp mở ra rồi nè, đừng thả tay nha...'}
+                </span>
                 <span className="rounded-full border border-pink-300/35 bg-pink-500/18 px-2 py-0.5 font-mono text-[11px] font-medium text-starlight tabular-nums">
                   {roundedPercent}%
                 </span>
               </div>
             ) : (
               <p className="font-sans text-xs leading-relaxed text-lavender sm:text-[13px]">
-                Chạm và giữ trái tim để bắt đầu
+                Em chạm và giữ tay vào trái tim này một xíu nha...
               </p>
             )}
           </motion.div>

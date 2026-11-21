@@ -42,11 +42,11 @@ export function CardsModal() {
           id="anni-modal-title"
           className="font-display text-2xl leading-snug font-semibold text-starlight sm:text-3xl"
         >
-          Thẻ Lời Chúc &amp; Quà Tặng
+          Thẻ Quà &amp; Điều Ước Cho Em
         </h2>
       </div>
       <p className="mt-1.5 text-sm leading-relaxed text-lavender">
-        Chạm vào một lá thẻ để lật mở điều ước ngọt ngào dành riêng cho em nhé.
+        Em chạm vào từng lá thẻ để tự tay mở mấy món quà với voucher hẹn hò anh giấu sẵn nha.
       </p>
 
       {/* 5 Face-Down 3D Flip Cards */}
@@ -62,7 +62,7 @@ export function CardsModal() {
               onClick={() => toggleCard(card.id)}
               aria-pressed={isFlipped}
               aria-label={
-                isFlipped ? `${card.title}: ${card.message}` : `Lật thẻ lời chúc số ${index + 1}`
+                isFlipped ? `${card.title}: ${card.message}` : `Mở lá thẻ số ${index + 1} nha em`
               }
               className={`group relative h-60 cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-pink sm:h-64 ${spanLastOnMobile}`}
               style={{ perspective: '1000px' }}
@@ -117,7 +117,7 @@ export function CardsModal() {
                     <p className="mt-1.5 text-[11px] leading-snug text-lavender">{card.message}</p>
                   </div>
                   <span className="text-[11px] leading-normal font-medium text-lavender-muted">
-                    Chạm để úp lại
+                    Chạm nhẹ để úp lại nha
                   </span>
                 </div>
               </div>
@@ -129,7 +129,7 @@ export function CardsModal() {
       {/* Shuffle / Reset Controls */}
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
         <span className="font-mono text-xs text-lavender-muted tabular-nums">
-          Đã lật {revealedCount} / {deck.length} thẻ
+          Em đã mở {revealedCount}/{deck.length} thẻ rồi nè
         </span>
         <button
           type="button"
@@ -137,7 +137,7 @@ export function CardsModal() {
           className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-4 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65"
         >
           <Shuffle className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-          <span>Trộn lại / Úp thẻ</span>
+          <span>Xáo lại chơi tiếp nha</span>
         </button>
       </div>
     </div>

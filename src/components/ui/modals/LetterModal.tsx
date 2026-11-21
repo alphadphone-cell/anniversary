@@ -130,7 +130,7 @@ export function LetterModal() {
               onClick={() => setVisibleChars(fullText.length)}
               className="glass-interactive min-h-11 cursor-pointer rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs leading-normal font-medium text-lavender hover:text-starlight"
             >
-              Hiện toàn bộ thư
+              Xem hết thư nha
             </button>
           </div>
         )}
