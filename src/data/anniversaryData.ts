@@ -222,13 +222,13 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
   letter: {
     headline: 'Bức Thư AD Gửi Bé Tlinh',
     dateLabel: '20 tháng 11, 2026 · Tròn 3 Năm',
-    salutation: 'Gửi bé Tlinh thương nhất của anh,',
+    salutation: 'Gửi bé thương nhất của anh,',
     paragraphs: [
       'Vậy là tụi mình đã đi cùng nhau tròn 3 năm kể từ ngày 20/11 năm lớp 11 rồi đó bé. Nhìn lại quãng đường từ hai đứa học trò 2k7 mặc áo trắng dưới một mái trường cho tới lúc khoác áo cử nhân tốt nghiệp, ngồi bên ánh lửa trại tuổi 18 rồi cùng nhau trưởng thành, anh vẫn thấy tim mình mềm lại mỗi khi nhớ về bé.',
       'Ba năm không phải lúc nào cũng toàn nắng đẹp — từng có đêm trăng tròn bé chán anh tưởng chừng hai đứa lạc nhịp, nhưng sau cùng tụi mình vẫn chọn quay lại, ôm chặt lấy nhau và thương nhau còn tha thiết hơn trước rất nhiều. Cảm ơn bé vì đã bao dung, đã ở lại và làm thanh xuân của anh đẹp đến thế.',
-      'Từ chuyến đi Đà Lạt đón sinh nhật Ma Kết 30/12 của bé, những lần nhận giải cuối năm, cho đến lần trở lại Đà Lạt gần đây — chỗ nào có bé cũng là nơi anh thấy bình yên nhất. Chúc mừng kỷ niệm 3 năm của AD và Tlinh; chặng đường phía trước còn dài lắm, mình vẫn cứ nắm tay đi tiếp thật lâu cùng nhau bé nhé.',
+      'Từ chuyến đi Đà Lạt đón sinh nhật của bé, những lần nhận giải cuối năm, cho đến lần trở lại với nhau gần đây — chỗ nào có bé cũng là nơi anh thấy bình yên nhất. Chúc mừng kỷ niệm 3 năm của anh và bé, chặng đường phía trước còn dài lắm, mình vẫn cứ nắm tay đi tiếp thật lâu cùng nhau bé nhé.',
     ],
-    signature: 'Mãi thương bé — AD của Tlinh',
+    signature: 'Mãi thương bé — Aiu của Bé',
   },
 
   milestones: [
@@ -274,7 +274,7 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       id: 'card-2',
       title: 'Hẹn Một Chuyến Đà Lạt Nữa',
       couponTag: 'QUÀ 02',
-      message: 'Hẹn bé một chuyến đi Đà Lạt thật chill nữa — chụp thêm thật nhiều ảnh đẹp và nắm tay dạo phố đêm.',
+      message: 'Hẹn bé một chuyến đi Đà Lạt thật chill nữa — chụp thêm thật nhiều ảnh đẹp, nắm tay dạo phố đêm và ăn thật nhiều món bé thích.',
       accent: 'magenta',
     },
     {
@@ -415,7 +415,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     imageUrl: '/media/memories/01-nova-hands.webp',
     aspect: 'portrait',
     paragraphs: [
-      'Anh giấu tấm ảnh hai bàn tay đan chặt nhau đêm 31/12/2023 ở tận sâu trong lõi trái tim này — vì với anh, đây luôn là khoảnh khắc đặc biệt và quý giá nhất trong suốt 3 năm qua.',
+      'Bé còn nhớ tấm ảnh này không? Đây chính là biểu hiện tình yêu của mình trong 3 năm nay, anh vẫn luôn giữ nó trong app chưa thay đổi lần nào, cũng là một cột mốc đánh dấu tình yêu của tụi mình.',
+      'Anh giấu tấm ảnh hai bàn tay đan chặt nhau đêm ấy ở tận sâu trong lõi trái tim này — vì với anh, đây luôn là khoảnh khắc đặc biệt và quý giá nhất trong suốt 3 năm qua.',
       'Từ những ngày đầu lớp 11 bỡ ngỡ, qua cả đêm trăng tròn từng suýt lạc nhau rồi thương lại sâu đậm hơn, đến tuổi 18 trưởng thành hôm nay — chỉ cần còn được nắm chặt bàn tay này của bé Tlinh, anh chẳng sợ bất kỳ khoảng cách hay giông gió nào nữa.',
     ],
     promiseLabel: 'Lời hứa 3 năm của AD · Đổi một điều ước bất kỳ, anh luôn đồng ý với bé',
