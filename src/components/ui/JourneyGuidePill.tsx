@@ -80,9 +80,9 @@ const STEP_GUIDE_META: Record<JourneyStepId, StepGuideMeta> = {
     title: 'Chòm Sao',
     ctaLabel: 'Xem nè',
     ctaIsCelestial: true,
-    beforeBold: 'Chạm vào ',
-    boldText: 'Chòm Sao',
-    afterBold: ' ở góc trên (hoặc bấm nút bên cạnh) để lên bầu trời tự tay thắp sáng từng vì sao kỷ niệm nha em.',
+    beforeBold: 'Ngước lên ',
+    boldText: 'bầu trời sao',
+    afterBold: ' phía trên (hoặc bấm nút bên cạnh) để tự tay thắp sáng từng vì sao kỷ niệm nha em.',
     ariaAction: 'Lên bầu trời Chòm Sao Kỷ Niệm',
   },
 };

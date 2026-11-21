@@ -1,18 +1,13 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  useActiveModal,
-  useAppStore,
-  useConstellationFinaleActive,
   useCurrentTrackIndex,
-  useFocusingNodeId,
   useIsMusicPlaying,
   useIsMuted,
   useIsSupernovaTrackActive,
   useIsTransitionFlashing,
   useStage,
   useSupernovaFlashKey,
-  useViewMode,
 } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
@@ -161,65 +156,6 @@ function NowPlayingBadge() {
   );
 }
 
-/** Poetic top-right view switch pill ("Ngân Hà" / "Chòm Sao") for one-tap sky switching. */
-function SkyViewToggle() {
-  const viewMode = useViewMode();
-  const activeModal = useActiveModal();
-  const focusingNodeId = useFocusingNodeId();
-  const finaleActive = useConstellationFinaleActive();
-  const setViewMode = useAppStore((s) => s.setViewMode);
-
-  if (activeModal !== null || focusingNodeId !== null || finaleActive) {
-    return null;
-  }
-
-  const handleSwitch = (next: 'galaxy' | 'constellation') => {
-    if (viewMode === next) return;
-    sfxEngine.playCelestialChime(next === 'constellation' ? 'up' : 'down');
-    setViewMode(next);
-  };
-
-  return (
-    <motion.div
-      key="sky-view-toggle"
-      role="tablist"
-      aria-label="Chọn góc nhìn bầu trời"
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.65, delay: 0.82, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto inline-flex items-center rounded-full border border-white/12 bg-[#0c0516]/60 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_28px_rgba(3,1,10,0.45)] backdrop-blur-md"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={viewMode === 'galaxy'}
-        onClick={() => handleSwitch('galaxy')}
-        className={`relative inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full px-3 font-sans text-xs font-medium whitespace-nowrap transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 before:absolute before:-inset-y-1 before:inset-x-0 ${
-          viewMode === 'galaxy'
-            ? 'bg-gradient-to-r from-pink-500/70 via-neon-pink/65 to-fuchsia-500/70 text-white shadow-[0_0_14px_rgba(255,62,165,0.38)]'
-            : 'text-white/65 hover:text-white'
-        }`}
-      >
-        Ngân Hà
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={viewMode === 'constellation'}
-        onClick={() => handleSwitch('constellation')}
-        className={`relative inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full px-3 font-sans text-xs font-medium whitespace-nowrap transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 before:absolute before:-inset-y-1 before:inset-x-0 ${
-          viewMode === 'constellation'
-            ? 'bg-gradient-to-r from-pink-500/70 via-neon-pink/65 to-violet-500/70 text-white shadow-[0_0_14px_rgba(244,114,182,0.4)]'
-            : 'text-white/65 hover:text-white'
-        }`}
-      >
-        Chòm Sao
-      </button>
-    </motion.div>
-  );
-}
-
 export function HudOverlay() {
   const stage = useStage();
 
@@ -272,7 +208,6 @@ export function HudOverlay() {
 
         <div className="flex items-center gap-2">
           <AnimatePresence>{stage === 'galaxy' && <NowPlayingBadge />}</AnimatePresence>
-          <AnimatePresence>{stage === 'galaxy' && <SkyViewToggle />}</AnimatePresence>
         </div>
       </header>
 
