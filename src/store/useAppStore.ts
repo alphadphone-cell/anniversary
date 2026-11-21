@@ -66,6 +66,7 @@ interface AppState {
   maxUnlockedMilestoneIndex: number;
   constellationFinaleActive: boolean;
   completedSteps: JourneyStepId[];
+  pickedCardId: string | null;
   supernovaCompleted: boolean;
   guidePillDismissed: boolean;
   isMuted: boolean;
@@ -90,6 +91,7 @@ interface AppState {
   startConstellationFinale: () => void;
   endConstellationFinale: () => void;
   markStepCompleted: (step: JourneyStepId) => void;
+  pickGiftCard: (cardId: string) => void;
   markSupernovaCompleted: () => void;
   setGuidePillDismissed: (dismissed: boolean) => void;
   setMuted: (muted: boolean) => void;
@@ -112,6 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   maxUnlockedMilestoneIndex: 0,
   constellationFinaleActive: false,
   completedSteps: [],
+  pickedCardId: null,
   supernovaCompleted: false,
   guidePillDismissed: false,
   isMuted: false,
@@ -406,6 +409,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }),
 
+  pickGiftCard: (cardId) =>
+    set((state) => (state.pickedCardId !== null ? state : { pickedCardId: cardId })),
+
   markSupernovaCompleted: () => set({ supernovaCompleted: true, guidePillDismissed: false }),
 
   setGuidePillDismissed: (guidePillDismissed) => set({ guidePillDismissed }),
@@ -434,6 +440,7 @@ export const useSelectedMilestoneId = () => useAppStore((s) => s.selectedMilesto
 export const useMaxUnlockedMilestoneIndex = () => useAppStore((s) => s.maxUnlockedMilestoneIndex);
 export const useConstellationFinaleActive = () => useAppStore((s) => s.constellationFinaleActive);
 export const useCompletedSteps = () => useAppStore((s) => s.completedSteps);
+export const usePickedCardId = () => useAppStore((s) => s.pickedCardId);
 export const useSupernovaCompleted = () => useAppStore((s) => s.supernovaCompleted);
 export const useGuidePillDismissed = () => useAppStore((s) => s.guidePillDismissed);
 export const useIsMuted = () => useAppStore((s) => s.isMuted);
