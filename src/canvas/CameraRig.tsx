@@ -78,7 +78,7 @@ function evalQuadraticBezier(
 export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const { camera } = useThree();
-  const enabled = stage !== 'warp';
+  const enabled = stage !== 'warp' && stage !== 'setup';
 
   // Reusable zero-allocation tween & shake state (wall-clock synced so slow GPUs never stall glides)
   const tweenActiveRef = useRef(false);
@@ -159,7 +159,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         }
         startCameraGlide(GALAXY_DEFAULT_POS, GALAXY_DEFAULT_TARGET, ENTRANCE_DURATION, false);
       }
-    } else if (stage === 'intro') {
+    } else if (stage === 'intro' || stage === 'setup') {
       tweenActiveRef.current = false;
       camera.position.set(0, 0.8, 13);
       if (controlsRef.current) {

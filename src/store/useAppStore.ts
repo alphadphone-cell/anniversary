@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
 import { galaxySignals } from '../canvas/galaxySignals';
 
-export type AppStage = 'intro' | 'warp' | 'galaxy';
+export type AppStage = 'setup' | 'intro' | 'warp' | 'galaxy';
 export type ViewMode = 'galaxy' | 'constellation';
 export type ModalId = 'letter' | 'counter' | 'cards' | 'puzzle' | 'gallery' | 'secret' | null;
 
@@ -97,7 +97,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  stage: 'intro',
+  stage: 'setup',
   viewMode: 'galaxy',
   activeModal: null,
   focusingNodeId: null,

@@ -12,6 +12,7 @@ import {
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
+import { SetupStage } from './SetupStage';
 import { IntroStage } from './IntroStage';
 import { ModalShell } from './ModalShell';
 import { ConstellationCard } from './ConstellationCard';
@@ -222,6 +223,9 @@ export function HudOverlay() {
       <ModalShell />
       <WarpFlashOverlay />
       <SupernovaImpactOverlay />
+
+      {/* Pure Obsidian-Black Pre-Intro Setup Veil (fades out smoothly over 800ms into IntroStage) */}
+      <AnimatePresence>{stage === 'setup' && <SetupStage key="setup" />}</AnimatePresence>
     </div>
   );
 }

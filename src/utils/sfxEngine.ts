@@ -824,6 +824,87 @@ class ProceduralSfxEngine {
     });
   }
 
+  /** Warm, gentle celestial chime sequence for Pre-Intro Setup Step 2 volume & headphones test. */
+  public playSetupTestChime(): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    // Warm romantic arpeggio (D5 -> F#5 -> A5 -> D6 -> E6)
+    const notes = [587.33, 739.99, 880.0, 1174.66, 1318.51];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const overtone = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const oGain = ctx.createGain();
+      const lpf = ctx.createBiquadFilter();
+      const t0 = now + idx * 0.14;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      overtone.type = 'triangle';
+      overtone.frequency.setValueAtTime(freq * 2, t0);
+
+      lpf.type = 'lowpass';
+      lpf.frequency.setValueAtTime(2400, t0);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(0.068 - idx * 0.006, t0 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.95);
+
+      oGain.gain.setValueAtTime(0.0001, t0);
+      oGain.gain.linearRampToValueAtTime(0.014, t0 + 0.02);
+      oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+
+      osc.connect(lpf);
+      overtone.connect(oGain);
+      oGain.connect(lpf);
+      lpf.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(t0);
+      overtone.start(t0);
+      osc.stop(t0 + 1.0);
+      overtone.stop(t0 + 0.5);
+      osc.onended = () => {
+        osc.disconnect();
+        overtone.disconnect();
+        oGain.disconnect();
+        lpf.disconnect();
+        gain.disconnect();
+      };
+    });
+  }
+
+  /** Delicate ascending crystalline tick chime for each line in the Setup auto-verification checklist. */
+  public playSetupCheckTick(stepIdx: number): void {
+    if (useAppStore.getState().isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    const scale = [659.25, 783.99, 987.77, 1318.51];
+    const freq = scale[Math.max(0, Math.min(scale.length - 1, stepIdx))] ?? 880;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.042, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.32);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+  }
+
   /** Soft rising crystalline gliding tone synced with the 1.2s Constellation Light-Beam Tracer. */
   public playBeamGlideTone(stepIndex: number): void {
     if (useAppStore.getState().isMuted) return;

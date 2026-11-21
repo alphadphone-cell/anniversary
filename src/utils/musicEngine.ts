@@ -688,8 +688,33 @@ class ContinuousMusicEngine {
     }
   }
 
+  /** Unlocks Web Audio & preloads Track 1 metadata silently during Pre-Intro Setup WITHOUT starting playback. */
+  public unlockAndPreload(): void {
+    sfxEngine.unlock();
+    const ctx = this.ensureAudioGraph();
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+    this.ensureDecks();
+    const playlist = this.getPlaylist();
+    if (this.decks && playlist.length > 0) {
+      const track0 = playlist[0];
+      const deckA = this.decks[0];
+      if (track0 && deckA && !deckA.audio.src.endsWith(track0.src)) {
+        deckA.audio.preload = 'metadata';
+        deckA.audio.src = track0.src;
+        try {
+          deckA.audio.load();
+        } catch {
+          // Ignore browsers that defer media load
+        }
+      }
+    }
+  }
+
   /** Unlocks Web Audio on the first user gesture and starts Track 1 with a silky 1.5s fade-in. */
   public startOnFirstGesture(): void {
+    if (useAppStore.getState().stage === 'setup') return;
     sfxEngine.unlock();
     const ctx = this.ensureAudioGraph();
 
@@ -736,6 +761,8 @@ class ContinuousMusicEngine {
     this.gestureListenersInstalled = true;
 
     const onGesture = () => {
+      // Keep the main soundtrack silent while in the Pre-Intro Setup screen
+      if (useAppStore.getState().stage === 'setup') return;
       this.startOnFirstGesture();
       const ctx = sfxEngine.getContext();
       if (this.started && ctx && ctx.state === 'running') {
