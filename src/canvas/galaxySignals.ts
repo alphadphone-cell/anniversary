@@ -93,14 +93,18 @@ export const galaxySignals = {
   beamTracer: {
     active: false,
     startMs: 0,
-    durationMs: 1200,
+    durationMs: 1100,
     fromIdx: 0,
     toIdx: 0,
+    isAdvancing: false,
+    targetMilestoneId: '',
+    cameraGlideRequested: false,
     fromPos: new THREE.Vector3(),
     toPos: new THREE.Vector3(),
     currentHeadPos: new THREE.Vector3(),
+    onImpact: null as (() => void) | null,
   },
-  /** Target star impact ring/flare triggered the exact instant the travelling beam hits Star i+1. */
+  /** Target star impact ring/flare triggered the exact frame the travelling beam hits Star i+1. */
   starImpactIdx: -1,
   starImpactStartMs: 0,
 };

@@ -12,11 +12,10 @@ import {
 import { sfxEngine } from '../../utils/sfxEngine';
 
 const ENTRY_AUTO_OPEN_MS = 850;
-// Unhurried 4-Beat Travelling Light-Beam Choreography (~2.15s before Card Reveal):
-const BEAT1_CLEAR_SKY_MS = 350; // Beat 1 (0.00s -> 0.35s): Clear current card & vignette completely
-const BEAM_DRAW_DURATION_MS = 1200; // Beat 2 (0.35s -> 1.55s): 1.2s slow white-gold light beam + line draw
-const BEAT3_STAR_IGNITE_MS = BEAT1_CLEAR_SKY_MS + BEAM_DRAW_DURATION_MS; // 1.55s: exact beam impact flare + chime
-const BEAT4_REVEAL_CARD_MS = 2150; // Beat 4 (2.15s -> 2.60s): 0.6s admiration hold -> graceful 450ms card reveal
+// Strict Impact-Triggered Ignition Star-to-Star Choreography:
+const BEAT1_CLEAR_SKY_MS = 320; // Beat 1: clear current card & vignette completely
+const BEAM_DRAW_DURATION_MS = 1100; // Beat 2: ~1.1s slow white-gold comet + strict trailing line (destination star stays dormant!)
+const POST_IGNITION_HOLD_MS = 550; // Beat 4: +0.55s admiration hold AFTER exact WebGL impact frame before revealing next card
 
 // Layered Separation Capricorn Emblem Finale Timeline:
 const EMBLEM_REVEAL_MS = 2050; // Phase 3: appears after 0.0->1.4s Circuit Surge & 1.4->2.05s Recede/Soft Dim (~22%)
@@ -250,6 +249,8 @@ export function ConstellationCard() {
       beat4TimerRef.current = null;
     }
     galaxySignals.beamTracer.active = false;
+    galaxySignals.beamTracer.onImpact = null;
+    galaxySignals.beamTracer.cameraGlideRequested = false;
     isSteppingRef.current = false;
     setIsStepping(false);
   }, []);
@@ -343,11 +344,12 @@ export function ConstellationCard() {
   }, [clearStepTimers, clearFinaleTimers]);
 
   /**
-   * Unhurried 4-Beat Travelling Light-Beam Choreography (~2.15s before Card Reveal):
-   * - Beat 1 (0.00s -> 0.35s): Clear the sky completely (card & vignette fade out)
-   * - Beat 2 (0.35s -> 1.55s): Launch 1.2s white-gold light head + crisp straight line draw + rising glide tone + camera follow
-   * - Beat 3 (1.55s -> 2.15s): Exact beam impact triggers Star i+1 flare + expanding halo ring + bell chime + 0.6s hold
-   * - Beat 4 (2.15s -> 2.60s): Gently fade & bloom next centered Milestone Card into view (450ms)
+   * Strict "Impact-Triggered Ignition" Star-to-Star Choreography:
+   * 1. Immediately clear Milestone Card without incrementing maxUnlockedMilestoneIndex or lighting Star i+1.
+   * 2. Launch 1.1s white-gold light-beam tracer (destination star stays strictly dormant opacity ~0.16; line draws strictly behind comet).
+   * 3. On the EXACT WebGL frame beamProgress >= 1.0: ConstellationSky commits setSelectedMilestoneId / maxUnlockedIndex,
+   *    extinguishes comet into Star i+1, bursts starlight flare + halo ring + bell chime, and invokes onImpact.
+   * 4. Hold cleanly for +550ms post-ignition so cause-and-effect shines clearly, then reveal Milestone Card i+1.
    */
   const runStarStepTransition = useCallback(
     (fromIdx: number, targetIdx: number) => {
@@ -356,13 +358,22 @@ export function ConstellationCard() {
       const target = milestones[targetIdx];
       if (!fromStar || !target) return;
 
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) {
+        useAppStore.getState().setSelectedMilestoneId(target.id);
+        setDisplayedId(target.id);
+        return;
+      }
+
       isSteppingRef.current = true;
       setIsStepping(true);
 
-      // Beat 1 (0.00s -> 0.35s): Clear current card & vignette completely so the 3D sky is 100% unobstructed
+      // Step 1: Close current card immediately WITHOUT pre-updating selectedMilestoneId or maxUnlockedMilestoneIndex
       setDisplayedId(null);
 
-      // Beat 2 (at 350ms): Launch slow 1.2s white-gold light beam & extend straight line behind it
+      // Step 2 (at 320ms): Launch slow 1.1s travelling light beam (destination star stays dormant until impact!)
       beat2TimerRef.current = window.setTimeout(() => {
         beat2TimerRef.current = null;
         const latest = useAppStore.getState();
@@ -370,44 +381,34 @@ export function ConstellationCard() {
           clearStepTimers();
           return;
         }
+        const isAdvancing = targetIdx > latest.maxUnlockedMilestoneIndex;
         const tracer = galaxySignals.beamTracer;
         tracer.fromIdx = fromIdx;
         tracer.toIdx = targetIdx;
+        tracer.isAdvancing = isAdvancing;
+        tracer.targetMilestoneId = target.id;
         tracer.fromPos.set(fromStar.position[0], fromStar.position[1], fromStar.position[2]);
         tracer.toPos.set(target.position[0], target.position[1], target.position[2]);
         tracer.currentHeadPos.copy(tracer.fromPos);
         tracer.durationMs = BEAM_DRAW_DURATION_MS;
         tracer.startMs = performance.now();
+        tracer.cameraGlideRequested = true;
+        tracer.onImpact = () => {
+          // Step 4: Exactly +550ms AFTER WebGL collision & star ignition, smoothly reveal next Milestone Card
+          beat4TimerRef.current = window.setTimeout(() => {
+            beat4TimerRef.current = null;
+            const after = useAppStore.getState();
+            isSteppingRef.current = false;
+            setIsStepping(false);
+            if (after.viewMode === 'constellation' && !after.constellationFinaleActive) {
+              setDisplayedId(target.id);
+            }
+          }, POST_IGNITION_HOLD_MS);
+        };
         tracer.active = true;
 
         sfxEngine.playBeamGlideTone(targetIdx);
-        latest.setSelectedMilestoneId(target.id);
       }, BEAT1_CLEAR_SKY_MS);
-
-      // Beat 3 (at 1550ms): Exact instant light head strikes Star i+1 -> flare + halo ring + bell chime
-      beat3TimerRef.current = window.setTimeout(() => {
-        beat3TimerRef.current = null;
-        const latest = useAppStore.getState();
-        if (latest.viewMode !== 'constellation' || latest.constellationFinaleActive) {
-          clearStepTimers();
-          return;
-        }
-        galaxySignals.beamTracer.active = false;
-        galaxySignals.starImpactIdx = targetIdx;
-        galaxySignals.starImpactStartMs = performance.now();
-        sfxEngine.playStarIgnite(targetIdx);
-      }, BEAT3_STAR_IGNITE_MS);
-
-      // Beat 4 (at 2150ms): After 0.6s admiration hold, bloom next centered Milestone Card cleanly
-      beat4TimerRef.current = window.setTimeout(() => {
-        beat4TimerRef.current = null;
-        const latest = useAppStore.getState();
-        isSteppingRef.current = false;
-        setIsStepping(false);
-        if (latest.viewMode === 'constellation' && !latest.constellationFinaleActive) {
-          setDisplayedId(target.id);
-        }
-      }, BEAT4_REVEAL_CARD_MS);
     },
     [clearStepTimers, milestones]
   );

@@ -21,8 +21,8 @@ interface ConstellationSkyProps {
   reducedMotion?: boolean;
 }
 
-const LINE_IGNITE_DURATION_MS = 1200; // Slow, visible 1.2s Travelling Light-Beam Tracer
-const STAR_IGNITE_BURST_MS = 720; // Crisp starlight flare + expanding halo ring upon beam impact
+const LINE_IGNITE_DURATION_MS = 460; // Smooth closing arch / direct-click line completion when not beam-driven
+const STAR_IGNITE_BURST_MS = 680; // Crisp starlight flare + expanding halo ring upon exact beam collision
 // Synchronized Layered Separation Finale Timeline:
 // 0.00s -> 1.40s: Golden Circuit Surge racing through all 7 stars + closing arch (zero overlaid logo)
 // 1.40s -> 2.20s: Graceful Recede & Soft Dim (~22% opacity backdrop so stars never clutter the emblem)
@@ -67,10 +67,10 @@ const LINE_VERTEX_SHADER = /* glsl */ `
   void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     vProgress = aProgress;
-    // Soft glowing edge as each segment ignites from star i to star i + 1
-    vLit = 1.0 - smoothstep(uDrawProgress - 0.025, uDrawProgress + 0.008, aProgress);
+    // Razor-clean leading edge strictly behind the travelling comet head (zero pre-lit glow ahead of uDrawProgress)
+    vLit = 1.0 - smoothstep(uDrawProgress - 0.012, uDrawProgress + 0.001, aProgress);
     float distToTip = abs(aProgress - uDrawProgress);
-    vLeading = exp(-distToTip * distToTip * 950.0);
+    vLeading = exp(-distToTip * distToTip * 1400.0) * step(aProgress, uDrawProgress + 0.004);
 
     // Phase 1 Finale: blazing golden-white energy bolt racing Star #1 -> Star #7
     float distToSurge = aProgress - uSurgeProgress;
@@ -540,9 +540,19 @@ function ConstellationStarNode({
     const elapsed = state.clock.elapsedTime;
     const nowMs = performance.now();
 
-    // Compute wall-clock ignition burst (on beam impact at Star i+1 OR Star #1 auto-arrival pulse)
+    const tracer = galaxySignals.beamTracer;
+    // Defensive 0-frame pre-illumination lock: destination star stays strictly dormant until beamProgress >= 1.0
+    const isPendingDormantTarget =
+      isConstellationView &&
+      tracer.active &&
+      tracer.isAdvancing &&
+      index === tracer.toIdx;
+    const effectiveUnlocked = isUnlocked && !isPendingDormantTarget;
+    const effectiveSelected = isSelected && !isPendingDormantTarget;
+
+    // Compute wall-clock ignition burst (on exact beam collision at Star i+1 OR Star #1 auto-arrival pulse)
     let igniteBurst = 0;
-    if (!reducedMotion) {
+    if (!reducedMotion && !isPendingDormantTarget) {
       if (index === 0 && galaxySignals.constellationStar0IgniteMs > 0) {
         const entryElapsedMs = nowMs - galaxySignals.constellationStar0IgniteMs;
         if (entryElapsedMs >= 0 && entryElapsedMs < STAR_IGNITE_BURST_MS) {
@@ -555,9 +565,9 @@ function ConstellationStarNode({
           igniteBurst = Math.max(igniteBurst, Math.sin(Math.PI * (impactMs / STAR_IGNITE_BURST_MS)));
         }
       }
-      if (igniteStartMsRef.current !== null && !galaxySignals.beamTracer.active) {
+      if (igniteStartMsRef.current !== null && !tracer.active && galaxySignals.starImpactIdx !== index) {
         const elapsedMs = nowMs - igniteStartMsRef.current;
-        const delayMs = 260;
+        const delayMs = 120;
         if (elapsedMs >= delayMs) {
           const t = (elapsedMs - delayMs) / STAR_IGNITE_BURST_MS;
           if (t >= 1) {
@@ -617,12 +627,12 @@ function ConstellationStarNode({
       targetOpacity = (hovered ? 0.92 : 0.64) * twinkle;
       targetScale = (hovered ? 1.05 : 0.86) * twinkle;
       targetColor.copy(hovered ? COLOR_ACTIVE : COLOR_VISITED);
-    } else if (!isUnlocked) {
-      // Dormant / Upcoming star: dimmed, smaller, pale-indigo, zero bloom/halo
-      targetOpacity = hovered ? 0.36 : 0.21;
-      targetScale = hovered ? 0.7 : 0.58;
+    } else if (!effectiveUnlocked) {
+      // Dormant / Upcoming star: strictly dimmed dark-indigo (~0.16 opacity, zero bloom/halo) until exact beam impact
+      targetOpacity = hovered && !tracer.active ? 0.28 : 0.16;
+      targetScale = hovered && !tracer.active ? 0.66 : 0.54;
       targetColor.copy(COLOR_DORMANT);
-    } else if (isSelected || isFinale) {
+    } else if (effectiveSelected || isFinale) {
       // Active star or Grand Finale showcase: brightest glow + gentle breathing halo
       const breathe = reducedMotion ? 1 : 1 + Math.sin(elapsed * 2.8 + index * 0.9) * 0.11;
       targetOpacity = 1.0;
@@ -1120,6 +1130,7 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
     }
 
     // Travelling Light-Beam Head (mini comet) & 28-Particle Wake along Star i -> Star i+1
+    // STRICT IMPACT-TRIGGERED IGNITION: line draws strictly behind comet head, and destination star ignites on exact frame u >= 1.0
     const tracer = galaxySignals.beamTracer;
     let beamVisible = false;
     if (isConstellation && tracer.active && !reducedMotion) {
@@ -1127,11 +1138,25 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       const easedU = easeInOutSine(u);
       tracer.currentHeadPos.lerpVectors(tracer.fromPos, tracer.toPos, easedU);
 
+      // Extend the glowing straight constellation line STRICTLY behind the travelling comet head when advancing forward
+      if (tracer.isAdvancing && totalSegments > 0) {
+        const hasClosingArch = milestones.length >= 7;
+        const segStart = tracer.fromIdx / totalSegments;
+        const segEnd =
+          hasClosingArch && tracer.toIdx === milestones.length - 1
+            ? (totalSegments - 0.5) / totalSegments
+            : tracer.toIdx / totalSegments;
+        const beamLineProg = THREE.MathUtils.lerp(segStart, segEnd, easedU);
+        drawProgressRef.current = Math.max(drawProgressRef.current, beamLineProg);
+        lineAnimActiveRef.current = false;
+        igniteWaveRef.current = Math.sin(Math.PI * u);
+      }
+
       if (beamHeadGroupRef.current) {
         beamHeadGroupRef.current.position.copy(tracer.currentHeadPos);
       }
       const headEnv =
-        THREE.MathUtils.smoothstep(u, 0, 0.08) * (1.0 - THREE.MathUtils.smoothstep(u, 0.9, 1.0));
+        THREE.MathUtils.smoothstep(u, 0, 0.06) * (1.0 - THREE.MathUtils.smoothstep(u, 0.94, 1.0));
       beamHeadMat.uniforms.uOpacity.value = headEnv;
       beamWakeMat.uniforms.uFrom.value.copy(tracer.fromPos);
       beamWakeMat.uniforms.uTo.value.copy(tracer.toPos);
@@ -1140,8 +1165,36 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
       beamWakeMat.uniforms.uPixelRatio.value = state.gl.getPixelRatio();
       beamVisible = u < 1;
 
+      // EXACT ARRIVAL & IGNITION FRAME (beamProgress >= 1.0): extinguish comet into star & commit lit state!
       if (u >= 1) {
+        const impactedIdx = tracer.toIdx;
+        const impactedId = tracer.targetMilestoneId;
+        const wasAdvancing = tracer.isAdvancing;
+        const onImpactCb = tracer.onImpact;
+
         tracer.active = false;
+        tracer.onImpact = null;
+        beamVisible = false;
+
+        if (wasAdvancing) {
+          const hasClosingArch = milestones.length >= 7;
+          const lockedProg =
+            hasClosingArch && impactedIdx === milestones.length - 1
+              ? (totalSegments - 0.5) / totalSegments
+              : impactedIdx / totalSegments;
+          drawProgressRef.current = Math.max(drawProgressRef.current, lockedProg);
+          igniteWaveRef.current = 0;
+          sfxEngine.playStarIgnite(impactedIdx);
+        } else {
+          sfxEngine.playStarSelect();
+        }
+
+        galaxySignals.starImpactIdx = impactedIdx;
+        galaxySignals.starImpactStartMs = nowMs;
+        if (impactedId) {
+          useAppStore.getState().setSelectedMilestoneId(impactedId);
+        }
+        onImpactCb?.();
       }
     }
     if (beamHeadMeshRef.current) {

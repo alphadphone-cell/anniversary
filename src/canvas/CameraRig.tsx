@@ -404,6 +404,13 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           (m) => m.id === state.selectedMilestoneId
         );
         if (star) {
+          // If the beam-follow camera glide just delivered us to this star on impact, don't restart a redundant 0.95s pan
+          const justArrivedViaBeam =
+            galaxySignals.starImpactIdx >= 0 &&
+            ANNIVERSARY_DATA.constellationMilestones[galaxySignals.starImpactIdx]?.id === star.id &&
+            performance.now() - galaxySignals.starImpactStartMs < 120;
+          if (justArrivedViaBeam) return;
+
           starPosScratchRef.current.set(star.position[0], star.position[1], star.position[2]);
           const focusTarget = toTargetRef.current
             .copy(CONSTELLATION_DEFAULT_TARGET)
@@ -414,8 +421,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
             13.2 + (star.position[1] - 16) * 0.25,
             12.2
           );
-          const glideDuration = galaxySignals.beamTracer.active ? 1.32 : 0.95;
-          startCameraGlide(focusPos.clone(), focusTarget.clone(), glideDuration);
+          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.95);
         }
       }
     });
@@ -445,6 +451,39 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       shouldDimForOrb ? 1 : 0,
       Math.min(1, dt * (shouldDimForOrb ? 7.5 : 4.5))
     );
+
+    // Follow Constellation Travelling Light-Beam smoothly toward pending target star BEFORE destination star ignites
+    if (
+      stage === 'galaxy' &&
+      storeNow.viewMode === 'constellation' &&
+      !storeNow.constellationFinaleActive &&
+      galaxySignals.beamTracer.active &&
+      galaxySignals.beamTracer.cameraGlideRequested
+    ) {
+      galaxySignals.beamTracer.cameraGlideRequested = false;
+      const targetStar = ANNIVERSARY_DATA.constellationMilestones[galaxySignals.beamTracer.toIdx];
+      if (targetStar) {
+        starPosScratchRef.current.set(
+          targetStar.position[0],
+          targetStar.position[1],
+          targetStar.position[2]
+        );
+        const focusTarget = toTargetRef.current
+          .copy(CONSTELLATION_DEFAULT_TARGET)
+          .lerp(starPosScratchRef.current, 0.62);
+        focusTarget.y -= 0.75;
+        const focusPos = toPosRef.current.set(
+          targetStar.position[0] * 0.48,
+          13.2 + (targetStar.position[1] - 16) * 0.25,
+          12.2
+        );
+        startCameraGlide(
+          focusPos.clone(),
+          focusTarget.clone(),
+          Math.max(0.85, galaxySignals.beamTracer.durationMs / 1000 + 0.08)
+        );
+      }
+    }
 
     // Finale Phase 2 (1.40s -> 2.20s): gracefully glide camera further back/down so dimmed 7 stars become a delicate backdrop
     if (
