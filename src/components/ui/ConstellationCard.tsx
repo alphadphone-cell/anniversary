@@ -5,24 +5,27 @@ import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { galaxySignals } from '../../canvas/galaxySignals';
 import {
   useAppStore,
-  useMaxUnlockedMilestoneIndex,
   useSelectedMilestoneId,
   useStage,
   useViewMode,
 } from '../../store/useAppStore';
 import { sfxEngine } from '../../utils/sfxEngine';
 
-const ENTRY_AUTO_OPEN_MS = 800;
-const CARD_IGNITION_BEAT_MS = 350; // Brief star-ignition beat before centered card content swaps
-const EMBLEM_REVEAL_MS = 1500; // Phase 3: Logo materializes right as 0.8s->1.5s circuit surge finishes
-const EMBLEM_DISSOLVE_MS = 3300; // Phase 4: Logo dissolves into 7-star burst & 420-particle Starfall
-const RETURN_TO_GALAXY_MS = 3550; // Camera glides down following falling starlight back into Love Galaxy
-const HEART_ABSORPTION_CHIME_MS = 4380; // Warm shimmer chime as falling starlight pours into the 3D Heart
+const ENTRY_AUTO_OPEN_MS = 850;
+// Unobstructed 3-Beat Star-to-Star Transition Choreography (~1.45s before Beat 3 card reveal):
+const BEAT1_CLEAR_SKY_MS = 280; // Beat 1: fade & scale out current card completely so sky is 100% clear
+const BEAT3_REVEAL_CARD_MS = 1450; // Beat 2 ends (~0.6s line + star flare + ~0.45s admiration hold) -> Beat 3 card reveal!
+
+// Balanced ~5.2s Constellation Emblem Finale Timeline:
+const EMBLEM_REVEAL_MS = 1800; // Phase 3: Logo materializes right as 0.85s->1.80s circuit surge finishes
+const EMBLEM_DISSOLVE_MS = 3950; // Phase 4: ~2.15s admiration hold -> dissolves into 7-star burst & Starfall
+const RETURN_TO_GALAXY_MS = 4200; // Camera glides down following falling starlight back into Love Galaxy
+const HEART_ABSORPTION_CHIME_MS = 5020; // Warm shimmer chime as falling starlight pours into the 3D Heart
 
 type EmblemPhase = 'hidden' | 'visible' | 'dissolving';
 
 /**
- * GPU-accelerated Celestial Constellation Emblem / Logo Reveal overlay (`1.5s -> 3.3s`).
+ * GPU-accelerated Celestial Constellation Emblem / Logo Reveal overlay (`1.80s -> 3.95s`).
  * Draws the customizable `constellationEmblem.svgPath` with rose-gold/white neon glow, rotating
  * celestial astrolabe rings, twinkling vertex stars, and Playfair Display / Be Vietnam Pro typography.
  */
@@ -39,22 +42,21 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
             role="status"
             aria-live="polite"
             aria-label={`Biểu tượng ${emblem.name}`}
-            initial={{ opacity: 0, scale: 0.86 }}
+            initial={{ opacity: 0, scale: 0.88 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.16, filter: 'blur(6px)' }}
-            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, scale: 1.14 }}
+            transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
             style={{ willChange: 'transform, opacity' }}
             className="flex flex-col items-center"
           >
             {/* Glowing SVG Emblem + Counter-Rotating Celestial Rings */}
             <div className="relative flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52">
-              {/* Outer slow-rotating celestial astrolabe ring */}
               <motion.svg
                 viewBox="0 0 200 200"
                 aria-hidden="true"
                 initial={{ opacity: 0, rotate: -18, scale: 0.9 }}
-                animate={{ opacity: 0.72, rotate: 24, scale: 1 }}
-                transition={{ duration: 2.2, ease: 'easeOut' }}
+                animate={{ opacity: 0.72, rotate: 28, scale: 1 }}
+                transition={{ duration: 2.6, ease: 'easeOut' }}
                 style={{ willChange: 'transform, opacity' }}
                 className="absolute inset-0 h-full w-full"
               >
@@ -77,13 +79,12 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                 />
               </motion.svg>
 
-              {/* Inner counter-rotating compass halo */}
               <motion.svg
                 viewBox="0 0 200 200"
                 aria-hidden="true"
                 initial={{ opacity: 0, rotate: 22 }}
-                animate={{ opacity: 0.56, rotate: -18 }}
-                transition={{ duration: 2.2, ease: 'easeOut' }}
+                animate={{ opacity: 0.56, rotate: -22 }}
+                transition={{ duration: 2.6, ease: 'easeOut' }}
                 style={{ willChange: 'transform, opacity' }}
                 className="absolute inset-0 h-full w-full"
               >
@@ -98,7 +99,6 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                 />
               </motion.svg>
 
-              {/* Soft ambient radial rose-gold aura behind emblem */}
               <div
                 aria-hidden="true"
                 className="absolute inset-6 rounded-full opacity-75"
@@ -108,7 +108,6 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                 }}
               />
 
-              {/* Main Customizable Constellation Line-Art SVG (stroke pathLength 0 -> 1) */}
               <svg
                 viewBox="0 0 160 160"
                 aria-hidden="true"
@@ -135,7 +134,7 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                   strokeLinejoin="round"
                   initial={{ pathLength: 0, opacity: 0.25 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 0.78, ease: [0.22, 1, 0.36, 1] }}
                 />
 
                 {emblem.starDots?.map(([cx, cy], idx) => (
@@ -147,18 +146,17 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
                     fill="#fffaf0"
                     initial={{ opacity: 0, scale: 0 }}
                     animate={{ opacity: [0, 1, 0.85], scale: [0, 1.35, 1] }}
-                    transition={{ duration: 0.4, delay: 0.22 + idx * 0.08, ease: 'easeOut' }}
+                    transition={{ duration: 0.42, delay: 0.24 + idx * 0.08, ease: 'easeOut' }}
                   />
                 ))}
               </svg>
             </div>
 
-            {/* Constellation Name (Playfair Display) + Poetic Subtitle (Be Vietnam Pro) */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-2 rounded-2xl border border-amber-200/25 bg-void/45 px-5 py-2.5 backdrop-blur-md"
+              transition={{ duration: 0.58, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-2 rounded-2xl border border-pink-300/25 bg-void/45 px-5 py-2.5 backdrop-blur-md"
             >
               <h2
                 className="font-display text-2xl leading-snug font-semibold tracking-wide text-starlight sm:text-3xl"
@@ -169,7 +167,7 @@ function ConstellationEmblemOverlay({ phase }: { phase: EmblemPhase }) {
               >
                 {emblem.name}
               </h2>
-              <p className="mt-1 font-sans text-xs tracking-[0.14em] text-amber-100/90 uppercase sm:text-sm">
+              <p className="mt-1 font-sans text-xs tracking-[0.14em] text-pink-100/90 uppercase sm:text-sm">
                 {emblem.subtitle}
               </p>
             </motion.div>
@@ -184,16 +182,18 @@ export function ConstellationCard() {
   const stage = useStage();
   const viewMode = useViewMode();
   const selectedId = useSelectedMilestoneId();
-  const maxUnlockedIndex = useMaxUnlockedMilestoneIndex();
   const setSelectedMilestoneId = useAppStore((s) => s.setSelectedMilestoneId);
   const startConstellationFinale = useAppStore((s) => s.startConstellationFinale);
   const endConstellationFinale = useAppStore((s) => s.endConstellationFinale);
 
   const [displayedId, setDisplayedId] = useState<string | null>(null);
+  const [isStepping, setIsStepping] = useState(false);
   const [emblemPhase, setEmblemPhase] = useState<EmblemPhase>('hidden');
 
+  const isSteppingRef = useRef(false);
   const entryTimerRef = useRef<number | null>(null);
-  const cardSwapTimerRef = useRef<number | null>(null);
+  const beat2TimerRef = useRef<number | null>(null);
+  const beat3TimerRef = useRef<number | null>(null);
   const emblemRevealTimerRef = useRef<number | null>(null);
   const emblemDissolveTimerRef = useRef<number | null>(null);
   const finaleTimerRef = useRef<number | null>(null);
@@ -205,6 +205,19 @@ export function ConstellationCard() {
   const current = viewMode === 'constellation' && currentIndex >= 0 ? milestones[currentIndex] : null;
   const isFirst = currentIndex <= 0;
   const isLast = currentIndex === milestones.length - 1;
+
+  const clearStepTimers = useCallback(() => {
+    if (beat2TimerRef.current !== null) {
+      window.clearTimeout(beat2TimerRef.current);
+      beat2TimerRef.current = null;
+    }
+    if (beat3TimerRef.current !== null) {
+      window.clearTimeout(beat3TimerRef.current);
+      beat3TimerRef.current = null;
+    }
+    isSteppingRef.current = false;
+    setIsStepping(false);
+  }, []);
 
   const clearFinaleTimers = useCallback(() => {
     if (emblemRevealTimerRef.current !== null) {
@@ -225,34 +238,17 @@ export function ConstellationCard() {
     }
   }, []);
 
-  // Synchronize displayedId with selectedId using a crisp ~0.35s star-ignition beat when stepping between stars
+  // Sync direct 3D star clicks / initial auto-open into displayedId (when not mid 3-beat step transition)
   useEffect(() => {
-    if (cardSwapTimerRef.current !== null) {
-      window.clearTimeout(cardSwapTimerRef.current);
-      cardSwapTimerRef.current = null;
-    }
-
+    if (isSteppingRef.current) return;
     if (viewMode !== 'constellation' || !selectedId) {
       setDisplayedId(null);
       return;
     }
+    setDisplayedId(selectedId);
+  }, [selectedId, viewMode]);
 
-    if (displayedId === null) {
-      // Initial open (entry auto-open or first star tap): appear immediately
-      setDisplayedId(selectedId);
-      return;
-    }
-
-    if (displayedId !== selectedId) {
-      // Hold ~0.35s so user clearly sees the newly ignited star flare in the upper third before card swaps
-      cardSwapTimerRef.current = window.setTimeout(() => {
-        cardSwapTimerRef.current = null;
-        setDisplayedId(selectedId);
-      }, CARD_IGNITION_BEAT_MS);
-    }
-  }, [selectedId, displayedId, viewMode]);
-
-  // Auto-focus & auto-open Star #1 (~0.8s) upon entering Constellation View, and clean up timers on exit
+  // Auto-focus & auto-open Star #1 (~0.85s) upon entering Constellation View, and clean up timers on exit
   useEffect(() => {
     if (entryTimerRef.current !== null) {
       window.clearTimeout(entryTimerRef.current);
@@ -260,7 +256,7 @@ export function ConstellationCard() {
     }
 
     if (stage === 'galaxy' && viewMode === 'constellation') {
-      // Fresh entry into Constellation View: clear any previous finale/cascade state
+      clearStepTimers();
       clearFinaleTimers();
       setEmblemPhase('hidden');
       galaxySignals.constellationFinaleStartMs = 0;
@@ -284,16 +280,18 @@ export function ConstellationCard() {
           }
         }, ENTRY_AUTO_OPEN_MS);
       }
-    } else if (finaleTimerRef.current !== null || emblemRevealTimerRef.current !== null) {
-      // User manually toggled back to Galaxy before automatic return — cancel pending finale cleanly
-      clearFinaleTimers();
-      setEmblemPhase('hidden');
-      galaxySignals.constellationFinaleStartMs = 0;
-      galaxySignals.constellationBloomSpike = 0;
+    } else {
+      clearStepTimers();
+      if (finaleTimerRef.current !== null || emblemRevealTimerRef.current !== null) {
+        clearFinaleTimers();
+        setEmblemPhase('hidden');
+        galaxySignals.constellationFinaleStartMs = 0;
+        galaxySignals.constellationBloomSpike = 0;
+      }
     }
-  }, [stage, viewMode, milestones, clearFinaleTimers]);
+  }, [stage, viewMode, milestones, clearStepTimers, clearFinaleTimers]);
 
-  // Cancel entry auto-open if user selects a star manually before 0.8s
+  // Cancel entry auto-open if user selects a star manually before 0.85s
   useEffect(() => {
     if (selectedId && entryTimerRef.current !== null) {
       window.clearTimeout(entryTimerRef.current);
@@ -304,30 +302,84 @@ export function ConstellationCard() {
   useEffect(() => {
     return () => {
       if (entryTimerRef.current !== null) window.clearTimeout(entryTimerRef.current);
-      if (cardSwapTimerRef.current !== null) window.clearTimeout(cardSwapTimerRef.current);
+      clearStepTimers();
       clearFinaleTimers();
     };
-  }, [clearFinaleTimers]);
+  }, [clearStepTimers, clearFinaleTimers]);
+
+  /**
+   * Unhurried 3-Beat Star-to-Star Choreography (~1.45s before Beat 3 card reveal):
+   * - Beat 1 (0.0s -> 0.28s): Clear the sky completely (card & vignette fade out)
+   * - Beat 2 (0.28s -> 1.45s): Glide camera smoothly + draw 0.6s line + flare next star + ~0.45s admiration hold
+   * - Beat 3 (1.45s -> 1.85s): Gracefully reveal centered Milestone Card (400ms ease-out)
+   */
+  const runStarStepTransition = useCallback(
+    (targetIdx: number) => {
+      if (isSteppingRef.current) return;
+      const target = milestones[targetIdx];
+      if (!target) return;
+
+      isSteppingRef.current = true;
+      setIsStepping(true);
+
+      // Beat 1: Fade out current card & vignette completely so the 3D night sky is 100% clear
+      setDisplayedId(null);
+
+      // Beat 2 (at 280ms): Glide camera, draw connecting line (~0.6s), ignite star + celestial chime
+      beat2TimerRef.current = window.setTimeout(() => {
+        beat2TimerRef.current = null;
+        const latest = useAppStore.getState();
+        if (latest.viewMode !== 'constellation' || latest.constellationFinaleActive) {
+          clearStepTimers();
+          return;
+        }
+        if (targetIdx > latest.maxUnlockedMilestoneIndex) {
+          sfxEngine.playStarIgnite(targetIdx);
+        } else {
+          sfxEngine.playStarSelect();
+        }
+        latest.setSelectedMilestoneId(target.id);
+      }, BEAT1_CLEAR_SKY_MS);
+
+      // Beat 3 (at 1450ms): Gracefully reveal next centered Milestone Card
+      beat3TimerRef.current = window.setTimeout(() => {
+        beat3TimerRef.current = null;
+        const latest = useAppStore.getState();
+        isSteppingRef.current = false;
+        setIsStepping(false);
+        if (latest.viewMode === 'constellation' && !latest.constellationFinaleActive) {
+          setDisplayedId(target.id);
+        }
+      }, BEAT3_REVEAL_CARD_MS);
+    },
+    [clearStepTimers, milestones]
+  );
 
   const goPrev = useCallback(() => {
-    if (!milestones.length) return;
+    if (isSteppingRef.current || !milestones.length) return;
     const liveIdx = milestones.findIndex((m) => m.id === useAppStore.getState().selectedMilestoneId);
     if (liveIdx <= 0) return;
-    sfxEngine.playStarSelect();
-    setSelectedMilestoneId(milestones[liveIdx - 1].id);
-  }, [milestones, setSelectedMilestoneId]);
+    runStarStepTransition(liveIdx - 1);
+  }, [milestones, runStarStepTransition]);
 
   const handleCompleteConstellation = useCallback(() => {
-    if (finaleTimerRef.current !== null || useAppStore.getState().constellationFinaleActive) return;
+    if (
+      isSteppingRef.current ||
+      finaleTimerRef.current !== null ||
+      useAppStore.getState().constellationFinaleActive
+    ) {
+      return;
+    }
 
-    // 0.0s -> 0.8s: Close Milestone Card & pull camera back dead-center; 0.8s -> 1.5s: Circuit Surge
+    // 0.00s -> 0.85s: Close Card & frame 7 Capricornus stars dead-center; 0.85s -> 1.80s: Smoother Circuit Surge
+    clearStepTimers();
     setDisplayedId(null);
     setEmblemPhase('hidden');
     galaxySignals.constellationFinaleStartMs = performance.now();
     sfxEngine.playConstellationAwakeningSequence(milestones.length);
     startConstellationFinale();
 
-    // 1.5s -> 3.3s: Materialize glowing Constellation Emblem aligned over the 7 illuminated stars
+    // 1.80s -> 3.95s: Materialize glowing Constellation Emblem aligned over the 7 illuminated stars (~2.15s hold)
     emblemRevealTimerRef.current = window.setTimeout(() => {
       emblemRevealTimerRef.current = null;
       const latest = useAppStore.getState();
@@ -336,13 +388,13 @@ export function ConstellationCard() {
       }
     }, EMBLEM_REVEAL_MS);
 
-    // 3.3s: Dissolve Emblem into the 7-star burst & 420-particle Starfall Cascade
+    // 3.95s: Dissolve Emblem into the 7-star burst & 420-particle Starfall Cascade
     emblemDissolveTimerRef.current = window.setTimeout(() => {
       emblemDissolveTimerRef.current = null;
       setEmblemPhase('dissolving');
     }, EMBLEM_DISSOLVE_MS);
 
-    // 3.55s: Switch viewMode back to 'galaxy' & glide camera downward following the falling starlight
+    // 4.20s: Switch viewMode back to 'galaxy' & glide camera downward following the falling starlight
     finaleTimerRef.current = window.setTimeout(() => {
       finaleTimerRef.current = null;
       setEmblemPhase('hidden');
@@ -353,17 +405,17 @@ export function ConstellationCard() {
       }
     }, RETURN_TO_GALAXY_MS);
 
-    // 4.38s: Warm crystalline shimmer chime right as falling starlight pours into the 3D Particle Heart
+    // 5.02s: Warm crystalline shimmer chime right as falling starlight pours into the 3D Particle Heart
     absorptionTimerRef.current = window.setTimeout(() => {
       absorptionTimerRef.current = null;
       if (galaxySignals.constellationFinaleStartMs > 0) {
         sfxEngine.playHeartAbsorptionShimmer();
       }
     }, HEART_ABSORPTION_CHIME_MS);
-  }, [endConstellationFinale, milestones.length, startConstellationFinale]);
+  }, [clearStepTimers, endConstellationFinale, milestones.length, startConstellationFinale]);
 
   const goNext = useCallback(() => {
-    if (!milestones.length) return;
+    if (isSteppingRef.current || !milestones.length) return;
     const liveIdx = milestones.findIndex((m) => m.id === useAppStore.getState().selectedMilestoneId);
     if (liveIdx < 0) return;
 
@@ -371,23 +423,17 @@ export function ConstellationCard() {
       handleCompleteConstellation();
       return;
     }
-
-    const nextIdx = liveIdx + 1;
-    if (nextIdx > maxUnlockedIndex) {
-      sfxEngine.playStarIgnite(nextIdx);
-    } else {
-      sfxEngine.playStarSelect();
-    }
-    setSelectedMilestoneId(milestones[nextIdx].id);
-  }, [handleCompleteConstellation, maxUnlockedIndex, milestones, setSelectedMilestoneId]);
+    runStarStepTransition(liveIdx + 1);
+  }, [handleCompleteConstellation, milestones, runStarStepTransition]);
 
   const handleClose = useCallback(() => {
+    if (isSteppingRef.current) return;
     sfxEngine.playModalClose();
     setSelectedMilestoneId(null);
   }, [setSelectedMilestoneId]);
 
   useEffect(() => {
-    if (!current) return;
+    if (!current || isStepping) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose();
       if (e.key === 'ArrowLeft') goPrev();
@@ -395,11 +441,11 @@ export function ConstellationCard() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [current, goNext, goPrev, handleClose]);
+  }, [current, isStepping, goNext, goPrev, handleClose]);
 
   return (
     <>
-      {/* Subtle translucent radial vignette behind the centered card (keeps active star in upper third visible) */}
+      {/* Clean, ultra-light radial vignette (bg-black/25, ZERO full-screen backdrop-blur so surrounding stars stay razor-sharp) */}
       <AnimatePresence>
         {current && (
           <motion.div
@@ -408,18 +454,18 @@ export function ConstellationCard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.26 }}
             className="pointer-events-none fixed inset-0 z-10"
             style={{
               background:
-                'radial-gradient(ellipse at 50% 58%, rgba(7, 3, 16, 0.54) 0%, rgba(5, 2, 12, 0.22) 55%, rgba(5, 2, 12, 0.04) 100%)',
+                'radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.14) 55%, rgba(0, 0, 0, 0.02) 100%)',
             }}
           />
         )}
       </AnimatePresence>
 
-      {/* Centered Milestone Card (positioned symmetrically with breathing room above for the active ignited star) */}
-      <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
+      {/* Spacious Centered Milestone Card (w-[92vw] max-w-[540px] dead-center, 400ms graceful reveal) */}
+      <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center px-3 py-5 sm:px-6">
         <AnimatePresence mode="wait">
           {current && (
             <motion.aside
@@ -427,36 +473,38 @@ export function ConstellationCard() {
               role="dialog"
               aria-modal="false"
               aria-label={`Kỷ niệm: ${current.title}`}
-              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.96, pointerEvents: 'none' }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="pointer-events-auto glass-modal mt-16 w-full max-w-md rounded-[26px] p-5 sm:mt-20 sm:p-6"
+              exit={{ opacity: 0, y: 8, scale: 0.96, pointerEvents: 'none' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              style={{ willChange: 'transform, opacity' }}
+              className="pointer-events-auto glass-modal w-[92vw] max-w-[540px] rounded-[28px] p-5 sm:p-7"
             >
               {/* Header Row: Date Badge + Step Counter + Close */}
               <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-neon-pink/30 bg-neon-pink/12 px-3 py-1 text-xs text-starlight">
-                  <Calendar className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-pink-300/35 bg-pink-500/14 px-3.5 py-1.5 text-xs text-starlight">
+                  <Calendar className="h-3.5 w-3.5 text-pink-300" strokeWidth={1.75} aria-hidden="true" />
                   <span className="font-mono tabular-nums">{current.date}</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <span className="font-mono text-xs text-lavender-muted tabular-nums">
                     {String(currentIndex + 1).padStart(2, '0')} / {String(milestones.length).padStart(2, '0')}
                   </span>
                   <button
                     type="button"
                     onClick={handleClose}
+                    disabled={isStepping}
                     aria-label="Đóng thẻ kỷ niệm"
-                    className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70"
+                    className="glass-interactive flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:opacity-40"
                   >
                     <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              {/* Framed Milestone Thumbnail */}
-              <div className="mt-3.5 aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/12 bg-void/80">
+              {/* Generous 16:10 Photo Showcase with subtle rose-violet luminous inner border */}
+              <div className="mt-4 aspect-[16/10] w-full overflow-hidden rounded-2xl border border-pink-300/25 bg-void/75 shadow-[inset_0_0_24px_rgba(255,95,180,0.14),0_10px_30px_rgba(5,2,12,0.5)]">
                 <img
                   src={current.image}
                   alt={current.title}
@@ -464,22 +512,22 @@ export function ConstellationCard() {
                 />
               </div>
 
-              {/* Milestone Copy */}
-              <h2 className="mt-4 font-display text-2xl leading-snug font-semibold text-starlight">
+              {/* Balanced Typography */}
+              <h2 className="mt-5 font-display text-2xl leading-snug font-semibold text-starlight sm:text-[28px]">
                 {current.title}
               </h2>
-              <p className="mt-2 text-xs leading-relaxed text-lavender sm:text-sm">
+              <p className="mt-2.5 font-sans text-sm leading-relaxed text-lavender sm:text-[15px]">
                 {current.caption}
               </p>
 
-              {/* Symmetrical Prev / Next or Finale Return Controls */}
-              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-3.5">
+              {/* Symmetrical Prev / Next or Finale Return Controls (locked cleanly during 3-beat transition) */}
+              <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
                 <button
                   type="button"
                   onClick={goPrev}
-                  disabled={isFirst}
+                  disabled={isFirst || isStepping}
                   aria-label="Kỷ niệm trước"
-                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 text-xs leading-normal font-medium text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4.5 text-xs leading-normal font-medium text-lavender hover:text-starlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                 >
                   <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                   <span>Trước</span>
@@ -489,21 +537,23 @@ export function ConstellationCard() {
                   <button
                     type="button"
                     onClick={handleCompleteConstellation}
+                    disabled={isStepping}
                     aria-label="Hoàn thành hành trình chòm sao và về Ngân Hà"
-                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/60 bg-gradient-to-r from-neon-pink/28 via-neon-magenta/24 to-neon-violet/28 px-4.5 text-xs leading-normal font-semibold text-starlight shadow-[0_0_20px_rgba(255,62,165,0.28)] hover:border-neon-pink/85 hover:shadow-[0_0_26px_rgba(255,62,165,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80"
+                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-pink-300/60 bg-gradient-to-r from-neon-pink/30 via-neon-magenta/26 to-neon-violet/30 px-5 text-xs leading-normal font-semibold text-starlight shadow-[0_0_22px_rgba(255,62,165,0.32)] hover:border-pink-200/85 hover:shadow-[0_0_28px_rgba(255,62,165,0.46)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/80 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                   >
                     <span>Về Ngân Hà</span>
-                    <Sparkles className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
+                    <Sparkles className="h-4 w-4 text-pink-200" strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={goNext}
+                    disabled={isStepping}
                     aria-label="Kỷ niệm tiếp theo"
-                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-neon-pink/35 bg-neon-pink/12 px-4 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/70"
+                    className="glass-interactive inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-pink-300/45 bg-pink-500/16 px-5 text-xs leading-normal font-medium text-starlight hover:border-pink-200/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                   >
                     <span>Tiếp theo</span>
-                    <ChevronRight className="h-4 w-4 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
+                    <ChevronRight className="h-4 w-4 text-pink-300" strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 )}
               </div>

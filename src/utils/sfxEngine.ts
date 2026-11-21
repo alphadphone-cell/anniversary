@@ -882,10 +882,10 @@ class ProceduralSfxEngine {
   }
 
   /**
-   * 4.5s Constellation Emblem Reveal & Starfall Cascade Audio Choreography:
-   * - 0.80s -> 1.48s: Rapid rising 7-note crystalline circuit arpeggio synced to the golden-white surge
-   * - 1.50s: Warm majestic Dmaj9 celestial chord as the glowing Constellation Emblem materializes
-   * - 3.30s: Shimmering Celestial Burst Chime + soft sub-bass swell as the Emblem dissolves into Starfall
+   * Balanced 5.2s Constellation Emblem Reveal & Starfall Cascade Audio Choreography:
+   * - 0.85s -> 1.76s: Smoother rising 7-note crystalline circuit arpeggio synced to the golden-white surge
+   * - 1.80s: Warm majestic Dmaj9 celestial chord holding ~2.0s under the glowing Constellation Emblem
+   * - 3.95s: Shimmering Celestial Burst Chime + soft sub-bass swell as the Emblem dissolves into Starfall
    */
   public playConstellationAwakeningSequence(starCount = 7): void {
     if (useAppStore.getState().isMuted) return;
@@ -893,11 +893,11 @@ class ProceduralSfxEngine {
     if (!ctx || !this.masterGain) return;
 
     const now = ctx.currentTime;
-    // Phase 2 (0.80s -> 1.46s): Fast rising crystalline circuit arpeggio across all 7 stars
+    // Phase 2 (0.85s -> 1.74s): Smoother rising crystalline circuit arpeggio across all 7 stars
     const surgeScale = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1479.98];
     const count = Math.max(2, Math.min(surgeScale.length, starCount));
     for (let i = 0; i < count; i++) {
-      const t0 = now + 0.8 + (i / (count - 1)) * 0.64;
+      const t0 = now + 0.85 + (i / (count - 1)) * 0.86;
       const freq = surgeScale[i];
 
       const osc = ctx.createOscillator();
@@ -913,8 +913,8 @@ class ProceduralSfxEngine {
 
       const peak = 0.036 + i * 0.0055;
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(peak, t0 + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.58);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
 
       osc.connect(gain);
       overtone.connect(overGain);
@@ -923,8 +923,8 @@ class ProceduralSfxEngine {
 
       osc.start(t0);
       overtone.start(t0);
-      osc.stop(t0 + 0.62);
-      overtone.stop(t0 + 0.62);
+      osc.stop(t0 + 0.68);
+      overtone.stop(t0 + 0.68);
       osc.onended = () => {
         osc.disconnect();
         overtone.disconnect();
@@ -933,33 +933,33 @@ class ProceduralSfxEngine {
       };
     }
 
-    // Phase 3 (1.50s): Warm, majestic Dmaj9 Celestial Chord holding proudly under the glowing Emblem
-    const emblemAt = now + 1.5;
+    // Phase 3 (1.80s): Warm, majestic Dmaj9 Celestial Chord holding proudly under the glowing Emblem (~2.15s)
+    const emblemAt = now + 1.8;
     const emblemChord = [293.66, 440.0, 587.33, 739.99, 880.0, 1108.73, 1318.51];
     emblemChord.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const lpf = ctx.createBiquadFilter();
       const env = ctx.createGain();
-      const t0 = emblemAt + idx * 0.036;
+      const t0 = emblemAt + idx * 0.04;
 
       osc.type = idx < 3 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, t0);
       osc.detune.setValueAtTime((idx - 3) * 2.6, t0);
 
       lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(2100 + idx * 210, t0);
-      lpf.frequency.exponentialRampToValueAtTime(1050, t0 + 1.9);
+      lpf.frequency.setValueAtTime(2150 + idx * 210, t0);
+      lpf.frequency.exponentialRampToValueAtTime(1020, t0 + 2.3);
 
       const peak = 0.044 - idx * 0.0032;
       env.gain.setValueAtTime(0.0001, t0);
-      env.gain.linearRampToValueAtTime(peak, t0 + 0.14);
-      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.0);
+      env.gain.linearRampToValueAtTime(peak, t0 + 0.16);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.45);
 
       osc.connect(lpf);
       lpf.connect(env);
       env.connect(this.masterGain!);
       osc.start(t0);
-      osc.stop(t0 + 2.08);
+      osc.stop(t0 + 2.52);
       osc.onended = () => {
         osc.disconnect();
         lpf.disconnect();
@@ -967,8 +967,8 @@ class ProceduralSfxEngine {
       };
     });
 
-    // Phase 4 (3.30s): Emblem Dissolve -> Simultaneous Starfall Burst Chime + Soft Sub-Bass Swell
-    const burstAt = now + 3.3;
+    // Phase 4 (3.95s): Emblem Dissolve -> Simultaneous Starfall Burst Chime + Soft Sub-Bass Swell
+    const burstAt = now + 3.95;
 
     const sub = ctx.createOscillator();
     const subGain = ctx.createGain();

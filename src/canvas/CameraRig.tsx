@@ -155,17 +155,17 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         return;
       }
 
-      // Finale showcase (0.0s -> 0.8s): pull camera smoothly back so all 7 stars sit dead-center behind the Emblem
+      // Finale showcase (0.0s -> 0.85s): pull camera smoothly back so all 7 stars sit dead-center behind the Emblem
       if (
         state.viewMode === 'constellation' &&
         state.constellationFinaleActive &&
         !prev.constellationFinaleActive
       ) {
-        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.8);
+        startCameraGlide(CONSTELLATION_FINALE_POS, CONSTELLATION_DEFAULT_TARGET, 0.85);
         return;
       }
 
-      // Focus camera toward active milestone star framed in the upper third above the centered Milestone Card
+      // Focus camera gracefully toward active milestone star with easeInOutCubic glide (~0.95s)
       if (
         state.viewMode === 'constellation' &&
         !state.constellationFinaleActive &&
@@ -183,13 +183,13 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
           const focusTarget = toTargetRef.current
             .copy(CONSTELLATION_DEFAULT_TARGET)
             .lerp(starPosScratchRef.current, 0.62);
-          focusTarget.y -= 1.65;
+          focusTarget.y -= 0.75;
           const focusPos = toPosRef.current.set(
             star.position[0] * 0.48,
-            12.8 + (star.position[1] - 16) * 0.25,
-            11.8
+            13.2 + (star.position[1] - 16) * 0.25,
+            12.2
           );
-          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.82);
+          startCameraGlide(focusPos.clone(), focusTarget.clone(), 0.95);
         }
       }
     });
@@ -214,7 +214,13 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         0,
         1
       );
-      const eased = 1 - Math.pow(1 - t, 3);
+      // Graceful easeInOutCubic in Constellation View for silky unhurried pan; snappy easeOutCubic for Galaxy entrance
+      const eased =
+        useAppStore.getState().viewMode === 'constellation'
+          ? t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.pow(-2 * t + 2, 3) / 2
+          : 1 - Math.pow(1 - t, 3);
 
       camera.position.lerpVectors(fromPosRef.current, toPosRef.current, eased);
       if (controlsRef.current) {

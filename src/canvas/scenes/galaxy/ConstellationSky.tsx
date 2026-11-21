@@ -21,19 +21,19 @@ interface ConstellationSkyProps {
   reducedMotion?: boolean;
 }
 
-const LINE_IGNITE_DURATION_MS = 450;
-const STAR_IGNITE_BURST_MS = 620;
-// Synchronized 4.5s Finale Timeline:
-// 0.0s -> 0.8s: Close card & frame entire constellation dead-center
-// 0.8s -> 1.5s: Blazing golden-white circuit surge Star #1 -> Star #7
-// 1.5s -> 3.3s: Glowing Constellation Emblem materialization & hold (~1.8s)
-// 3.3s -> 5.6s: Emblem dissolve -> Simultaneous 7-Star Burst -> Starfall Descent -> Heart Absorption
-const SURGE_START_SEC = 0.8;
-const SURGE_END_SEC = 1.5;
-const BURST_START_SEC = 3.3;
-const HEART_ABSORB_START_SEC = 4.35;
-const HEART_ABSORB_END_SEC = 5.45;
-const CASCADE_TOTAL_SEC = 5.7;
+const LINE_IGNITE_DURATION_MS = 600; // Unhurried ~0.6s crisp luminous connecting line draw
+const STAR_IGNITE_BURST_MS = 780; // Crisp starlight flare + sparkle halo during Beat 2 (~0.45s admiration hold)
+// Synchronized Balanced 5.2s Finale Timeline:
+// 0.00s -> 0.85s: Close card & frame entire Capricornus constellation dead-center
+// 0.85s -> 1.80s: Smoother golden-white circuit surge Star #1 -> Star #7 -> closing arch
+// 1.80s -> 3.95s: Glowing Constellation Emblem materialization & ~2.0s admiration hold
+// 3.95s -> 6.30s: Emblem dissolve -> Simultaneous 7-Star Burst -> Starfall Descent -> Heart Absorption
+const SURGE_START_SEC = 0.85;
+const SURGE_END_SEC = 1.8;
+const BURST_START_SEC = 3.95;
+const HEART_ABSORB_START_SEC = 5.0;
+const HEART_ABSORB_END_SEC = 6.1;
+const CASCADE_TOTAL_SEC = 6.35;
 const PARTICLES_PER_STAR = 60; // 7 * 60 = 420 object-pooled GPU starfall particles
 const HEART_ABSORB_WORLD = new THREE.Vector3(0, 4.45, 0);
 
@@ -438,7 +438,7 @@ function ConstellationStarNode({
       }
       if (igniteStartMsRef.current !== null) {
         const elapsedMs = nowMs - igniteStartMsRef.current;
-        const delayMs = 140;
+        const delayMs = 260;
         if (elapsedMs >= delayMs) {
           const t = (elapsedMs - delayMs) / STAR_IGNITE_BURST_MS;
           if (t >= 1) {
