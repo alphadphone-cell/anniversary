@@ -13,6 +13,7 @@ import {
   JOURNEY_STEPS,
   getNextJourneyStep,
   isAllCoreJourneyCompleted,
+  isConstellationUnlocked,
   useActiveModal,
   useAppStore,
   useCompletedSteps,
@@ -80,10 +81,10 @@ const STEP_GUIDE_META: Record<JourneyStepId, StepGuideMeta> = {
     title: 'Chòm Sao',
     ctaLabel: 'Xem nè',
     ctaIsCelestial: true,
-    beforeBold: 'Ngước lên ',
-    boldText: 'bầu trời sao',
-    afterBold: ' phía trên (hoặc bấm nút bên cạnh) để tự tay thắp sáng từng vì sao kỷ niệm nha em.',
-    ariaAction: 'Lên bầu trời Chòm Sao Kỷ Niệm',
+    beforeBold: '5 tinh hà đã trọn vẹn rồi! Ngước lên ',
+    boldText: 'Chòm Sao Ma Kết',
+    afterBold: ' phía trên (hoặc bấm nút bên cạnh) để thắp sáng 7 ngôi sao tụm về trái tim nha bé.',
+    ariaAction: 'Lên bầu trời Chòm Sao Ma Kết',
   },
 };
 
@@ -110,6 +111,7 @@ export function JourneyGuidePill() {
   const [arrivalTipDismissed, setArrivalTipDismissed] = useState(false);
 
   const nextStep = getNextJourneyStep(completedSteps);
+  const constellationUnlocked = isConstellationUnlocked(completedSteps);
   const allCoreCompleted = isAllCoreJourneyCompleted(completedSteps);
   const completedCount = completedSteps.length;
   const progressPct = Math.round((completedCount / JOURNEY_STEPS.length) * 100);
@@ -145,6 +147,23 @@ export function JourneyGuidePill() {
     }
   }, [isVisible, isMinimized]);
 
+  // Auto-expand & play celestial unlock chime once when all 5/5 Galaxy nodes unlock the Capricorn Constellation
+  const constellationUnlockPlayedRef = useRef(false);
+  useEffect(() => {
+    if (
+      stage === 'galaxy' &&
+      viewMode === 'galaxy' &&
+      activeModal === null &&
+      constellationUnlocked &&
+      !allCoreCompleted &&
+      !constellationUnlockPlayedRef.current
+    ) {
+      constellationUnlockPlayedRef.current = true;
+      setIsMinimized(false);
+      sfxEngine.playCelestialChime('up');
+    }
+  }, [stage, viewMode, activeModal, constellationUnlocked, allCoreCompleted]);
+
   // Auto-expand & play magical unlock sparkle chime once when 6/6 core memories unlock the Supernova finale
   const unlockChimePlayedRef = useRef(false);
   useEffect(() => {
@@ -173,6 +192,9 @@ export function JourneyGuidePill() {
 
   const navigateToStep = useCallback(
     (step: JourneyStepId) => {
+      if (step === 'constellation' && !isConstellationUnlocked(useAppStore.getState().completedSteps)) {
+        return;
+      }
       setChecklistOpen(false);
       const started = openFeatureWithCameraFly(step);
       if (started && step === 'constellation') {
@@ -270,32 +292,42 @@ export function JourneyGuidePill() {
                     {JOURNEY_STEPS.map((stepId, idx) => {
                       const meta = STEP_GUIDE_META[stepId];
                       const done = completedSteps.includes(stepId);
-                      const isCurrent = stepId === nextStep;
+                      const isLocked = stepId === 'constellation' && !constellationUnlocked;
+                      const isCurrent = !isLocked && stepId === nextStep;
 
                       return (
                         <li key={stepId}>
                           <button
                             type="button"
+                            disabled={isLocked}
+                            data-journey-step={stepId}
+                            data-step-locked={isLocked ? 'true' : 'false'}
                             onClick={() => navigateToStep(stepId)}
-                            className={`flex min-h-11 w-full cursor-pointer items-center justify-between gap-2.5 rounded-xl border px-3 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 ${
-                              isCurrent
-                                ? 'border-pink-400/50 bg-pink-500/15 text-starlight'
-                                : done
-                                  ? 'border-white/8 bg-white/[0.03] text-starlight/90 hover:border-pink-300/35 hover:bg-white/[0.06]'
-                                  : 'border-white/6 bg-white/[0.02] text-lavender hover:border-white/15 hover:text-starlight'
+                            className={`flex min-h-11 w-full items-center justify-between gap-2.5 rounded-xl border px-3 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 ${
+                              isLocked
+                                ? 'cursor-not-allowed border-white/6 bg-white/[0.015] text-lavender-muted opacity-75'
+                                : isCurrent
+                                  ? 'cursor-pointer border-pink-400/50 bg-pink-500/15 text-starlight'
+                                  : done
+                                    ? 'cursor-pointer border-white/8 bg-white/[0.03] text-starlight/90 hover:border-pink-300/35 hover:bg-white/[0.06]'
+                                    : 'cursor-pointer border-white/6 bg-white/[0.02] text-lavender hover:border-white/15 hover:text-starlight'
                             }`}
                           >
                             <span className="flex min-w-0 items-center gap-2.5">
                               <span
                                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-mono tabular-nums ${
-                                  done
-                                    ? 'border-pink-300/50 bg-pink-400/20 text-pink-200'
-                                    : isCurrent
-                                      ? 'border-neon-pink/70 bg-neon-pink/25 text-starlight'
-                                      : 'border-white/15 bg-white/[0.04] text-lavender-muted'
+                                  isLocked
+                                    ? 'border-white/15 bg-white/[0.03] text-lavender-muted'
+                                    : done
+                                      ? 'border-pink-300/50 bg-pink-400/20 text-pink-200'
+                                      : isCurrent
+                                        ? 'border-neon-pink/70 bg-neon-pink/25 text-starlight'
+                                        : 'border-white/15 bg-white/[0.04] text-lavender-muted'
                                 }`}
                               >
-                                {done ? (
+                                {isLocked ? (
+                                  <Lock className="h-2.5 w-2.5" strokeWidth={2} aria-hidden="true" />
+                                ) : done ? (
                                   <Check className="h-3 w-3 text-pink-200" strokeWidth={2.4} aria-hidden="true" />
                                 ) : (
                                   idx + 1
@@ -307,7 +339,9 @@ export function JourneyGuidePill() {
                             </span>
 
                             <span className="shrink-0 text-[11px] font-medium">
-                              {isCurrent ? (
+                              {isLocked ? (
+                                <span className="text-white/45">Xong 5 tinh hà</span>
+                              ) : isCurrent ? (
                                 <span className="text-pink-300">Đang chờ em</span>
                               ) : done ? (
                                 <span className="text-pink-300/75">Xem lại</span>

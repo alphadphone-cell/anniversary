@@ -4,7 +4,13 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ANNIVERSARY_DATA, type GalaxyNodeId } from '../data/anniversaryData';
-import { useAppStore, type AppStage, type CameraPhase, type ViewMode } from '../store/useAppStore';
+import {
+  isConstellationUnlocked,
+  useAppStore,
+  type AppStage,
+  type CameraPhase,
+  type ViewMode,
+} from '../store/useAppStore';
 import { sfxEngine } from '../utils/sfxEngine';
 import {
   GALAXY_OVERVIEW_FOV,
@@ -926,7 +932,11 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
         !storeNow.constellationFinaleActive
       ) {
         const polarAngle = controlsRef.current.getPolarAngle();
-        if (storeNow.viewMode === 'galaxy' && polarAngle >= TILT_UP_TO_CONSTELLATION_POLAR) {
+        if (
+          storeNow.viewMode === 'galaxy' &&
+          polarAngle >= TILT_UP_TO_CONSTELLATION_POLAR &&
+          isConstellationUnlocked(storeNow.completedSteps)
+        ) {
           hasUserDraggedInModeRef.current = false;
           viewSwitchCooldownUntilMsRef.current = nowMs + VIEW_SWITCH_COOLDOWN_MS;
           sfxEngine.playCelestialChime('up');

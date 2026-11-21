@@ -8,6 +8,7 @@ import {
 } from '../../../data/anniversaryData';
 import { galaxySignals, HEART_CENTER_Y } from '../../galaxySignals';
 import {
+  isConstellationUnlocked,
   useAppStore,
   useConstellationFinaleActive,
   useMaxUnlockedMilestoneIndex,
@@ -495,6 +496,8 @@ function ConstellationStarNode({
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       if (!interactive) return;
+      const { viewMode, completedSteps } = useAppStore.getState();
+      if (viewMode !== 'constellation' && !isConstellationUnlocked(completedSteps)) return;
       event.stopPropagation();
       setHovered(true);
       document.body.style.cursor = 'pointer';
@@ -517,9 +520,10 @@ function ConstellationStarNode({
     (event: ThreeEvent<MouseEvent>) => {
       if (!interactive) return;
       event.stopPropagation();
-      const { viewMode, maxUnlockedMilestoneIndex, setViewMode, setSelectedMilestoneId } =
+      const { viewMode, completedSteps, maxUnlockedMilestoneIndex, setViewMode, setSelectedMilestoneId } =
         useAppStore.getState();
       if (viewMode !== 'constellation') {
+        if (!isConstellationUnlocked(completedSteps)) return;
         sfxEngine.playCelestialChime('up');
         setViewMode('constellation');
         setSelectedMilestoneId(milestone.id);

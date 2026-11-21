@@ -26,6 +26,18 @@ const CORE_MODAL_STEPS: ReadonlySet<string> = new Set([
   'gallery',
 ]);
 
+export const GALAXY_CORE_STEPS = [
+  'letter',
+  'counter',
+  'cards',
+  'puzzle',
+  'gallery',
+] as const;
+
+export function isConstellationUnlocked(completedSteps: readonly JourneyStepId[]): boolean {
+  return GALAXY_CORE_STEPS.every((step) => completedSteps.includes(step));
+}
+
 // Clear any legacy sessionStorage journey key on page load so every F5 refresh starts fresh at 0/6
 if (typeof window !== 'undefined') {
   try {
@@ -140,6 +152,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setViewMode: (viewMode) => {
+    if (viewMode === 'constellation' && !isConstellationUnlocked(get().completedSteps)) {
+      return;
+    }
     const nextPhase: CameraPhase = viewMode === 'constellation' ? 'constellation' : 'idle';
     galaxySignals.focusingNodeId = null;
     galaxySignals.isOrbReturning = false;
@@ -214,7 +229,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     if (nodeId === 'constellation') {
-      if (state.viewMode === 'constellation') return false;
+      if (state.viewMode === 'constellation' || !isConstellationUnlocked(state.completedSteps)) {
+        return false;
+      }
       galaxySignals.focusingNodeId = null;
       galaxySignals.isOrbReturning = false;
       galaxySignals.cameraPhase = 'constellation';
