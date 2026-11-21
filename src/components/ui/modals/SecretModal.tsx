@@ -1,7 +1,6 @@
-import { Sparkles, Volume2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ANNIVERSARY_DATA } from '../../../data/anniversaryData';
-import { sfxEngine } from '../../../utils/sfxEngine';
 
 export function SecretModal() {
   const secret = ANNIVERSARY_DATA.secretSupernova;
@@ -55,21 +54,6 @@ export function SecretModal() {
           <p key={idx}>{paragraph}</p>
         ))}
         <p className="pt-1 font-display text-xl italic text-starlight">— {secret.signature}</p>
-      </div>
-
-      {/* Keepsake Promise Strip & Replay Ethereal Chime */}
-      <div className="mt-4 flex w-full flex-col items-center justify-between gap-3 rounded-2xl border border-neon-magenta/30 bg-neon-magenta/10 px-4 py-3 sm:flex-row sm:text-left">
-        <span className="text-xs leading-relaxed font-medium text-starlight">
-          {secret.promiseLabel}
-        </span>
-        <button
-          type="button"
-          onClick={() => sfxEngine.playSupernovaBurst()}
-          className="glass-interactive inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-neon-pink/40 bg-neon-pink/15 px-4 text-xs leading-normal font-medium text-starlight hover:border-neon-pink/75"
-        >
-          <Volume2 className="h-3.5 w-3.5 text-neon-pink" strokeWidth={1.75} aria-hidden="true" />
-          <span>Nghe lại tiếng sao vỡ nha</span>
-        </button>
       </div>
     </div>
   );
