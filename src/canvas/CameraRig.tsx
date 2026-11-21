@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ANNIVERSARY_DATA } from '../data/anniversaryData';
 import { useAppStore, type AppStage, type ViewMode } from '../store/useAppStore';
+import { sfxEngine } from '../utils/sfxEngine';
 import { galaxySignals } from './galaxySignals';
 
 interface CameraRigProps {
@@ -25,6 +26,10 @@ const BASE_GALAXY_FOV = 46;
 
 const ENTRANCE_DURATION = 1.8;
 const VIEW_GLIDE_DURATION = 1.4;
+const SKY_MAX_POLAR_ANGLE = Math.PI * 0.78;
+const TILT_UP_TO_CONSTELLATION_POLAR = Math.PI * 0.56;
+const TILT_DOWN_TO_GALAXY_POLAR = Math.PI * 0.42;
+const VIEW_SWITCH_COOLDOWN_MS = 1600;
 
 export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
@@ -43,6 +48,8 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
   const zoomDirRef = useRef(new THREE.Vector3());
   const lastShakeOffsetRef = useRef(new THREE.Vector3());
   const currentShakeOffsetRef = useRef(new THREE.Vector3());
+  const hasUserDraggedInModeRef = useRef(false);
+  const viewSwitchCooldownUntilMsRef = useRef(0);
 
   const startCameraGlide = (
     destPos: THREE.Vector3,
@@ -109,9 +116,8 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       if (controlsRef.current) {
         controlsRef.current.autoRotate =
           !reducedMotion && activeModal === null && viewMode === 'galaxy';
-        // Relax polar clamp in Constellation View so user can gaze upward smoothly
-        controlsRef.current.maxPolarAngle =
-          viewMode === 'constellation' ? Math.PI * 0.72 : Math.PI * 0.49;
+        // Allow free upward tilt in both modes so user can pan directly up into the Constellation sky dome
+        controlsRef.current.maxPolarAngle = SKY_MAX_POLAR_ANGLE;
       }
     };
 
@@ -127,6 +133,8 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
 
       // Glide smoothly between Galaxy View and Constellation View
       if (state.viewMode !== prev.viewMode) {
+        hasUserDraggedInModeRef.current = false;
+        viewSwitchCooldownUntilMsRef.current = performance.now() + VIEW_SWITCH_COOLDOWN_MS;
         if (state.viewMode === 'constellation') {
           // Auto-focus directly onto Star #1 in the upper third of the viewport so the centered card never covers it
           const star0 = ANNIVERSARY_DATA.constellationMilestones[0];
@@ -242,6 +250,34 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       if (controlsRef.current.enabled !== shouldEnableOrbit) {
         controlsRef.current.enabled = shouldEnableOrbit;
       }
+
+      // Manual camera tilt-up / tilt-down between Galaxy & Constellation sky dome (hysteresis + drag-gated)
+      const nowMs = performance.now();
+      const store = useAppStore.getState();
+      if (
+        stage === 'galaxy' &&
+        hasUserDraggedInModeRef.current &&
+        nowMs >= viewSwitchCooldownUntilMsRef.current &&
+        !galaxySignals.isHoldingHeart &&
+        store.activeModal === null &&
+        !store.constellationFinaleActive
+      ) {
+        const polarAngle = controlsRef.current.getPolarAngle();
+        if (store.viewMode === 'galaxy' && polarAngle >= TILT_UP_TO_CONSTELLATION_POLAR) {
+          hasUserDraggedInModeRef.current = false;
+          viewSwitchCooldownUntilMsRef.current = nowMs + VIEW_SWITCH_COOLDOWN_MS;
+          sfxEngine.playCelestialChime('up');
+          store.setViewMode('constellation');
+          return;
+        }
+        if (store.viewMode === 'constellation' && polarAngle <= TILT_DOWN_TO_GALAXY_POLAR) {
+          hasUserDraggedInModeRef.current = false;
+          viewSwitchCooldownUntilMsRef.current = nowMs + VIEW_SWITCH_COOLDOWN_MS;
+          sfxEngine.playCelestialChime('down');
+          store.setViewMode('galaxy');
+          return;
+        }
+      }
     }
 
     if (stage === 'galaxy' && !reducedMotion && useAppStore.getState().viewMode === 'galaxy') {
@@ -300,7 +336,7 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       minDistance={6}
       maxDistance={32}
       minPolarAngle={0.18}
-      maxPolarAngle={stateNow.viewMode === 'constellation' ? Math.PI * 0.72 : Math.PI * 0.49}
+      maxPolarAngle={SKY_MAX_POLAR_ANGLE}
       rotateSpeed={0.55}
       zoomSpeed={0.68}
       autoRotate={!reducedMotion && stateNow.activeModal === null && stateNow.viewMode === 'galaxy'}
@@ -308,6 +344,9 @@ export function CameraRig({ stage, reducedMotion = false }: CameraRigProps) {
       onStart={() => {
         // Immediately yield scripted glide when user drags or zooms manually
         tweenActiveRef.current = false;
+        if (!galaxySignals.isHoldingHeart) {
+          hasUserDraggedInModeRef.current = true;
+        }
       }}
     />
   );

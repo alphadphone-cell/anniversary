@@ -1,10 +1,6 @@
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Orbit, Sparkles, Star } from 'lucide-react';
 import {
-  getNextJourneyStep,
-  useAppStore,
-  useCompletedSteps,
   useCurrentTrackIndex,
   useIsMusicPlaying,
   useIsMuted,
@@ -12,8 +8,6 @@ import {
   useIsTransitionFlashing,
   useStage,
   useSupernovaFlashKey,
-  useViewMode,
-  type ViewMode,
 } from '../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../data/anniversaryData';
 import { installAlwaysOnAmbientAudio } from '../../audio/audioEngine';
@@ -161,95 +155,6 @@ function NowPlayingBadge() {
   );
 }
 
-/** Compact top-right glassmorphism view switcher for Galaxy View / Constellation View. */
-function ViewModeToggle() {
-  const viewMode = useViewMode();
-  const completedSteps = useCompletedSteps();
-  const setViewMode = useAppStore((s) => s.setViewMode);
-
-  const nextStep = getNextJourneyStep(completedSteps);
-  const isConstellationNext = nextStep === 'constellation' && viewMode === 'galaxy';
-  const isConstellationDone = completedSteps.includes('constellation');
-
-  const handleSelect = useCallback(
-    (next: ViewMode) => {
-      if (next === viewMode) return;
-      sfxEngine.playCelestialChime(next === 'constellation' ? 'up' : 'down');
-      setViewMode(next);
-    },
-    [viewMode, setViewMode]
-  );
-
-  return (
-    <motion.nav
-      key="view-mode-toggle"
-      aria-label="Chế độ góc nhìn bầu trời"
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.65, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto glass-surface inline-flex items-center gap-1 rounded-full p-1"
-    >
-      <button
-        type="button"
-        onClick={() => handleSelect('galaxy')}
-        onMouseEnter={() => sfxEngine.playHoverTick()}
-        aria-pressed={viewMode === 'galaxy'}
-        aria-label="Góc nhìn Ngân Hà"
-        className={`glass-interactive flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 sm:px-3.5 ${
-          viewMode === 'galaxy'
-            ? 'glass-active text-starlight'
-            : 'border border-transparent text-lavender hover:text-starlight'
-        }`}
-      >
-        <Orbit
-          className={`h-4 w-4 shrink-0 ${viewMode === 'galaxy' ? 'text-neon-pink' : ''}`}
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <span className="hidden sm:inline">Ngân Hà</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => handleSelect('constellation')}
-        onMouseEnter={() => sfxEngine.playHoverTick()}
-        aria-pressed={viewMode === 'constellation'}
-        aria-label="Góc nhìn Chòm Sao"
-        className={`glass-interactive relative flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs leading-normal font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-pink/75 sm:px-3.5 ${
-          viewMode === 'constellation'
-            ? 'glass-active text-starlight'
-            : isConstellationNext
-              ? '!border-pink-300/75 bg-neon-pink/20 text-starlight shadow-[0_0_24px_rgba(255,62,165,0.52),0_0_12px_rgba(244,114,182,0.36)]'
-              : 'border border-transparent text-lavender hover:text-starlight'
-        }`}
-      >
-        {isConstellationNext && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-0.5 animate-pulse rounded-full border border-pink-300/65"
-          />
-        )}
-        <Sparkles
-          className={`h-4 w-4 shrink-0 ${
-            viewMode === 'constellation' || isConstellationNext ? 'text-neon-pink' : ''
-          }`}
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <span className="hidden sm:inline">Chòm Sao</span>
-        {isConstellationDone && (
-          <Star
-            className="h-3 w-3 shrink-0 fill-pink-300 text-pink-300"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        )}
-      </button>
-    </motion.nav>
-  );
-}
-
 export function HudOverlay() {
   const stage = useStage();
 
@@ -302,7 +207,6 @@ export function HudOverlay() {
 
         <div className="flex items-center gap-2">
           <AnimatePresence>{stage === 'galaxy' && <NowPlayingBadge />}</AnimatePresence>
-          <AnimatePresence>{stage === 'galaxy' && <ViewModeToggle />}</AnimatePresence>
         </div>
       </header>
 

@@ -411,7 +411,14 @@ function ConstellationStarNode({
     (event: ThreeEvent<MouseEvent>) => {
       if (!interactive) return;
       event.stopPropagation();
-      const { maxUnlockedMilestoneIndex, setSelectedMilestoneId } = useAppStore.getState();
+      const { viewMode, maxUnlockedMilestoneIndex, setViewMode, setSelectedMilestoneId } =
+        useAppStore.getState();
+      if (viewMode !== 'constellation') {
+        sfxEngine.playCelestialChime('up');
+        setViewMode('constellation');
+        setSelectedMilestoneId(milestone.id);
+        return;
+      }
       if (index > maxUnlockedMilestoneIndex) {
         sfxEngine.playStarIgnite(index);
       } else {
@@ -481,9 +488,11 @@ function ConstellationStarNode({
     const targetColor = targetColorRef.current;
 
     if (!isConstellationView) {
-      targetOpacity = 0.2;
-      targetScale = 0.52;
-      targetColor.copy(COLOR_GALAXY_BG);
+      // Softly gleaming stars overhead so tilting the camera up naturally reveals Capricornus in the night sky
+      const twinkle = reducedMotion ? 1 : 0.92 + Math.sin(elapsed * 2.0 + index * 1.1) * 0.08;
+      targetOpacity = (hovered ? 0.92 : 0.64) * twinkle;
+      targetScale = (hovered ? 1.05 : 0.86) * twinkle;
+      targetColor.copy(hovered ? COLOR_ACTIVE : COLOR_VISITED);
     } else if (!isUnlocked) {
       // Dormant / Upcoming star: dimmed, smaller, pale-indigo, zero bloom/halo
       targetOpacity = hovered ? 0.36 : 0.21;
@@ -1003,7 +1012,7 @@ export function ConstellationSky({ active, reducedMotion = false }: Constellatio
           totalCount={milestones.length}
           texture={starTexture}
           planeGeo={starPlaneGeo}
-          interactive={isConstellation && !isFinale}
+          interactive={active && !isFinale}
           isSelected={selectedMilestoneId === milestone.id}
           isUnlocked={index <= maxUnlockedIndex}
           hasAnyOpenCard={hasAnyOpenCard}

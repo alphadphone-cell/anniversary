@@ -81,9 +81,9 @@ const STEP_GUIDE_META: Record<JourneyStepId, StepGuideMeta> = {
     title: 'Chòm Sao Kỷ Niệm',
     ctaLabel: 'Lên Chòm Sao',
     ctaIsCelestial: true,
-    beforeBold: 'Bấm nút ',
-    boldText: 'Chòm Sao',
-    afterBold: ' ở góc trên bên phải (hoặc nút bên cạnh) để bay lên bầu trời và tự tay thắp sáng từng ngôi sao kỷ niệm của tụi mình.',
+    beforeBold: 'Kéo ngước góc nhìn ',
+    boldText: 'hướng lên bầu trời sao',
+    afterBold: ' phía trên Ngân Hà (hoặc bấm nút bên cạnh) để tự tay thắp sáng từng ngôi sao Ma Kết của tụi mình nhé.',
     ariaAction: 'Chuyển lên góc nhìn Chòm Sao Kỷ Niệm',
   },
 };
