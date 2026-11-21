@@ -14,11 +14,11 @@ interface ParticleHeartProps {
   reducedMotion?: boolean;
 }
 
-const HEART_PARTICLES = 2200;
-const CORE_WISP_COUNT = 18;
+const HEART_PARTICLES = 5000;
 const ENERGY_RAY_COUNT = 36;
 const FINALE_RAIN_COUNT = 520;
 const HEART_BASE_Y = 5.05;
+const HEART_WORLD_SCALE = 2.68;
 const MORPH_DURATION = 2.8;
 
 // 3-Beat Grand Finale Supernova Timing
@@ -198,23 +198,23 @@ const HEART_VERTEX_SHADER = /* glsl */ `
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    float sparkle = 0.72 + 0.28 * sin(uTime * (2.6 + uSupernovaCharge * 6.0) * motion + aPhase);
+    float sparkle = 0.85 + 0.15 * sin(uTime * (2.6 + uSupernovaCharge * 6.0) * motion + aPhase);
     float dimMul = 1.0 - uDim * 0.72;
     float energyGlow =
-      (0.94 + uPulse * 0.16 + uBass * 0.36 + lockPulse * 0.78 + singularityGlow + detGlow + uAbsorptionGlow * 0.72) * dimMul;
+      (1.06 + uPulse * 0.18 + uBass * 0.38 + lockPulse * 0.78 + singularityGlow + detGlow + uAbsorptionGlow * 0.72) * dimMul;
 
-    vec3 starHighlight = vec3(1.92, 1.55, 1.88);
-    vec3 champagneGold = vec3(1.82, 1.52, 0.98);
+    vec3 starHighlight = vec3(2.05, 1.72, 1.98);
+    vec3 champagneGold = vec3(1.88, 1.56, 1.02);
     float hotMix = clamp(sparkBoost * 0.62 + singularityGlow * 0.45 + detGlow * 0.4 + uAbsorptionGlow * 0.32, 0.0, 0.85);
     vec3 baseCol = mix(aColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
     float warmMix = clamp(finaleWarm * 0.52 + uAbsorptionGlow * (0.42 + 0.25 * sin(uTime * 5.0 + aPhase)), 0.0, 0.78);
     vColor = mix(baseCol, champagneGold * (1.0 + (detGlow + uAbsorptionGlow) * 0.38), warmMix);
-    vAlpha = clamp(sparkle + sparkBoost * 0.35 + lockPulse * 0.28 + singularityGlow * 0.4 + uAbsorptionGlow * 0.35, 0.0, 1.0) * (1.0 - uDim * 0.45);
+    vAlpha = clamp(sparkle + sparkBoost * 0.2 + lockPulse * 0.2 + singularityGlow * 0.3 + uAbsorptionGlow * 0.25, 0.0, 1.0) * (1.0 - uDim * 0.45);
     vSparkBoost = max(sparkBoost, uAbsorptionGlow * 0.9);
 
-    float sizeBoost = 1.0 + uBass * 0.14 + sparkBoost * 0.48 + lockPulse * 0.24 + detGlow * 0.22 + uAbsorptionGlow * 0.3;
-    float atten = 29.5 / max(-mvPosition.z, 2.0);
-    gl_PointSize = clamp(aScale * sizeBoost * uPixelRatio * atten, 1.6, 16.5);
+    float sizeBoost = 1.0 + uBass * 0.18 + sparkBoost * 0.48 + lockPulse * 0.26 + detGlow * 0.24 + uAbsorptionGlow * 0.32;
+    float atten = 34.0 / max(-mvPosition.z, 2.0);
+    gl_PointSize = clamp(aScale * sizeBoost * uPixelRatio * atten, 2.0, 22.0);
   }
 `;
 
@@ -229,68 +229,16 @@ const HEART_FRAGMENT_SHADER = /* glsl */ `
     float dist = length(uv);
     if (dist > 0.5) discard;
 
-    // Fine celestial diamond-dust sprite: sharp pinpoint core + feather-soft radial glow (legal GLSL smoothstep)
-    float core = exp(-dist * dist * 24.0);
-    float halo = pow(1.0 - smoothstep(0.04, 0.48, dist), 2.1) * 0.46;
+    // Bright high-intensity radial starlight crystal sprite for lush neon bloom
+    float core = exp(-dist * dist * 16.5);
+    float halo = pow(1.0 - smoothstep(0.02, 0.49, dist), 1.65) * 0.68;
     float starCross = max(
-      exp(-abs(uv.x) * 32.0) * exp(-abs(uv.y) * 7.5),
-      exp(-abs(uv.y) * 32.0) * exp(-abs(uv.x) * 7.5)
-    ) * (0.14 + vSparkBoost * 0.65);
+      exp(-abs(uv.x) * 26.0) * exp(-abs(uv.y) * 6.5),
+      exp(-abs(uv.y) * 26.0) * exp(-abs(uv.x) * 6.5)
+    ) * (0.18 + vSparkBoost * 0.68);
 
     float alpha = clamp((core + halo + starCross) * vAlpha, 0.0, 1.0);
-    gl_FragColor = vec4(vColor * (core * 1.32 + halo * 0.72 + starCross), alpha);
-  }
-`;
-
-/** Ultra-delicate rising stardust wisps bridging the Spiral Galaxy core up toward the floating gap beneath the Heart tip. */
-const CORE_WISP_VERTEX_SHADER = /* glsl */ `
-  attribute float aPhase;
-  attribute float aRadius;
-  attribute float aSpeed;
-  attribute float aSize;
-  uniform float uTime;
-  uniform float uPixelRatio;
-  uniform float uOpacity;
-  varying float vAlpha;
-  varying float vHeight;
-
-  void main() {
-    float cycle = fract(uTime * aSpeed + aPhase);
-    float y = mix(0.45, 1.72, cycle);
-    float angle = aPhase * 6.28318 + cycle * 4.2 + uTime * 0.35;
-    float radius = aRadius * (1.0 - cycle * 0.72);
-
-    vec3 pos = vec3(cos(angle) * radius, y, sin(angle) * radius);
-    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
-    gl_Position = projectionMatrix * mvPos;
-
-    float fadeIn = smoothstep(0.0, 0.2, cycle);
-    float fadeOut = 1.0 - smoothstep(0.68, 1.0, cycle);
-    float twinkle = 0.65 + 0.35 * sin(uTime * 5.2 + aPhase * 19.0);
-    vAlpha = fadeIn * fadeOut * twinkle * uOpacity;
-    vHeight = cycle;
-    gl_PointSize = clamp(aSize * uPixelRatio * (20.0 / max(-mvPos.z, 2.0)), 1.5, 9.0);
-  }
-`;
-
-const CORE_WISP_FRAGMENT_SHADER = /* glsl */ `
-  varying float vAlpha;
-  varying float vHeight;
-
-  void main() {
-    if (vAlpha <= 0.005) discard;
-    vec2 uv = gl_PointCoord - vec2(0.5);
-    float dist = length(uv);
-    if (dist > 0.5) discard;
-
-    float core = exp(-dist * dist * 20.0);
-    float soft = pow(1.0 - smoothstep(0.05, 0.48, dist), 2.0) * 0.45;
-    float alpha = (core + soft) * vAlpha;
-
-    vec3 cPearl = vec3(1.65, 1.5, 1.75);
-    vec3 cRose = vec3(1.55, 0.52, 1.05);
-    vec3 col = mix(cPearl, cRose, smoothstep(0.15, 0.85, vHeight));
-    gl_FragColor = vec4(col * alpha, alpha);
+    gl_FragColor = vec4(vColor * (core * 1.48 + halo * 0.92 + starCross), alpha);
   }
 `;
 
@@ -629,138 +577,84 @@ export function ParticleHeart({
     const phases = new Float32Array(HEART_PARTICLES);
     const burstDirs = new Float32Array(HEART_PARTICLES * 3);
 
-    const cPearlWhite = new THREE.Color('#fff5f9');
-    const cSakuraPink = new THREE.Color('#f9a8d4');
-    const cRoseBright = new THREE.Color('#ec4899');
-    const cRoseDeep = new THREE.Color('#db2777');
+    const cHotNeon = new THREE.Color('#ff2e93');
+    const cVividMagenta = new THREE.Color('#ff66c4');
+    const cPearlPink = new THREE.Color('#ffe6f4');
+    const cPureWhite = new THREE.Color('#ffffff');
     const tmp = new THREE.Color();
     const dirVec = new THREE.Vector3();
 
-    // Taubin 3D Implicit Heart: F(x, y, z) = (x^2 + 9/4 z^2 + y^2 - 1)^3 - x^2 y^3 - 9/80 z^2 y^3 = 0
-    const evalHeartImplicit = (ux: number, uy: number, uz: number) => {
-      const a = ux * ux + 2.25 * uz * uz + uy * uy - 1;
-      const a2 = a * a;
-      const uy2 = uy * uy;
-      const uy3 = uy2 * uy;
-      const f = a2 * a - ux * ux * uy3 - 0.1125 * uz * uz * uy3;
-      const gx = 6 * ux * a2 - 2 * ux * uy3;
-      const gy = 6 * uy * a2 - 3 * ux * ux * uy2 - 0.3375 * uz * uz * uy2;
-      const gz = 13.5 * uz * a2 - 0.225 * uz * uy3;
-      return { f, gx, gy, gz };
+    // Classic full-bodied parametric heart curve normalized (/16) + 1.12x width boost + centered at (0, 0, 0)
+    const evalParametricHeart2D = (t: number): [number, number] => {
+      const sinT = Math.sin(t);
+      const hx = 16 * sinT * sinT * sinT;
+      const hy =
+        13 * Math.cos(t) -
+        5 * Math.cos(2 * t) -
+        2 * Math.cos(3 * t) -
+        Math.cos(4 * t);
+      return [(hx / 16) * 1.12, (hy + 2.55) / 16];
     };
 
-    // Uniform surface-area sampling via constant-thickness Euclidean band rejection + Newton projection onto F = 0
-    const sampleUniformSurfacePoint = (): {
-      ux: number;
-      uy: number;
-      uz: number;
-      nx: number;
-      ny: number;
-      nz: number;
-    } => {
-      for (let attempt = 0; attempt < 160; attempt++) {
-        let ux = (rand() * 2 - 1) * 1.18;
-        let uy = -1.04 + rand() * 2.36;
-        let uz = (rand() * 2 - 1) * 0.72;
-        const { f, gx, gy, gz } = evalHeartImplicit(ux, uy, uz);
-        const gradLen = Math.hypot(gx, gy, gz);
-        if (gradLen < 1e-4) continue;
-        // Constant Euclidean band thickness -> exact uniform surface area density (zero center-seam clumping!)
-        if (Math.abs(f) / gradLen > 0.058) continue;
+    // Precompute 512-step cumulative arc-length LUT along t ∈ [0, 2π] for 100% uniform sampling (zero clumping!)
+    const ARC_STEPS = 512;
+    const arcLut = new Float32Array(ARC_STEPS + 1);
+    let [prevX, prevY] = evalParametricHeart2D(0);
+    arcLut[0] = 0;
+    for (let s = 1; s <= ARC_STEPS; s++) {
+      const t = (s / ARC_STEPS) * Math.PI * 2;
+      const [cx, cy] = evalParametricHeart2D(t);
+      arcLut[s] = arcLut[s - 1] + Math.hypot(cx - prevX, cy - prevY);
+      prevX = cx;
+      prevY = cy;
+    }
+    const totalArcLen = arcLut[ARC_STEPS];
 
-        // 3 Newton-Raphson projection steps lock the particle tightly onto F = 0
-        let nx = gx / gradLen;
-        let ny = gy / gradLen;
-        let nz = gz / gradLen;
-        for (let step = 0; step < 3; step++) {
-          const cur = evalHeartImplicit(ux, uy, uz);
-          const gSq = cur.gx * cur.gx + cur.gy * cur.gy + cur.gz * cur.gz;
-          if (gSq < 1e-8) break;
-          const stepMul = Math.max(-0.12, Math.min(0.12, cur.f / gSq));
-          ux -= cur.gx * stepMul;
-          uy -= cur.gy * stepMul;
-          uz -= cur.gz * stepMul;
-          const gL = Math.sqrt(gSq);
-          nx = cur.gx / gL;
-          ny = cur.gy / gL;
-          nz = cur.gz / gL;
-        }
-        return { ux, uy, uz, nx, ny, nz };
+    const sampleUniformArcT = (): number => {
+      const targetLen = rand() * totalArcLen;
+      let lo = 0;
+      let hi = ARC_STEPS;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (arcLut[mid] <= targetLen) lo = mid;
+        else hi = mid;
       }
-      return { ux: 0.75, uy: 0.45, uz: 0.2, nx: 0.8, ny: 0.5, nz: 0.3 };
+      const segLen = Math.max(1e-6, arcLut[hi] - arcLut[lo]);
+      const frac = (targetLen - arcLut[lo]) / segLen;
+      return ((lo + frac) / ARC_STEPS) * Math.PI * 2;
     };
-
-    // Uniform interior sampling (F < 0) scaled smoothly to 0.55–0.85 for warm 3D volume without central seam streak
-    const sampleInteriorPoint = (): { ux: number; uy: number; uz: number } => {
-      for (let attempt = 0; attempt < 120; attempt++) {
-        const ux = (rand() * 2 - 1) * 1.14;
-        const uy = -1.0 + rand() * 2.28;
-        const uz = (rand() * 2 - 1) * 0.68;
-        if (evalHeartImplicit(ux, uy, uz).f < -0.008) {
-          const coreScale = 0.55 + rand() * 0.3;
-          return { ux: ux * coreScale, uy: uy * coreScale, uz: uz * coreScale };
-        }
-      }
-      return { ux: 0, uy: 0.1, uz: 0 };
-    };
-
-    // Sculpted, elongated proportions with a crisp top cleft & razor-sharp pointed bottom V-tip
-    const mapSculptedHeart = (ux: number, uy: number, uz: number) => {
-      const tLow = Math.max(0, -uy);
-      const x = ux * 2.18 * (1 - 0.16 * Math.pow(tLow, 1.35));
-      const cleftSculpt = 0.16 * Math.exp(-ux * ux * 14) * Math.max(0, uy);
-      const y =
-        (uy >= 0 ? uy * 2.16 : uy * 2.48 - 0.2 * Math.pow(tLow, 1.85)) - 0.18 - cleftSculpt;
-      const z = uz * 2.15 * (1 - 0.2 * Math.pow(tLow, 1.4));
-      return { x, y, z };
-    };
-
-    const shellCount = Math.floor(HEART_PARTICLES * 0.75); // 75% Crisp Outer Shell
-    const coreEnd = shellCount + Math.floor(HEART_PARTICLES * 0.18); // 18% Soft Inner Core; remaining 7% Aura Dust
 
     for (let i = 0; i < HEART_PARTICLES; i++) {
       const i3 = i * 3;
-      const layer: 'shell' | 'core' | 'aura' =
-        i < shellCount ? 'shell' : i < coreEnd ? 'core' : 'aura';
+      // Stratified random layer assignment so setDrawRange(0, N * quality) preserves the exact 40/48/12 mix on low-end GPUs
+      const layerRoll = rand();
+      const layer: 'rim' | 'shell' | 'core' =
+        layerRoll < 0.4 ? 'rim' : layerRoll < 0.88 ? 'shell' : 'core';
 
-      let ux = 0;
-      let uy = 0;
-      let uz = 0;
-      let x = 0;
-      let y = 0;
-      let z = 0;
+      const t = sampleUniformArcT();
+      const [nx, ny] = evalParametricHeart2D(t);
 
-      if (layer === 'shell') {
-        const s = sampleUniformSurfacePoint();
-        ux = s.ux;
-        uy = s.uy;
-        uz = s.uz;
-        const p = mapSculptedHeart(ux, uy, uz);
-        const microJitter = (rand() - 0.5) * 0.032;
-        x = p.x + s.nx * microJitter;
-        y = p.y + s.ny * microJitter;
-        z = p.z + s.nz * microJitter;
-      } else if (layer === 'core') {
-        const c = sampleInteriorPoint();
-        ux = c.ux;
-        uy = c.uy;
-        uz = c.uz;
-        const p = mapSculptedHeart(ux, uy, uz);
-        x = p.x;
-        y = p.y;
-        z = p.z;
+      let r = 1;
+      let zNorm = 0;
+      if (layer === 'rim') {
+        // 40% Blazing Crisp Silhouette Rim: iconic wide outline, cleft, and sharp bottom V-tip
+        r = 0.92 + rand() * 0.08;
+        zNorm = (rand() - 0.5) * 0.22 * (1.0 - r * 0.5);
+      } else if (layer === 'shell') {
+        // 48% Plump 3D Front & Back Pillowed Shells
+        r = Math.pow(rand(), 0.52);
+        const side = rand() < 0.5 ? 1 : -1;
+        zNorm = side * 0.44 * Math.pow(Math.max(0, 1 - r * r), 0.65);
       } else {
-        // 7% Delicate Aura Dust hovering cleanly outside the sculpted silhouette
-        const s = sampleUniformSurfacePoint();
-        ux = s.ux;
-        uy = s.uy;
-        uz = s.uz;
-        const p = mapSculptedHeart(ux, uy, uz);
-        const haloOffset = 0.16 + Math.pow(rand(), 1.35) * 0.44;
-        x = p.x + s.nx * haloOffset;
-        y = p.y + s.ny * haloOffset;
-        z = p.z + s.nz * haloOffset;
+        // 12% Radiant Inner Core: full-bodied glowing volume
+        r = Math.pow(rand(), 0.6) * 0.82;
+        const maxZ = 0.44 * Math.pow(Math.max(0, 1 - r * r), 0.65);
+        zNorm = (rand() * 2 - 1) * maxZ * 0.84;
       }
+
+      const x = nx * r * HEART_WORLD_SCALE;
+      const y = ny * r * HEART_WORLD_SCALE;
+      const z = zNorm * HEART_WORLD_SCALE;
 
       positions[i3] = x;
       positions[i3 + 1] = y;
@@ -795,47 +689,46 @@ export function ParticleHeart({
       burstDirs[i3 + 1] = dirVec.y;
       burstDirs[i3 + 2] = dirVec.z;
 
-      // Refined vertical/radial gradient: deep rose-magenta along lower tip/outer curve -> sakura pink -> pearl-white upper lobes
-      const hNorm = THREE.MathUtils.clamp((uy + 1.0) / 2.28, 0, 1);
-      const outerRim = THREE.MathUtils.clamp(Math.hypot(ux, uz) / 1.15, 0, 1);
-      const isUpperLobeGlint = layer === 'shell' && hNorm > 0.68 && Math.abs(ux) > 0.24 && rand() < 0.44;
-      const isDiamondGlint = layer === 'shell' && rand() < 0.085;
+      // High-impact neon vibrancy: hot neon pink (#ff2e93) -> vivid rose magenta (#ff66c4) -> pearlescent white highlights
+      const hNorm = THREE.MathUtils.clamp((ny * r + 0.91) / 1.82, 0, 1);
+      const isUpperSpec = layer === 'rim' && hNorm > 0.62 && rand() < 0.48;
+      const isRimSpark = layer === 'rim' && rand() < 0.22;
 
-      if (isUpperLobeGlint || isDiamondGlint) {
-        tmp.copy(cSakuraPink).lerp(cPearlWhite, 0.58 + rand() * 0.42);
-      } else if (layer === 'aura') {
-        tmp.copy(cSakuraPink).lerp(cPearlWhite, 0.45 + rand() * 0.45);
-      } else if (layer === 'core') {
-        tmp.copy(cRoseDeep).lerp(cRoseBright, 0.35 + hNorm * 0.5);
-      } else {
-        // Outer shell smooth bottom-to-top gradient (rich rose-magenta tip/outer rim -> luminous sakura upper body)
-        const baseMix = THREE.MathUtils.clamp(hNorm * 0.85 + (1 - outerRim) * 0.2, 0, 1);
-        if (baseMix < 0.45) {
-          tmp.copy(cRoseDeep).lerp(cRoseBright, baseMix / 0.45);
-        } else {
-          tmp.copy(cRoseBright).lerp(cSakuraPink, (baseMix - 0.45) / 0.55);
+      if (isUpperSpec) {
+        tmp.copy(cPearlPink).lerp(cPureWhite, 0.35 + rand() * 0.65);
+      } else if (isRimSpark) {
+        tmp.copy(cVividMagenta).lerp(cPearlPink, 0.55 + rand() * 0.45);
+      } else if (layer === 'rim') {
+        tmp.copy(cHotNeon).lerp(cVividMagenta, 0.35 + hNorm * 0.55);
+      } else if (layer === 'shell') {
+        tmp.copy(cHotNeon).lerp(cVividMagenta, 0.2 + hNorm * 0.6);
+        if (hNorm > 0.72 && rand() < 0.25) {
+          tmp.lerp(cPearlPink, 0.5);
         }
+      } else {
+        tmp.copy(cHotNeon).lerp(cVividMagenta, rand() * 0.35);
       }
 
+      // HDR brightness > 1.0 so Bloom catches a lush, dreamy rose-pink glow
       const hdrBoost =
-        isUpperLobeGlint || isDiamondGlint
-          ? 1.56
-          : layer === 'shell'
-            ? 1.38
-            : layer === 'core'
-              ? 0.96
-              : 0.82;
+        isUpperSpec
+          ? 1.92
+          : layer === 'rim'
+            ? 1.66
+            : layer === 'shell'
+              ? 1.38
+              : 1.24;
       colors[i3] = tmp.r * hdrBoost;
       colors[i3 + 1] = tmp.g * hdrBoost;
       colors[i3 + 2] = tmp.b * hdrBoost;
 
-      // Finer, star-like varied sizing (luminous diamond dust with crisp outer silhouette)
+      // Boosted particle presence (~40% larger than prior dusty dots) for rich, crystalline glow
       scales[i] =
-        layer === 'shell'
-          ? 0.72 + Math.pow(rand(), 1.65) * 1.18
-          : layer === 'core'
-            ? 0.56 + rand() * 0.7
-            : 0.4 + rand() * 0.52;
+        layer === 'rim'
+          ? 1.05 + Math.pow(rand(), 1.55) * 1.15
+          : layer === 'shell'
+            ? 0.88 + Math.pow(rand(), 1.65) * 0.95
+            : 0.78 + rand() * 0.72;
       phases[i] = rand() * Math.PI * 2;
     }
 
@@ -1036,39 +929,7 @@ export function ParticleHeart({
       blending: THREE.AdditiveBlending,
     });
 
-    // 36 ultra-delicate rising stardust wisps bridging Galaxy core -> floating gap below Heart tip
-    const wispGeo = new THREE.BufferGeometry();
-    const wispPos = new Float32Array(CORE_WISP_COUNT * 3);
-    const wispPhase = new Float32Array(CORE_WISP_COUNT);
-    const wispRadius = new Float32Array(CORE_WISP_COUNT);
-    const wispSpeed = new Float32Array(CORE_WISP_COUNT);
-    const wispSize = new Float32Array(CORE_WISP_COUNT);
-    for (let i = 0; i < CORE_WISP_COUNT; i++) {
-      wispPhase[i] = i / CORE_WISP_COUNT + rand() * 0.04;
-      wispRadius[i] = 0.22 + rand() * 0.72;
-      wispSpeed[i] = 0.14 + rand() * 0.12;
-      wispSize[i] = 0.55 + rand() * 0.65;
-    }
-    wispGeo.setAttribute('position', new THREE.BufferAttribute(wispPos, 3));
-    wispGeo.setAttribute('aPhase', new THREE.BufferAttribute(wispPhase, 1));
-    wispGeo.setAttribute('aRadius', new THREE.BufferAttribute(wispRadius, 1));
-    wispGeo.setAttribute('aSpeed', new THREE.BufferAttribute(wispSpeed, 1));
-    wispGeo.setAttribute('aSize', new THREE.BufferAttribute(wispSize, 1));
-
-    const wispMat = new THREE.ShaderMaterial({
-      vertexShader: CORE_WISP_VERTEX_SHADER,
-      fragmentShader: CORE_WISP_FRAGMENT_SHADER,
-      uniforms: {
-        uTime: { value: 0 },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
-        uOpacity: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const hitGeo = new THREE.SphereGeometry(2.65, 16, 16);
+    const hitGeo = new THREE.SphereGeometry(2.85, 16, 16);
     const hitMat = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
@@ -1078,8 +939,6 @@ export function ParticleHeart({
     return {
       heartGeo,
       heartMat,
-      wispGeo,
-      wispMat,
       raysGeo,
       raysMat,
       shockGeo,
@@ -1202,8 +1061,6 @@ export function ParticleHeart({
       musicEngine.swellFromSupernova(0, 0.25);
       resources.heartGeo.dispose();
       resources.heartMat.dispose();
-      resources.wispGeo.dispose();
-      resources.wispMat.dispose();
       resources.raysGeo.dispose();
       resources.raysMat.dispose();
       resources.shockGeo.dispose();
@@ -1560,22 +1417,6 @@ export function ParticleHeart({
       heartHintTextRef.current.outlineOpacity = cueAlpha * 0.85;
     }
 
-    // Update rising stardust wisps between Galaxy core and Heart tip (fades out during morph, Supernova, or Constellation dim)
-    const wispVisibility =
-      active && !reducedMotion && phase === 'idle'
-        ? THREE.MathUtils.smoothstep(morphTimeRef.current, 2.35, 2.85) *
-          (1 - galaxySignals.galaxyDim * 0.9) *
-          (1 - galaxySignals.nodeFocusDim * 0.85) *
-          0.32
-        : 0;
-    resources.wispMat.uniforms.uTime.value = elapsed;
-    resources.wispMat.uniforms.uPixelRatio.value = dpr;
-    resources.wispMat.uniforms.uOpacity.value = THREE.MathUtils.lerp(
-      resources.wispMat.uniforms.uOpacity.value,
-      wispVisibility,
-      Math.min(1, dt * 6)
-    );
-
     // Idle gentle rotation & float (pauses during Beat 1b freeze so pinpoint stays rock-steady)
     if (heartGroupRef.current && !reducedMotion) {
       const idleWeight = THREE.MathUtils.smoothstep(morphTimeRef.current, 2.25, 2.8);
@@ -1680,14 +1521,6 @@ export function ParticleHeart({
           frustumCulled={false}
         />
       </group>
-
-      {/* Ultra-delicate rising stardust wisps softly bridging Galaxy core up toward the floating gap beneath the Heart tip */}
-      <points
-        geometry={resources.wispGeo}
-        material={resources.wispMat}
-        frustumCulled={false}
-        name="galaxy-heart-wisps"
-      />
     </>
   );
 }

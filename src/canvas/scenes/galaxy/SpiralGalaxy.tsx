@@ -9,7 +9,6 @@ interface SpiralGalaxyProps {
 }
 
 const GALAXY_PARTICLES = 5600;
-const FOUNTAIN_PARTICLES = 420;
 
 const GALAXY_VERTEX_SHADER = /* glsl */ `
   attribute float aScale;
@@ -73,44 +72,6 @@ const GALAXY_FRAGMENT_SHADER = /* glsl */ `
     float intensity = (core + halo) * vAlpha;
 
     gl_FragColor = vec4(vColor * (core * 1.2 + halo * 0.85), intensity);
-  }
-`;
-
-const FOUNTAIN_VERTEX_SHADER = /* glsl */ `
-  attribute float aProgress;
-  attribute float aAngle;
-  attribute float aSpread;
-  attribute float aScale;
-  attribute vec3 aColor;
-
-  uniform float uTime;
-  uniform float uBass;
-  uniform float uDim;
-  uniform float uPixelRatio;
-  uniform float uReducedMotion;
-
-  varying vec3 vColor;
-  varying float vAlpha;
-
-  void main() {
-    float motion = 1.0 - uReducedMotion;
-    float p = fract(aProgress + uTime * 0.24 * motion);
-
-    float y = 0.25 + p * 2.45;
-    float radius = 0.18 + pow(p, 1.35) * aSpread;
-    float angle = aAngle + p * 4.5 + uTime * 0.9 * motion;
-
-    vec3 pos = vec3(cos(angle) * radius, y, sin(angle) * radius);
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-
-    float fadeIn = smoothstep(0.0, 0.15, p);
-    float fadeOut = 1.0 - smoothstep(0.75, 1.0, p);
-    vAlpha = fadeIn * fadeOut * 0.85;
-    vColor = aColor * (1.0 + uBass * 0.35);
-
-    float atten = 26.0 / max(-mvPosition.z, 2.0);
-    gl_PointSize = clamp(aScale * uPixelRatio * atten, 1.4, 12.0);
   }
 `;
 
@@ -250,49 +211,6 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
       blending: THREE.AdditiveBlending,
     });
 
-    const fPos = new Float32Array(FOUNTAIN_PARTICLES * 3);
-    const fProg = new Float32Array(FOUNTAIN_PARTICLES);
-    const fAng = new Float32Array(FOUNTAIN_PARTICLES);
-    const fSpr = new Float32Array(FOUNTAIN_PARTICLES);
-    const fSca = new Float32Array(FOUNTAIN_PARTICLES);
-    const fCol = new Float32Array(FOUNTAIN_PARTICLES * 3);
-
-    for (let i = 0; i < FOUNTAIN_PARTICLES; i++) {
-      const i3 = i * 3;
-      fProg[i] = rand();
-      fAng[i] = rand() * Math.PI * 2;
-      fSpr[i] = 0.25 + rand() * 1.15;
-      fSca[i] = 0.8 + rand() * 1.2;
-
-      tmpColor.copy(cCore).lerp(rand() < 0.5 ? cPink : cMagenta, 0.35 + rand() * 0.55);
-      fCol[i3] = tmpColor.r * 1.25;
-      fCol[i3 + 1] = tmpColor.g * 1.25;
-      fCol[i3 + 2] = tmpColor.b * 1.25;
-    }
-
-    const fountainGeo = new THREE.BufferGeometry();
-    fountainGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
-    fountainGeo.setAttribute('aProgress', new THREE.BufferAttribute(fProg, 1));
-    fountainGeo.setAttribute('aAngle', new THREE.BufferAttribute(fAng, 1));
-    fountainGeo.setAttribute('aSpread', new THREE.BufferAttribute(fSpr, 1));
-    fountainGeo.setAttribute('aScale', new THREE.BufferAttribute(fSca, 1));
-    fountainGeo.setAttribute('aColor', new THREE.BufferAttribute(fCol, 3));
-
-    const fountainMat = new THREE.ShaderMaterial({
-      vertexShader: FOUNTAIN_VERTEX_SHADER,
-      fragmentShader: GALAXY_FRAGMENT_SHADER,
-      uniforms: {
-        uTime: { value: 0 },
-        uBass: { value: 0 },
-        uDim: { value: 0 },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
-        uReducedMotion: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
     const accretionGeo = new THREE.PlaneGeometry(3.7, 3.7);
     const accretionMat = new THREE.ShaderMaterial({
       vertexShader: ACCRETION_VERTEX_SHADER,
@@ -314,8 +232,6 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
     return {
       galaxyGeo,
       galaxyMat,
-      fountainGeo,
-      fountainMat,
       accretionGeo,
       accretionMat,
       coreGeo,
@@ -326,15 +242,12 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
   useEffect(() => {
     const clamped = THREE.MathUtils.clamp(quality, 0.6, 1);
     resources.galaxyGeo.setDrawRange(0, Math.floor(GALAXY_PARTICLES * clamped));
-    resources.fountainGeo.setDrawRange(0, Math.floor(FOUNTAIN_PARTICLES * clamped));
   }, [quality, resources]);
 
   useEffect(() => {
     return () => {
       resources.galaxyGeo.dispose();
       resources.galaxyMat.dispose();
-      resources.fountainGeo.dispose();
-      resources.fountainMat.dispose();
       resources.accretionGeo.dispose();
       resources.accretionMat.dispose();
       resources.coreGeo.dispose();
@@ -363,12 +276,6 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
     resources.galaxyMat.uniforms.uReducedMotion.value = rm;
     resources.galaxyMat.uniforms.uPointerStrength.value =
       quality < 0.65 || reducedMotion ? 0 : galaxySignals.pointerStrength;
-
-    resources.fountainMat.uniforms.uTime.value = elapsed;
-    resources.fountainMat.uniforms.uBass.value = bass;
-    resources.fountainMat.uniforms.uDim.value = combinedDim;
-    resources.fountainMat.uniforms.uPixelRatio.value = dpr;
-    resources.fountainMat.uniforms.uReducedMotion.value = rm;
 
     resources.accretionMat.uniforms.uTime.value = elapsed * (1 - rm * 0.7);
     resources.accretionMat.uniforms.uBass.value = bass;
@@ -400,12 +307,6 @@ export function SpiralGalaxy({ quality = 1, reducedMotion = false }: SpiralGalax
         material={resources.accretionMat}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.02, 0]}
-      />
-
-      <points
-        geometry={resources.fountainGeo}
-        material={resources.fountainMat}
-        frustumCulled={false}
       />
     </group>
   );
