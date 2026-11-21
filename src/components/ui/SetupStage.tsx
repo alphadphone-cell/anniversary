@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { musicEngine } from '../../utils/musicEngine';
 import { sfxEngine } from '../../utils/sfxEngine';
 
-type SetupPhase = 1 | 2 | 3 | 'verifying' | 'whisper';
+type SetupPhase = 1 | 2 | 3 | 4 | 'verifying' | 'whisper';
 
 interface FullscreenDocumentElement extends HTMLElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -165,8 +165,15 @@ export function SetupStage() {
     setPhase(3);
   }, []);
 
-  // Step 3 -> enter 'verifying' phase (checklist ticks & whisper run cleanly once the checklist mounts)
+  // Step 3 -> Step 4
   const handleStep3Confirm = useCallback(() => {
+    if (busyRef.current) return;
+    sfxEngine.playStarSelect();
+    setPhase(4);
+  }, []);
+
+  // Step 4 -> enter 'verifying' phase (checklist ticks & whisper run cleanly once the checklist mounts)
+  const handleStep4Confirm = useCallback(() => {
     if (busyRef.current) return;
     busyRef.current = true;
     clearAllTimers();
@@ -241,7 +248,7 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ NHẮN NHỎ EM XÍU · 1/3
+                ✦ NHẮN NHỎ EM XÍU · 1/4
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
@@ -270,7 +277,7 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ CHỈNH NHẠC CHÚT NHA · 2/3
+                ✦ CHỈNH NHẠC CHÚT NHA · 2/4
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
@@ -327,7 +334,7 @@ export function SetupStage() {
               className="flex flex-col items-center"
             >
               <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
-                ✦ EM SẴN SÀNG CHƯA? · 3/3
+                ✦ EM SẴN SÀNG CHƯA? · 3/4
               </p>
 
               <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
@@ -338,9 +345,41 @@ export function SetupStage() {
               <button
                 type="button"
                 onClick={handleStep3Confirm}
-                className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/50 bg-gradient-to-r from-pink-500/20 via-fuchsia-500/16 to-pink-500/20 px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_26px_rgba(244,114,182,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-200/80 hover:shadow-[0_0_32px_rgba(244,114,182,0.42)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
+                className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/40 bg-white/[0.04] px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_24px_rgba(244,114,182,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-300/75 hover:bg-pink-500/15 hover:shadow-[0_0_28px_rgba(244,114,182,0.34)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
               >
                 Em sẵn sàng rồi ♥
+              </button>
+            </motion.div>
+          )}
+
+          {phase === 4 && (
+            <motion.div
+              key="setup-step-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-col items-center"
+            >
+              <p className="font-sans text-[11px] font-medium tracking-[0.26em] text-pink-300/80 uppercase">
+                ✦ DẶN DÒ EM XÍU · 4/4
+              </p>
+
+              <h2 className="mt-5 font-display text-xl leading-relaxed font-normal text-white/90 sm:text-2xl sm:leading-relaxed">
+                Ở{' '}
+                <span className="font-medium text-pink-200">
+                  góc dưới chính giữa màn hình
+                </span>{' '}
+                anh có để sẵn hướng dẫn cho em, nếu em không biết bắt đầu từ đâu thì cứ đọc dưới đó
+                và bấm hoặc bấm <span className="font-medium text-pink-200">chữ mở</span> nhé.
+              </h2>
+
+              <button
+                type="button"
+                onClick={handleStep4Confirm}
+                className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-pink-300/50 bg-gradient-to-r from-pink-500/20 via-fuchsia-500/16 to-pink-500/20 px-7 py-2.5 font-sans text-xs font-medium tracking-wide text-white shadow-[0_0_26px_rgba(244,114,182,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:border-pink-200/80 hover:shadow-[0_0_32px_rgba(244,114,182,0.42)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/80 sm:text-[13px]"
+              >
+                Em nhớ rồi, vào thôi ♥
               </button>
             </motion.div>
           )}
