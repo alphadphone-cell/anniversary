@@ -474,13 +474,13 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
 
   secretSupernova: {
     headline: 'Tấm Ảnh Đặc Biệt Nhất Anh Giữ Cho Bé',
-    subtitle: '31/12/2023 · Cái nắm tay giao thừa · Mở khóa tại lõi trái tim ngân hà',
+    subtitle: '31/12/2023 · Cái nắm tay giao thừa',
     imageUrl: '/media/memories/01-nova-hands.webp',
     aspect: 'portrait',
     paragraphs: [
       'Bé còn nhớ tấm ảnh này không? Đây chính là biểu hiện tình yêu của mình trong 3 năm nay, anh vẫn luôn giữ nó trong app chưa thay đổi lần nào, cũng là một cột mốc đánh dấu tình yêu của tụi mình.',
       'Anh giấu tấm ảnh hai bàn tay đan chặt nhau đêm ấy ở tận sâu trong lõi trái tim này — vì với anh, đây luôn là khoảnh khắc đặc biệt và quý giá nhất trong suốt 3 năm qua.',
-      'Từ những ngày đầu lớp 11 bỡ ngỡ, qua cả đêm trăng tròn từng suýt lạc nhau rồi thương lại sâu đậm hơn, đến tuổi 18 trưởng thành hôm nay — chỉ cần còn được nắm chặt bàn tay này của bé Tlinh, anh chẳng sợ bất kỳ khoảng cách hay giông gió nào nữa.',
+      'Từ những ngày đầu lớp 11 bỡ ngỡ, qua cả đêm trăng tròn từng suýt lạc nhau rồi thương lại sâu đậm hơn, đến tuổi 18 trưởng thành hôm nay — chỉ cần còn được nắm chặt bàn tay của bé, anh chẳng sợ bất kỳ khoảng cách hay giông gió nào nữa.',
     ],
     promiseLabel: 'Lời hứa 3 năm của AD · Đổi một điều ước bất kỳ, anh luôn đồng ý với bé',
     signature: 'Mãi nắm chặt tay bé — AD',
