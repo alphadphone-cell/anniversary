@@ -127,6 +127,8 @@ export interface AnniversaryConfig {
   gallery: GalleryMemory[];
   rewards: AnniversaryReward[];
   secretSupernova: SecretSupernovaConfig;
+  /** Ảnh chân dung nền trong suốt / tối để hóa hình tượng hạt 3D hai đứa sau màn nổ Siêu Tân Tinh */
+  coupleFinaleImage: string;
   constellationMilestones: ConstellationMilestone[];
   /** Biểu tượng / logo phát sáng của chòm sao hiện lên khi hoàn thành cả 7 mốc */
   constellationEmblem: ConstellationEmblemConfig;
@@ -485,6 +487,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     promiseLabel: 'Lời hứa 3 năm của AD · Đổi một điều ước bất kỳ, anh luôn đồng ý với bé',
     signature: 'Mãi nắm chặt tay bé — AD',
   },
+
+  coupleFinaleImage: '/images/couple-finale.png',
 
   // Chòm sao Ma Kết (Capricornus — 30/12/2007 · Sinh nhật Thuỳ Linh):
   // 7 ngôi sao chính nối trọn dòng thời gian 3 năm của AD & Tlinh:

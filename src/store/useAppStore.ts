@@ -80,6 +80,7 @@ interface AppState {
   completedSteps: JourneyStepId[];
   pickedCardId: string | null;
   supernovaCompleted: boolean;
+  centerpieceForm: 'heart' | 'couple';
   guidePillDismissed: boolean;
   isMuted: boolean;
   isMusicPlaying: boolean;
@@ -128,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   completedSteps: [],
   pickedCardId: null,
   supernovaCompleted: false,
+  centerpieceForm: 'heart',
   guidePillDismissed: false,
   isMuted: false,
   isMusicPlaying: false,
@@ -317,6 +319,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       let nextCompleted = state.completedSteps;
       let nextSupernovaDone = state.supernovaCompleted;
+      let nextCenterpieceForm = state.centerpieceForm;
       let nextDismissed = state.guidePillDismissed;
 
       if (state.activeModal && CORE_MODAL_STEPS.has(state.activeModal)) {
@@ -327,6 +330,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       } else if (state.activeModal === 'secret') {
         nextSupernovaDone = true;
+        nextCenterpieceForm = 'couple';
         nextDismissed = false;
       }
 
@@ -352,6 +356,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         cameraTransitionId: state.cameraTransitionId + 1,
         completedSteps: nextCompleted,
         supernovaCompleted: nextSupernovaDone,
+        centerpieceForm: nextCenterpieceForm,
         guidePillDismissed: nextDismissed,
       };
     }),
@@ -459,6 +464,7 @@ export const useConstellationFinaleActive = () => useAppStore((s) => s.constella
 export const useCompletedSteps = () => useAppStore((s) => s.completedSteps);
 export const usePickedCardId = () => useAppStore((s) => s.pickedCardId);
 export const useSupernovaCompleted = () => useAppStore((s) => s.supernovaCompleted);
+export const useCenterpieceForm = () => useAppStore((s) => s.centerpieceForm);
 export const useGuidePillDismissed = () => useAppStore((s) => s.guidePillDismissed);
 export const useIsMuted = () => useAppStore((s) => s.isMuted);
 export const useIsMusicPlaying = () => useAppStore((s) => s.isMusicPlaying);
