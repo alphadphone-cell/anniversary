@@ -278,7 +278,7 @@ export function IntroStage() {
           <motion.h1
             animate={{ opacity: isDissolving ? 0 : 1, y: isDissolving ? -8 : 0 }}
             transition={{ duration: 0.28 }}
-            className="mt-3.5 bg-gradient-to-b from-[#fffbfd] via-[#fce7f3] to-[#f9a8d4] bg-clip-text py-1 font-display text-[34px] leading-[1.28] font-medium tracking-tight text-transparent sm:text-[42px]"
+            className="mt-3.5 text-balance bg-gradient-to-b from-[#fffbfd] via-[#fce7f3] to-[#f9a8d4] bg-clip-text py-1 font-display text-[34px] leading-[1.28] font-medium tracking-tight text-transparent sm:text-[42px]"
             style={{
               filter: 'drop-shadow(0 0 22px rgba(255, 118, 198, 0.32))',
             }}

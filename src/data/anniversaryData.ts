@@ -148,7 +148,7 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
   coupleNames: ['AD', 'Tlinh'],
   experienceTitle: 'Quỹ Đạo Của Tụi Mình',
   experienceSubtitle: 'Mỗi vì sao đều lưu giữ một kỷ niệm của AD & Tlinh từ lớp 11 đến nay.',
-  introHeadline: 'Chúc Mừng Kỷ Niệm',
+  introHeadline: 'Chúc Mừng Kỷ Niệm 3 Năm',
   introStatusLabel: 'ĐANG NẠP YÊU THƯƠNG...',
   galaxyPhrases: [
     'AD ♥ Tlinh',
