@@ -217,8 +217,8 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
       emblem: 'keepsake-heart',
     },
   ],
-  startDateISO: '2023-11-20T00:00:00+07:00',
-  anniversaryDateISO: '2026-11-20T00:00:00+07:00',
+  startDateISO: '2023-11-20T10:30:00+07:00',
+  anniversaryDateISO: '2026-11-20T10:30:00+07:00',
   anniversaryOrdinal: 'Kỷ niệm 3 năm',
 
   letter: {
@@ -237,16 +237,16 @@ export const ANNIVERSARY_DATA: AnniversaryConfig = {
     {
       id: 'first-spark',
       date: '20/11/2023',
-      title: 'Ngày Mọi Thứ Bắt Đầu · Lớp 11',
-      location: 'Mái Trường Cấp 3 Của Tụi Mình',
-      note: 'Từ ngày 20/11 năm lớp 11 ấy, quỹ đạo của AD và Tlinh chính thức giao nhau.',
+      title: 'Nơi Mọi Thứ Bắt Đầu',
+      location: '10h30 · THPT THĐ',
+      note: 'Đúng 10h30 ngày 20/11 năm lớp 11, quỹ đạo của AD và Tlinh chính thức giao nhau.',
     },
     {
-      id: 'full-moon-heal',
-      date: '22/05/2024',
-      title: 'Đêm Trăng Tròn Mình Chọn Ở Lại',
-      location: 'Dưới Ánh Trăng Đêm',
-      note: 'Sau một lần giận hờn tưởng chừng chững lại, hai đứa hàn gắn và thương nhau còn sâu đậm hơn.',
+      id: 'first-kiss',
+      date: '29/12/2023',
+      title: 'Nụ Hôn Đầu Tiên',
+      location: 'Khoảnh Khắc Ngọt Ngào Khó Quên',
+      note: 'Khoảnh khắc tim đập nhanh nhất và dịu dàng nhất của hai đứa trong những ngày đầu bên nhau.',
     },
     {
       id: 'grow-up-18',
