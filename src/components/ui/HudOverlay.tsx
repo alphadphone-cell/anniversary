@@ -22,7 +22,7 @@ import { ConstellationCard } from './ConstellationCard';
 import { JourneyGuidePill } from './JourneyGuidePill';
 
 // Temporary dev helper toggle — set to `false` (or remove) once content customization is finished
-const SHOW_DEV_SKIP_BUTTON = true;
+const SHOW_DEV_SKIP_BUTTON = false;
 
 /** Isolated flash overlay so flashing never re-renders the main HUD or WebGL canvas. */
 function WarpFlashOverlay() {
