@@ -431,6 +431,7 @@ function GalaxyNodeItem({
   }, [node]);
 
   const hoverLabelRef = useRef<{ fillOpacity?: number; outlineOpacity?: number; visible?: boolean } | null>(null);
+  const coupleClearanceRef = useRef(0);
 
   useEffect(() => {
     if (!interactive && hovered) {
@@ -531,7 +532,7 @@ function GalaxyNodeItem({
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
     const elapsed = state.clock.elapsedTime;
-    const { completedSteps, viewMode, activeModal, focusingNodeId } = useAppStore.getState();
+    const { completedSteps, viewMode, activeModal, focusingNodeId, centerpieceForm } = useAppStore.getState();
 
     const isFocusedTarget =
       galaxySignals.focusingNodeId === node.id ||
@@ -540,15 +541,26 @@ function GalaxyNodeItem({
     const isAnyFocusOrModal =
       galaxySignals.focusingNodeId !== null || focusingNodeId !== null || activeModal !== null;
 
+    // Smoothly widen & lower the orbital plane below the Couple Portrait so nodes never collide across their chests
+    const targetClearance = centerpieceForm === 'couple' ? 1 : 0;
+    coupleClearanceRef.current = THREE.MathUtils.lerp(
+      coupleClearanceRef.current,
+      targetClearance,
+      Math.min(1, dt * 2.2)
+    );
+    const clearance = coupleClearanceRef.current;
+
     // Strictly phase-locked orbital sector derived from the single shared masterOrbitAngleRef
     if (groupRef.current) {
       const sectorAngle = masterOrbitAngleRef.current + sectorOffset;
-      const x = Math.cos(sectorAngle) * radius;
-      const z = Math.sin(sectorAngle) * radius;
+      const activeRadius = radius * THREE.MathUtils.lerp(1, 1.18, clearance);
+      const x = Math.cos(sectorAngle) * activeRadius;
+      const z = Math.sin(sectorAngle) * activeRadius;
       const bobAmp = isFocusedTarget ? 0.04 : 0.22;
       const bob = reducedMotion ? 0 : Math.sin(elapsed * 0.9 + index * 1.4) * bobAmp;
-      const clampedY = Math.max(NODE_ORBIT_MIN_Y, baseY + bob);
-      groupRef.current.position.set(x, clampedY, z);
+      const lowOrbitY = 0.22 + (index % 2) * 0.28;
+      const activeY = THREE.MathUtils.lerp(Math.max(NODE_ORBIT_MIN_Y, baseY + bob), lowOrbitY + bob * 0.55, clearance);
+      groupRef.current.position.set(x, activeY, z);
       groupRef.current.getWorldPosition(galaxySignals.nodeWorldPositions[node.id]);
     }
 

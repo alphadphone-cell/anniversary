@@ -6,8 +6,8 @@ import { galaxySignals, HEART_CENTER_Y } from '../../galaxySignals';
 import { isAllCoreJourneyCompleted, useAppStore } from '../../../store/useAppStore';
 import { ANNIVERSARY_DATA } from '../../../data/anniversaryData';
 import {
-  generateFallbackCoupleSculpture,
-  sampleImageTo3DParticles,
+  generateFallbackCouplePortrait,
+  sampleCouplePortrait3D,
 } from '../../../utils/sampleImageTo3DParticles';
 import { sfxEngine } from '../../../utils/sfxEngine';
 import { musicEngine } from '../../../utils/musicEngine';
@@ -20,6 +20,9 @@ interface ParticleHeartProps {
 }
 
 const HEART_PARTICLES = 5000;
+const COUPLE_PORTRAIT_DESKTOP = 24000;
+const COUPLE_PORTRAIT_MOBILE = 14000;
+const COUPLE_RIM_SPARKLES = 1800;
 const ENERGY_RAY_COUNT = 36;
 const FINALE_RAIN_COUNT = 520;
 const HEART_BASE_Y = HEART_CENTER_Y;
@@ -37,8 +40,6 @@ const HEART_VERTEX_SHADER = /* glsl */ `
   attribute float aScale;
   attribute float aPhase;
   attribute vec3 aColor;
-  attribute vec3 aCouplePos;
-  attribute vec3 aCoupleColor;
   attribute vec3 aBurstDir;
   attribute vec3 aOriginPos;
   attribute vec3 aScatterPos;
@@ -60,21 +61,18 @@ const HEART_VERTEX_SHADER = /* glsl */ `
   uniform float uDetonateTime;
   uniform float uReformFactor;
   uniform float uAbsorptionGlow;
-  uniform float uCoupleMix;
+  uniform float uHeartFade;
 
   varying vec3 vColor;
   varying float vAlpha;
   varying float vSparkBoost;
 
   void main() {
-    vec3 activeShapePos = mix(position, aCouplePos, uCoupleMix);
-    vec3 activeShapeColor = mix(aColor, aCoupleColor, uCoupleMix);
-
-    if (uActive < 0.5) {
+    if (uActive < 0.5 || uHeartFade < 0.004) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
       vAlpha = 0.0;
-      vColor = activeShapeColor;
+      vColor = aColor;
       vSparkBoost = 0.0;
       return;
     }
@@ -84,13 +82,10 @@ const HEART_VERTEX_SHADER = /* glsl */ `
 
     // Base idle target position (audio-reactive breathing + joyous Starfall absorption swell)
     float handOff = smoothstep(2.42, 2.8, uMorphTime);
-    float pulseAmp = mix(0.04, 0.022, uCoupleMix);
-    float bassAmp = mix(0.085, 0.048, uCoupleMix);
-    float beatScale = 1.0 + (uPulse * pulseAmp + uBass * bassAmp + uAbsorptionGlow * 0.095) * handOff;
-    vec3 targetPos = heartCenter + (activeShapePos - heartCenter) * beatScale;
-    float microDrift = mix(0.025, 0.013, uCoupleMix);
-    targetPos.x += sin(uTime * 1.4 * motion + aPhase) * microDrift * motion * handOff;
-    targetPos.y += cos(uTime * 1.2 * motion + aPhase) * microDrift * motion * handOff;
+    float beatScale = 1.0 + (uPulse * 0.04 + uBass * 0.085 + uAbsorptionGlow * 0.095) * handOff;
+    vec3 targetPos = heartCenter + (position - heartCenter) * beatScale;
+    targetPos.x += sin(uTime * 1.4 * motion + aPhase) * 0.025 * motion * handOff;
+    targetPos.y += cos(uTime * 1.2 * motion + aPhase) * 0.025 * motion * handOff;
 
     vec3 pos = targetPos;
     float sparkBoost = 0.0;
@@ -187,7 +182,7 @@ const HEART_VERTEX_SHADER = /* glsl */ `
 
       vec3 explodedPos = heartCenter + aBurstDir * burstRadius + drift;
 
-      // Staggered per-particle easeOutQuint swirl & coalescence into the target sculpture
+      // Staggered per-particle easeOutQuint inward swirl during post-Supernova crossfade
       float pDelay = aRandom * 0.22;
       float pU = clamp((uReformFactor - pDelay) / max(0.001, 1.0 - pDelay), 0.0, 1.0);
       float rf = 1.0 - pow(1.0 - pU, 5.0);
@@ -196,14 +191,13 @@ const HEART_VERTEX_SHADER = /* glsl */ `
       if (uReformFactor > 0.001 && uReformFactor < 0.999 && uReducedMotion < 0.5) {
         float arcEnv = sin(rf * 3.14159265);
         float swirlSign = aRandom > 0.5 ? 1.0 : -1.0;
-        float coupleBoost = mix(0.45, 1.0, uCoupleMix);
-        float swirlAng = arcEnv * (1.18 + aRandom * 0.78) * swirlSign * coupleBoost;
+        float swirlAng = arcEnv * (1.15 + aRandom * 0.72) * swirlSign;
         vec3 rel = coalescedPos - heartCenter;
         float cs = cos(swirlAng);
         float sn = sin(swirlAng);
         coalescedPos = heartCenter + vec3(
           rel.x * cs - rel.z * sn,
-          rel.y + arcEnv * (0.38 + aRandom * 0.45) * coupleBoost,
+          rel.y + arcEnv * (0.35 + aRandom * 0.42),
           rel.x * sn + rel.z * cs
         );
       }
@@ -241,16 +235,15 @@ const HEART_VERTEX_SHADER = /* glsl */ `
     vec3 starHighlight = vec3(2.05, 1.72, 1.98);
     vec3 champagneGold = vec3(1.88, 1.56, 1.02);
     float hotMix = clamp(sparkBoost * 0.62 + singularityGlow * 0.45 + detGlow * 0.4 + uAbsorptionGlow * 0.32, 0.0, 0.85);
-    vec3 baseCol = mix(activeShapeColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
+    vec3 baseCol = mix(aColor * energyGlow, starHighlight * (1.0 + hotMix * 0.4), hotMix);
     float warmMix = clamp(finaleWarm * 0.52 + uAbsorptionGlow * (0.42 + 0.25 * sin(uTime * 5.0 + aPhase)), 0.0, 0.78);
     vColor = mix(baseCol, champagneGold * (1.0 + (detGlow + uAbsorptionGlow) * 0.38), warmMix);
-    vAlpha = clamp(sparkle + sparkBoost * 0.2 + lockPulse * 0.2 + singularityGlow * 0.3 + uAbsorptionGlow * 0.25, 0.0, 1.0) * (1.0 - uDim * 0.45);
+    vAlpha = clamp(sparkle + sparkBoost * 0.2 + lockPulse * 0.2 + singularityGlow * 0.3 + uAbsorptionGlow * 0.25, 0.0, 1.0) * (1.0 - uDim * 0.45) * uHeartFade;
     vSparkBoost = max(sparkBoost, uAbsorptionGlow * 0.9);
 
     float sizeBoost = 1.0 + uBass * 0.18 + sparkBoost * 0.48 + lockPulse * 0.26 + detGlow * 0.24 + uAbsorptionGlow * 0.32;
-    float formScale = mix(1.0, 0.82, uCoupleMix);
     float atten = 34.0 / max(-mvPosition.z, 2.0);
-    gl_PointSize = clamp(aScale * formScale * sizeBoost * uPixelRatio * atten, 2.0, 22.0);
+    gl_PointSize = clamp(aScale * sizeBoost * uPixelRatio * atten, 2.0, 22.0);
   }
 `;
 
@@ -275,6 +268,219 @@ const HEART_FRAGMENT_SHADER = /* glsl */ `
 
     float alpha = clamp((core + halo + starCross) * vAlpha, 0.0, 1.0);
     gl_FragColor = vec4(vColor * (core * 1.48 + halo * 0.92 + starCross), alpha);
+  }
+`;
+
+/**
+ * High-Resolution Holographic Portrait Shader (NormalBlending + depthTest: true).
+ * Preserves photo-faithful dark contrast (glasses frames, pupils, eyebrows, dark outfits)
+ * against luminous skin & warm rose-gold sheen without additive bloom whiteout.
+ */
+const COUPLE_PORTRAIT_VERTEX_SHADER = /* glsl */ `
+  attribute vec3 aColor;
+  attribute float aScale;
+  attribute float aRandom;
+  attribute float aPhase;
+  attribute vec3 aBurstDir;
+
+  uniform float uReveal;
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uBass;
+  uniform float uDim;
+  uniform float uPixelRatio;
+  uniform float uPointBase;
+  uniform float uReducedMotion;
+  uniform float uSupernovaCharge;
+  uniform float uSupernovaFreeze;
+  uniform float uDetonateTime;
+
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  void main() {
+    if (uReveal <= 0.002) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      vAlpha = 0.0;
+      vColor = aColor;
+      return;
+    }
+
+    float motion = 1.0 - uReducedMotion;
+    vec3 portraitCenter = vec3(0.0, 0.72, 0.0);
+
+    // Subtle audio-reactive breathing + micro stardust shimmer (keeps facial contours crisp)
+    float beatScale = 1.0 + (uPulse * 0.01 + uBass * 0.022);
+    vec3 targetPos = portraitCenter + (position - portraitCenter) * beatScale;
+    targetPos.x += sin(uTime * 1.3 * motion + aPhase) * 0.004 * motion;
+    targetPos.y += cos(uTime * 1.15 * motion + aPhase) * 0.004 * motion;
+
+    // Staggered per-particle easeOutQuint curved inward swirl materialization
+    float pDelay = aRandom * 0.24;
+    float pU = clamp((uReveal - pDelay) / max(0.001, 1.0 - pDelay), 0.0, 1.0);
+    float rf = uReducedMotion > 0.5 ? uReveal : (1.0 - pow(1.0 - pU, 5.0));
+
+    vec3 startScatter = portraitCenter + aBurstDir * (5.8 + aRandom * 5.2);
+    vec3 pos = mix(startScatter, targetPos, rf);
+
+    if (rf > 0.001 && rf < 0.999 && uReducedMotion < 0.5) {
+      float arcEnv = sin(rf * 3.14159265);
+      float swirlSign = aRandom > 0.5 ? 1.0 : -1.0;
+      float swirlAng = arcEnv * (1.25 + aRandom * 0.75) * swirlSign;
+      vec3 rel = pos - portraitCenter;
+      float cs = cos(swirlAng);
+      float sn = sin(swirlAng);
+      pos = portraitCenter + vec3(
+        rel.x * cs - rel.z * sn,
+        rel.y + arcEnv * (0.35 + aRandom * 0.35),
+        rel.x * sn + rel.z * cs
+      );
+    }
+
+    // Supernova Replay Implosion & Freeze when pressing-and-holding the Couple Portrait
+    float singGlow = 0.0;
+    if ((uSupernovaCharge > 0.001 || uSupernovaFreeze > 0.001) && uDetonateTime < 0.0) {
+      float c = clamp(max(uSupernovaCharge, uSupernovaFreeze), 0.0, 1.0);
+      vec3 offset = pos - portraitCenter;
+      float isoScale = mix(1.0, 0.03, pow(c, 1.75));
+      if (uSupernovaFreeze > 0.01) {
+        isoScale = mix(isoScale, 0.015, uSupernovaFreeze);
+      }
+      float twist = pow(c, 1.5) * 4.4 * (0.7 + aRandom * 0.6);
+      float ct = cos(twist);
+      float st = sin(twist);
+      vec3 twisted = vec3(offset.x * ct - offset.z * st, offset.y, offset.x * st + offset.z * ct);
+      pos = portraitCenter + twisted * isoScale;
+      singGlow = pow(c, 1.4) * 0.75;
+    }
+
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+
+    // Smooth ember-to-photo color transition while materializing
+    float twinkle = 0.94 + 0.06 * sin(uTime * (2.4 + aRandom * 2.2) * motion + aPhase);
+    float dimMul = 1.0 - uDim * 0.68;
+    vec3 emberCol = vec3(0.82, 0.62, 0.76);
+    float inFlight = (1.0 - rf);
+    vec3 col = mix(aColor * twinkle, emberCol, clamp(inFlight * 0.8 + singGlow, 0.0, 0.9));
+    vColor = col * (1.0 + uBass * 0.08) * dimMul;
+
+    float fadeIn = smoothstep(0.0, 0.24, pU);
+    vAlpha = fadeIn * (1.0 - uDim * 0.42);
+
+    float atten = 18.0 / max(-mvPosition.z, 2.0);
+    float flightShrink = mix(0.85, 1.0, rf);
+    gl_PointSize = clamp(aScale * uPointBase * flightShrink * uPixelRatio * atten, 1.8, 12.0);
+  }
+`;
+
+const COUPLE_PORTRAIT_FRAGMENT_SHADER = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  void main() {
+    if (vAlpha <= 0.01) discard;
+    vec2 uv = gl_PointCoord - vec2(0.5);
+    float dist = length(uv);
+    if (dist > 0.5) discard;
+
+    // Silky soft-edged micro-stardust disc (NormalBlending + depthWrite:false eliminates dark pinhole artifacts)
+    float disc = 1.0 - smoothstep(0.18, 0.5, dist);
+    float alpha = disc * vAlpha;
+    if (alpha <= 0.01) discard;
+    gl_FragColor = vec4(vColor, clamp(alpha * 0.94, 0.0, 0.94));
+  }
+`;
+
+/**
+ * Separate AdditiveBlending Rim + Hair Highlights + Floating Mini-Heart Sparkle Layer (~1,800 particles).
+ * Catches selective Bloom exclusively along outer contour & floating heart without washing out faces.
+ */
+const COUPLE_RIM_VERTEX_SHADER = /* glsl */ `
+  attribute vec3 aColor;
+  attribute float aScale;
+  attribute float aRandom;
+  attribute float aPhase;
+  attribute vec3 aBurstDir;
+
+  uniform float uReveal;
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uBass;
+  uniform float uDim;
+  uniform float uPixelRatio;
+  uniform float uReducedMotion;
+  uniform float uSupernovaCharge;
+  uniform float uSupernovaFreeze;
+  uniform float uDetonateTime;
+
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vSparkBoost;
+
+  void main() {
+    if (uReveal <= 0.002) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      vAlpha = 0.0;
+      vColor = aColor;
+      vSparkBoost = 0.0;
+      return;
+    }
+
+    float motion = 1.0 - uReducedMotion;
+    vec3 portraitCenter = vec3(0.0, 0.72, 0.0);
+
+    float beatScale = 1.0 + (uPulse * 0.016 + uBass * 0.032);
+    vec3 targetPos = portraitCenter + (position - portraitCenter) * beatScale;
+    targetPos.x += sin(uTime * 1.5 * motion + aPhase) * 0.012 * motion;
+    targetPos.y += cos(uTime * 1.3 * motion + aPhase) * 0.012 * motion;
+
+    float pDelay = aRandom * 0.24;
+    float pU = clamp((uReveal - pDelay) / max(0.001, 1.0 - pDelay), 0.0, 1.0);
+    float rf = uReducedMotion > 0.5 ? uReveal : (1.0 - pow(1.0 - pU, 5.0));
+
+    vec3 startScatter = portraitCenter + aBurstDir * (6.2 + aRandom * 5.6);
+    vec3 pos = mix(startScatter, targetPos, rf);
+
+    if (rf > 0.001 && rf < 0.999 && uReducedMotion < 0.5) {
+      float arcEnv = sin(rf * 3.14159265);
+      float swirlSign = aRandom > 0.5 ? 1.0 : -1.0;
+      float swirlAng = arcEnv * (1.35 + aRandom * 0.8) * swirlSign;
+      vec3 rel = pos - portraitCenter;
+      float cs = cos(swirlAng);
+      float sn = sin(swirlAng);
+      pos = portraitCenter + vec3(
+        rel.x * cs - rel.z * sn,
+        rel.y + arcEnv * (0.42 + aRandom * 0.4),
+        rel.x * sn + rel.z * cs
+      );
+    }
+
+    if ((uSupernovaCharge > 0.001 || uSupernovaFreeze > 0.001) && uDetonateTime < 0.0) {
+      float c = clamp(max(uSupernovaCharge, uSupernovaFreeze), 0.0, 1.0);
+      vec3 offset = pos - portraitCenter;
+      float isoScale = mix(1.0, 0.03, pow(c, 1.75));
+      if (uSupernovaFreeze > 0.01) isoScale = mix(isoScale, 0.015, uSupernovaFreeze);
+      float twist = pow(c, 1.5) * 4.6 * (0.7 + aRandom * 0.6);
+      float ct = cos(twist);
+      float st = sin(twist);
+      vec3 twisted = vec3(offset.x * ct - offset.z * st, offset.y, offset.x * st + offset.z * ct);
+      pos = portraitCenter + twisted * isoScale;
+    }
+
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+
+    float twinkle = 0.68 + 0.32 * sin(uTime * (2.6 + aRandom * 3.2) * motion + aPhase);
+    float dimMul = 1.0 - uDim * 0.72;
+    vColor = aColor * (1.0 + uPulse * 0.16 + uBass * 0.28) * dimMul;
+    vAlpha = smoothstep(0.0, 0.25, pU) * twinkle * (1.0 - uDim * 0.45);
+    vSparkBoost = 0.35 + 0.45 * sin(rf * 3.14159265);
+
+    float atten = 28.0 / max(-mvPosition.z, 2.0);
+    gl_PointSize = clamp(aScale * (1.0 + uBass * 0.15) * uPixelRatio * atten, 1.8, 16.0);
   }
 `;
 
@@ -570,6 +776,9 @@ export function ParticleHeart({
   reducedMotion = false,
 }: ParticleHeartProps) {
   const heartGroupRef = useRef<THREE.Group>(null);
+  const heartPointsRef = useRef<THREE.Points>(null);
+  const portraitPointsRef = useRef<THREE.Points>(null);
+  const rimPointsRef = useRef<THREE.Points>(null);
   const shockRingARef = useRef<THREE.Mesh>(null);
   const shockRingBRef = useRef<THREE.Mesh>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
@@ -768,12 +977,8 @@ export function ParticleHeart({
       phases[i] = rand() * Math.PI * 2;
     }
 
-    const fallbackCouple = generateFallbackCoupleSculpture(HEART_PARTICLES);
-
     const heartGeo = new THREE.BufferGeometry();
     heartGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    heartGeo.setAttribute('aCouplePos', new THREE.BufferAttribute(fallbackCouple.positions, 3));
-    heartGeo.setAttribute('aCoupleColor', new THREE.BufferAttribute(fallbackCouple.colors, 3));
     heartGeo.setAttribute('aOriginPos', new THREE.BufferAttribute(origins, 3));
     heartGeo.setAttribute('aScatterPos', new THREE.BufferAttribute(scatters, 3));
     heartGeo.setAttribute('aDelay', new THREE.BufferAttribute(delays, 1));
@@ -802,7 +1007,87 @@ export function ParticleHeart({
         uDetonateTime: { value: -1 },
         uReformFactor: { value: 0 },
         uAbsorptionGlow: { value: 0 },
-        uCoupleMix: { value: 0 },
+        uHeartFade: { value: 1 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Dedicated High-Resolution Holographic Portrait (24k desktop / 14k mobile, NormalBlending) + Additive Rim (1.8k)
+    const isMobileTier =
+      typeof window !== 'undefined' &&
+      (window.innerWidth < 768 || (navigator.hardwareConcurrency ?? 8) <= 4);
+    const portraitCount = isMobileTier ? COUPLE_PORTRAIT_MOBILE : COUPLE_PORTRAIT_DESKTOP;
+    const rimCount = COUPLE_RIM_SPARKLES;
+    const fallbackPortrait = generateFallbackCouplePortrait(portraitCount, rimCount);
+
+    const makeBurstDirs = (count: number, seed: number) => {
+      const r = mulberry32(seed);
+      const dirs = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const theta = r() * Math.PI * 2;
+        const phi = Math.acos(2 * r() - 1);
+        const i3 = i * 3;
+        dirs[i3] = Math.sin(phi) * Math.cos(theta);
+        dirs[i3 + 1] = Math.cos(phi);
+        dirs[i3 + 2] = Math.sin(phi) * Math.sin(theta);
+      }
+      return dirs;
+    };
+
+    const portraitGeo = new THREE.BufferGeometry();
+    portraitGeo.setAttribute('position', new THREE.BufferAttribute(fallbackPortrait.portraitPositions, 3));
+    portraitGeo.setAttribute('aColor', new THREE.BufferAttribute(fallbackPortrait.portraitColors, 3));
+    portraitGeo.setAttribute('aScale', new THREE.BufferAttribute(fallbackPortrait.portraitSizes, 1));
+    portraitGeo.setAttribute('aRandom', new THREE.BufferAttribute(fallbackPortrait.portraitRandoms, 1));
+    portraitGeo.setAttribute('aPhase', new THREE.BufferAttribute(fallbackPortrait.portraitPhases, 1));
+    portraitGeo.setAttribute('aBurstDir', new THREE.BufferAttribute(makeBurstDirs(portraitCount, 901220), 3));
+
+    const portraitMat = new THREE.ShaderMaterial({
+      vertexShader: COUPLE_PORTRAIT_VERTEX_SHADER,
+      fragmentShader: COUPLE_PORTRAIT_FRAGMENT_SHADER,
+      uniforms: {
+        uReveal: { value: 0 },
+        uTime: { value: 0 },
+        uPulse: { value: 0 },
+        uBass: { value: 0 },
+        uDim: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        uPointBase: { value: isMobileTier ? 5.2 : 4.4 },
+        uReducedMotion: { value: 0 },
+        uSupernovaCharge: { value: 0 },
+        uSupernovaFreeze: { value: 0 },
+        uDetonateTime: { value: -1 },
+      },
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+    });
+
+    const rimGeo = new THREE.BufferGeometry();
+    rimGeo.setAttribute('position', new THREE.BufferAttribute(fallbackPortrait.rimPositions, 3));
+    rimGeo.setAttribute('aColor', new THREE.BufferAttribute(fallbackPortrait.rimColors, 3));
+    rimGeo.setAttribute('aScale', new THREE.BufferAttribute(fallbackPortrait.rimSizes, 1));
+    rimGeo.setAttribute('aRandom', new THREE.BufferAttribute(fallbackPortrait.rimRandoms, 1));
+    rimGeo.setAttribute('aPhase', new THREE.BufferAttribute(fallbackPortrait.rimPhases, 1));
+    rimGeo.setAttribute('aBurstDir', new THREE.BufferAttribute(makeBurstDirs(rimCount, 901221), 3));
+
+    const rimMat = new THREE.ShaderMaterial({
+      vertexShader: COUPLE_RIM_VERTEX_SHADER,
+      fragmentShader: HEART_FRAGMENT_SHADER,
+      uniforms: {
+        uReveal: { value: 0 },
+        uTime: { value: 0 },
+        uPulse: { value: 0 },
+        uBass: { value: 0 },
+        uDim: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        uReducedMotion: { value: 0 },
+        uSupernovaCharge: { value: 0 },
+        uSupernovaFreeze: { value: 0 },
+        uDetonateTime: { value: -1 },
       },
       transparent: true,
       depthWrite: false,
@@ -980,6 +1265,12 @@ export function ParticleHeart({
     return {
       heartGeo,
       heartMat,
+      portraitGeo,
+      portraitMat,
+      rimGeo,
+      rimMat,
+      portraitCount,
+      rimCount,
       raysGeo,
       raysMat,
       shockGeo,
@@ -1091,25 +1382,58 @@ export function ParticleHeart({
   useEffect(() => {
     const clamped = THREE.MathUtils.clamp(quality, 0.6, 1);
     resources.heartGeo.setDrawRange(0, Math.floor(HEART_PARTICLES * clamped));
+    resources.portraitGeo.setDrawRange(0, Math.floor(resources.portraitCount * clamped));
+    resources.rimGeo.setDrawRange(0, Math.floor(resources.rimCount * clamped));
     resources.finaleRainGeo.setDrawRange(0, Math.floor(FINALE_RAIN_COUNT * clamped));
   }, [quality, resources]);
 
-  // Preload & sample the post-Supernova 3D Couple Sculpture once on idle (never blocks detonation)
+  // Preload & sample the high-resolution holographic Couple Portrait once on idle (never blocks detonation)
   useEffect(() => {
     let cancelled = false;
     let idleId: number | null = null;
     let timerId: number | null = null;
 
     const runSampling = () => {
-      void sampleImageTo3DParticles(ANNIVERSARY_DATA.coupleFinaleImage, HEART_PARTICLES).then((sampled) => {
+      void sampleCouplePortrait3D(
+        ANNIVERSARY_DATA.coupleFinaleImage,
+        resources.portraitCount,
+        resources.rimCount
+      ).then((sampled) => {
         if (cancelled) return;
-        const posAttr = resources.heartGeo.getAttribute('aCouplePos') as THREE.BufferAttribute | undefined;
-        const colAttr = resources.heartGeo.getAttribute('aCoupleColor') as THREE.BufferAttribute | undefined;
-        if (posAttr && colAttr) {
-          (posAttr.array as Float32Array).set(sampled.positions);
-          (colAttr.array as Float32Array).set(sampled.colors);
-          posAttr.needsUpdate = true;
-          colAttr.needsUpdate = true;
+        const pPos = resources.portraitGeo.getAttribute('position') as THREE.BufferAttribute | undefined;
+        const pCol = resources.portraitGeo.getAttribute('aColor') as THREE.BufferAttribute | undefined;
+        const pSize = resources.portraitGeo.getAttribute('aScale') as THREE.BufferAttribute | undefined;
+        const pRand = resources.portraitGeo.getAttribute('aRandom') as THREE.BufferAttribute | undefined;
+        const pPhase = resources.portraitGeo.getAttribute('aPhase') as THREE.BufferAttribute | undefined;
+        if (pPos && pCol && pSize && pRand && pPhase) {
+          (pPos.array as Float32Array).set(sampled.portraitPositions);
+          (pCol.array as Float32Array).set(sampled.portraitColors);
+          (pSize.array as Float32Array).set(sampled.portraitSizes);
+          (pRand.array as Float32Array).set(sampled.portraitRandoms);
+          (pPhase.array as Float32Array).set(sampled.portraitPhases);
+          pPos.needsUpdate = true;
+          pCol.needsUpdate = true;
+          pSize.needsUpdate = true;
+          pRand.needsUpdate = true;
+          pPhase.needsUpdate = true;
+        }
+
+        const rPos = resources.rimGeo.getAttribute('position') as THREE.BufferAttribute | undefined;
+        const rCol = resources.rimGeo.getAttribute('aColor') as THREE.BufferAttribute | undefined;
+        const rSize = resources.rimGeo.getAttribute('aScale') as THREE.BufferAttribute | undefined;
+        const rRand = resources.rimGeo.getAttribute('aRandom') as THREE.BufferAttribute | undefined;
+        const rPhase = resources.rimGeo.getAttribute('aPhase') as THREE.BufferAttribute | undefined;
+        if (rPos && rCol && rSize && rRand && rPhase) {
+          (rPos.array as Float32Array).set(sampled.rimPositions);
+          (rCol.array as Float32Array).set(sampled.rimColors);
+          (rSize.array as Float32Array).set(sampled.rimSizes);
+          (rRand.array as Float32Array).set(sampled.rimRandoms);
+          (rPhase.array as Float32Array).set(sampled.rimPhases);
+          rPos.needsUpdate = true;
+          rCol.needsUpdate = true;
+          rSize.needsUpdate = true;
+          rRand.needsUpdate = true;
+          rPhase.needsUpdate = true;
         }
       });
     };
@@ -1144,6 +1468,10 @@ export function ParticleHeart({
       musicEngine.swellFromSupernova(0, 0.25);
       resources.heartGeo.dispose();
       resources.heartMat.dispose();
+      resources.portraitGeo.dispose();
+      resources.portraitMat.dispose();
+      resources.rimGeo.dispose();
+      resources.rimMat.dispose();
       resources.raysGeo.dispose();
       resources.raysMat.dispose();
       resources.shockGeo.dispose();
@@ -1425,6 +1753,26 @@ export function ParticleHeart({
     const appState = useAppStore.getState();
     const isCoupleForm = appState.centerpieceForm === 'couple';
 
+    // Seamless crossfade between the 5,000 Supernova heart embers and the 24k/14k HD Couple Portrait + 1.8k Additive Rim
+    const curPhase = snPhaseRef.current;
+    let heartFade = 1;
+    let coupleReveal = 0;
+
+    if (isCoupleForm) {
+      if (curPhase === 'detonated') {
+        heartFade = 1;
+        coupleReveal = 0;
+      } else if (curPhase === 'reforming') {
+        // Crossfade smoothly during the 2.2s swirl coalescence (after 0.35s hover)
+        heartFade = 1 - THREE.MathUtils.smoothstep(reformFactor, 0.08, 0.72);
+        coupleReveal = reformFactor;
+      } else {
+        // Idle, imploding, or freezing in couple mode: hide old heart, drive full HD Couple Portrait
+        heartFade = 0;
+        coupleReveal = active ? 1 : 0;
+      }
+    }
+
     // Update GPU shader uniforms
     const hm = resources.heartMat.uniforms;
     hm.uTime.value = elapsed;
@@ -1440,7 +1788,41 @@ export function ParticleHeart({
     hm.uDetonateTime.value = galaxySignals.supernovaDetonateTime;
     hm.uReformFactor.value = reformFactor;
     hm.uAbsorptionGlow.value = galaxySignals.heartAbsorptionGlow;
-    hm.uCoupleMix.value = isCoupleForm ? 1 : 0;
+    hm.uHeartFade.value = heartFade;
+
+    const pm = resources.portraitMat.uniforms;
+    pm.uReveal.value = coupleReveal;
+    pm.uTime.value = elapsed;
+    pm.uPulse.value = pulse;
+    pm.uBass.value = galaxySignals.bassEnergy;
+    pm.uDim.value = galaxySignals.galaxyDim;
+    pm.uPixelRatio.value = dpr;
+    pm.uReducedMotion.value = rm;
+    pm.uSupernovaCharge.value = galaxySignals.supernovaCharge;
+    pm.uSupernovaFreeze.value = galaxySignals.supernovaFreeze;
+    pm.uDetonateTime.value = galaxySignals.supernovaDetonateTime;
+
+    const rimU = resources.rimMat.uniforms;
+    rimU.uReveal.value = coupleReveal;
+    rimU.uTime.value = elapsed;
+    rimU.uPulse.value = pulse;
+    rimU.uBass.value = galaxySignals.bassEnergy;
+    rimU.uDim.value = galaxySignals.galaxyDim;
+    rimU.uPixelRatio.value = dpr;
+    rimU.uReducedMotion.value = rm;
+    rimU.uSupernovaCharge.value = galaxySignals.supernovaCharge;
+    rimU.uSupernovaFreeze.value = galaxySignals.supernovaFreeze;
+    rimU.uDetonateTime.value = galaxySignals.supernovaDetonateTime;
+
+    if (heartPointsRef.current) {
+      heartPointsRef.current.visible = heartFade > 0.004;
+    }
+    if (portraitPointsRef.current) {
+      portraitPointsRef.current.visible = coupleReveal > 0.002;
+    }
+    if (rimPointsRef.current) {
+      rimPointsRef.current.visible = coupleReveal > 0.002;
+    }
 
     const rmUniforms = resources.raysMat.uniforms;
     rmUniforms.uTime.value = elapsed;
@@ -1512,12 +1894,12 @@ export function ParticleHeart({
       const freezeStop = phase === 'freezing' ? 0 : 1;
 
       if (isCoupleForm) {
-        const swayTarget = reducedMotion ? 0 : Math.sin(elapsed * 0.4) * 0.25;
+        const swayTarget = reducedMotion ? 0 : Math.sin(elapsed * 0.35) * 0.14;
         if (freezeStop > 0) {
-          // Shortest-arc wrap into [-PI, PI] so the couple always materializes cleanly facing the viewer
+          // Shortest-arc wrap into [-PI, PI] so the portrait always materializes cleanly facing the viewer
           const rawY = heartGroupRef.current.rotation.y;
           const wrappedY = ((rawY + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-          const dampSpeed = phase === 'reforming' ? 3.2 : 4.8;
+          const dampSpeed = phase === 'reforming' ? 3.4 : 4.8;
           heartGroupRef.current.rotation.y = THREE.MathUtils.lerp(
             wrappedY,
             swayTarget,
@@ -1525,7 +1907,7 @@ export function ParticleHeart({
           );
         }
         heartGroupRef.current.position.y =
-          HEART_BASE_Y + (reducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.14 * idleWeight);
+          HEART_BASE_Y + (reducedMotion ? 0 : Math.sin(elapsed * 1.05) * 0.1 * idleWeight);
       } else if (!reducedMotion) {
         const spinSpeed = (0.32 + galaxySignals.supernovaCharge * 1.2) * idleWeight * freezeStop;
         heartGroupRef.current.rotation.y += dt * spinSpeed;
@@ -1538,9 +1920,30 @@ export function ParticleHeart({
     <>
       <group ref={heartGroupRef} position={[0, HEART_BASE_Y, 0]} scale={1} name="particle-heart">
         <points
+          ref={heartPointsRef}
           geometry={resources.heartGeo}
           material={resources.heartMat}
           frustumCulled={false}
+        />
+
+        {/* High-Resolution Holographic Portrait (NormalBlending + depthTest, 24k desktop / 14k mobile) */}
+        <points
+          ref={portraitPointsRef}
+          visible={false}
+          geometry={resources.portraitGeo}
+          material={resources.portraitMat}
+          frustumCulled={false}
+          name="couple-portrait-points"
+        />
+
+        {/* Separate AdditiveBlending Rim, Hair Highlights & Floating Mini-Heart Sparkles (~1.8k) */}
+        <points
+          ref={rimPointsRef}
+          visible={false}
+          geometry={resources.rimGeo}
+          material={resources.rimMat}
+          frustumCulled={false}
+          name="couple-rim-sparkles"
         />
 
         {/* Dual-mode 36 energy rays (converging inward during Beat 1 -> 360° star-streaks on Beat 2) */}
